@@ -1,0 +1,88 @@
+High-Fidelity Feature Implementation Plan
+
+
+1. Core Architectural Strategy (Updated)
+
+The architecture remains Firestore + Client JS, but the data models must become significantly more complex to support set-level logging and granular muscle tracking.
+Feature
+Data Source
+Calculation Location
+UI Location
+Exercise Library
+exercises (Static JSON or Collection)
+Client JS (Filtering)
+New "Exercise Search" View
+Active Workout
+Local State + workout_logs
+Client JS (Timer/State)
+New "Active Workout" View
+Muscle Recovery
+workout_logs + Logic
+Client JS (Time Decay)
+"Recovery" View (Body Map)
+
+2. Feature Breakdown & Data Models****A. Exercise Library & Discovery (Ref: IMG_6520)
+
+We need a database of exercises to populate the search and allow users to select what they are doing.
+
+Data Model (exercises):
+id: string (unique)
+name: string (e.g., "Ab Foam Roll")
+muscleGroup: string (e.g., "Abs", "Quads")
+equipment: string (e.g., "Bodyweight", "Dumbbell")
+thumbnailUrl: string (Path to icon/image)
+UI Requirements:
+Search Bar: Real-time filtering by name.
+Filter Pills: "Any Muscle", "Any Equipment" dropdowns.
+List View: Scrollable list with thumbnails, titles, and (i) info buttons.
+"Create Custom": A button to add user-defined exercises.
+B. Active Workout Logging (Ref: IMG_6521)
+
+This is the core "Write" action. It replaces the simple "Log Workout" button with a full-screen active session.
+
+Data Model (workout_logs - Detailed):
+timestamp: ServerTimestamp
+durationSeconds: number
+exercises: Array of Objects:
+exerciseId: string
+name: string
+sets: Array of Objects:
+reps: number
+weight: number (optional)
+completed: boolean
+UI Requirements:
+Header: "My Workout" title + Live Timer (MM:SS).
+Exercise Cards: Stacked cards for each exercise added.
+Set Rows: Inside each card, rows for sets (Previous Data | Reps | Checkmark).
+Floating Action: "Add Exercise" button at the bottom.
+Inline Action: "Add Set" button inside each exercise card.
+C. Visual Muscle Recovery (Ref: IMG_6519)
+
+This transforms the "Recovery Card" into a dedicated visual view.
+
+Logic (The "Recovery Engine"):
+Input: Fetch last 48-72 hours of workout_logs.
+Process: Extract all muscleGroup values from the logged exercises.
+Decay:
+0-24 hours: "Fatigued" (Red/Orange)
+24-48 hours: "Recovering" (Yellow)
+48+ hours: "Fully Recovered" (Green/Blue)
+UI Requirements:
+Body Silhouette: SVG or Canvas drawing of a human body (Front & Back).
+Highlighting: CSS classes to color code specific body parts on the SVG based on status.
+Status List: A list below the visual map showing text status (e.g., "Abs - Fully Recovered").
+D. Navigation Structure (Ref: Bottom Nav)
+
+We will update the app shell to support the 5-tab layout shown in the screenshots.
+Home: Dashboard (Streaks, Weekly Goal).
+Log/Workout: (Center Button - Triggers "Active Workout" or "Exercise Search").
+Recovery/Stats: (The Chart Icon - Shows the Body Map).
+Profile/Trophies: (User settings and gamification).
+3. Implementation Sequence
+Asset Prep: Get SVGs for Body Map (Front/Back) and Icons.
+Data Seeding: Create a static JS array of 10-20 common exercises to serve as the library.
+View Construction:
+Build the Exercise Search screen (Tailwind).
+Build the Active Workout screen (Tailwind + State management for sets).
+Build the Recovery screen (SVG integration).
+Logic Wiring: Connect the "Finish Workout" button to save the complex object to firebase
