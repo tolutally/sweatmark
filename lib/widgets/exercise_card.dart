@@ -23,11 +23,11 @@ class ExerciseCard extends StatelessWidget {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          children: <Widget>[
             // Header
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
+              children: <Widget>[
                 Text(exercise.name, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
                 IconButton(
                   icon: const Icon(PhosphorIconsRegular.dotsThree),
@@ -39,7 +39,7 @@ class ExerciseCard extends StatelessWidget {
 
             // Column Headers
             const Row(
-              children: [
+              children: <Widget>[
                 Expanded(flex: 1, child: Text('Set', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey))),
                 Expanded(flex: 2, child: Text('Previous', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey))),
                 Expanded(flex: 2, child: Text('kg', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey))),
@@ -55,7 +55,7 @@ class ExerciseCard extends StatelessWidget {
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4.0),
                 child: Row(
-                  children: [
+                  children: <Widget>[
                     Expanded(flex: 1, child: Text('${index + 1}', textAlign: TextAlign.center)),
                     const Expanded(flex: 2, child: Text('-', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey))), // Ghost text
                     Expanded(

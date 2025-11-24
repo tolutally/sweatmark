@@ -191,9 +191,9 @@ class ProfileScreen extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
-                children: [
+                children: <Widget>[
                   Row(
-                    children: [
+                    children: <Widget>[
                       Expanded(
                         child: _ActionButton(
                           icon: PhosphorIconsRegular.barbell,
@@ -215,7 +215,7 @@ class ProfileScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Row(
-                    children: [
+                    children: <Widget>[
                       Expanded(
                         child: _ActionButton(
                           icon: PhosphorIconsRegular.gear,
@@ -258,7 +258,7 @@ class ProfileScreen extends StatelessWidget {
                   const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
+                    children: <Widget>[
                       _AchievementSlot(),
                       _AchievementSlot(),
                       _AchievementSlot(),
@@ -275,7 +275,7 @@ class ProfileScreen extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
-                children: [
+                children: <Widget>[
                   const SizedBox(height: 8),
                   _InfoRow(
                     icon: PhosphorIconsRegular.mapPin,
@@ -306,7 +306,7 @@ class ProfileScreen extends StatelessWidget {
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                children: <Widget>[
                   const Text(
                     'Activity',
                     style: TextStyle(
@@ -318,7 +318,7 @@ class ProfileScreen extends StatelessWidget {
                   const SizedBox(height: 24),
                   Center(
                     child: Column(
-                      children: [
+                      children: <Widget>[
                         Text(
                           'No Posts',
                           style: TextStyle(
@@ -358,9 +358,9 @@ class ProfileScreen extends StatelessWidget {
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                children: <Widget>[
                   Row(
-                    children: [
+                    children: <Widget>[
                       Icon(
                         PhosphorIconsRegular.code,
                         size: 16,
@@ -380,7 +380,7 @@ class ProfileScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Row(
-                    children: [
+                    children: <Widget>[
                       Expanded(
                         child: _DevButton(
                           icon: PhosphorIconsRegular.database,
