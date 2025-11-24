@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "529973334654",
+    "project_id": "sweatmark-v1",
+    "storage_bucket": "sweatmark-v1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:529973334654:android:7a950675d97c6d25c93e2f",
+        "android_client_info": {
+          "package_name": "com.example.sweatmark"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDyKYicV_bo5gMFxh6n9l_FIJlJyQxzFDI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

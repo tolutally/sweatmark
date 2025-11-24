@@ -46,12 +46,14 @@ class WorkoutLog {
   final DateTime timestamp;
   final int durationSeconds;
   final List<WorkoutExerciseLog> exercises;
+  final bool isTestData;
 
   WorkoutLog({
     required this.id,
     required this.timestamp,
     required this.durationSeconds,
     required this.exercises,
+    this.isTestData = false,
   });
 
   Map<String, dynamic> toJson() => {
@@ -59,6 +61,7 @@ class WorkoutLog {
         'timestamp': timestamp.toIso8601String(),
         'durationSeconds': durationSeconds,
         'exercises': exercises.map((e) => e.toJson()).toList(),
+        'isTestData': isTestData,
       };
 
   factory WorkoutLog.fromJson(Map<String, dynamic> json) {
@@ -69,6 +72,7 @@ class WorkoutLog {
       exercises: (json['exercises'] as List)
           .map((e) => WorkoutExerciseLog.fromJson(e))
           .toList(),
+      isTestData: json['isTestData'] ?? false,
     );
   }
 }

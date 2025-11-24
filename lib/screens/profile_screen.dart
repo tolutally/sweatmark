@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:provider/provider.dart';
+import '../data/seed_data.dart';
+import '../services/firebase_service.dart';
+import '../state/auth_notifier.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -347,6 +351,136 @@ class ProfileScreen extends StatelessWidget {
               ),
             ),
           ),
+          
+          // Developer Section - Test Data
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        PhosphorIconsRegular.code,
+                        size: 16,
+                        color: Colors.white.withOpacity(0.3),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'DEVELOPER TOOLS',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white.withOpacity(0.3),
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _DevButton(
+                          icon: PhosphorIconsRegular.database,
+                          label: 'Load Test Data',
+                          color: const Color(0xFF2BD4BD),
+                          onTap: () async {
+                            final authNotifier = context.read<AuthNotifier>();
+                            final firebaseService = context.read<FirebaseService>();
+                            
+                            if (authNotifier.user == null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Please sign in first'),
+                                  backgroundColor: Colors.orange,
+                                ),
+                              );
+                              return;
+                            }
+                            
+                            try {
+                              await SeedData.seedWorkouts(
+                                authNotifier.user!.uid,
+                                firebaseService,
+                              );
+                              
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('✅ Test data loaded successfully'),
+                                    backgroundColor: Color(0xFF2BD4BD),
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Failed to load test data: $e'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _DevButton(
+                          icon: PhosphorIconsRegular.trash,
+                          label: 'Clear Test Data',
+                          color: Colors.red.withOpacity(0.2),
+                          onTap: () async {
+                            final authNotifier = context.read<AuthNotifier>();
+                            final firebaseService = context.read<FirebaseService>();
+                            
+                            if (authNotifier.user == null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Please sign in first'),
+                                  backgroundColor: Colors.orange,
+                                ),
+                              );
+                              return;
+                            }
+                            
+                            try {
+                              await SeedData.clearTestData(
+                                authNotifier.user!.uid,
+                                firebaseService,
+                              );
+                              
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('🗑️ Test data cleared successfully'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Failed to clear test data: $e'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 40),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -468,6 +602,53 @@ class _InfoRow extends StatelessWidget {
                     color: Color(0xFF3B82F6),
                   ),
                 ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DevButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _DevButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: color,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 18, color: Colors.white),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
         ),

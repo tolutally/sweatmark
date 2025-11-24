@@ -1,3 +1,4 @@
+import 'dart:async';
 import '../services/firebase_service.dart';
 import '../services/storage_service.dart';
 import '../models/workout_model.dart';
@@ -6,7 +7,54 @@ class SyncService {
   final FirebaseService _firebaseService;
   final StorageService _storageService;
 
-  SyncService(this._firebaseService, this._storageService);
+  // Retry state
+  Timer? _retryTimer;
+  final List<_PendingSync> _pendingSyncs = [];
+  static const int _maxRetries = 3;
+
+  SyncService(this._firebaseService, this._storageService) {
+    _startRetryTimer();
+  }
+
+  /// Start periodic retry timer (every 5 seconds)
+  void _startRetryTimer() {
+    _retryTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      _processPendingSyncs();
+    });
+  }
+
+  /// Process pending syncs with retry logic
+  Future<void> _processPendingSyncs() async {
+    if (_pendingSyncs.isEmpty) return;
+
+    final syncsToRetry = List<_PendingSync>.from(_pendingSyncs);
+    
+    for (final sync in syncsToRetry) {
+      try {
+        // Attempt to sync to Firestore
+        await _firebaseService.saveWorkout(sync.userId, sync.workout);
+        
+        // Success - remove from pending
+        _pendingSyncs.remove(sync);
+        print('Successfully synced workout ${sync.workout.id} on retry ${sync.retryCount}');
+      } catch (e) {
+        sync.retryCount++;
+        
+        if (sync.retryCount >= _maxRetries) {
+          // Max retries reached - silently give up, data is in local storage
+          _pendingSyncs.remove(sync);
+          print('Max retries reached for workout ${sync.workout.id}, keeping in local storage only');
+        }
+      }
+    }
+  }
+
+  /// Dispose resources
+  void dispose() {
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    _pendingSyncs.clear();
+  }
 
   /// Migrate local workouts to Firestore
   Future<void> migrateLocalWorkouts(String userId) async {
@@ -33,9 +81,11 @@ class SyncService {
 
   /// Sync workout to cloud (with offline fallback)
   Future<void> syncWorkout(String? userId, WorkoutLog workout) async {
+    // Always save locally first
+    await _storageService.saveWorkout(workout);
+    
     if (userId == null) {
-      // No user, save locally only
-      await _storageService.saveWorkout(workout);
+      // No user, local only
       return;
     }
 
@@ -44,9 +94,13 @@ class SyncService {
       await _firebaseService.saveWorkout(userId, workout);
       print('Workout synced to cloud');
     } catch (e) {
-      // Fallback to local storage if offline
-      print('Failed to sync to cloud, saving locally: $e');
-      await _storageService.saveWorkout(workout);
+      // Failed to sync - add to retry queue
+      print('Failed to sync to cloud, will retry: $e');
+      _pendingSyncs.add(_PendingSync(
+        userId: userId,
+        workout: workout,
+        retryCount: 0,
+      ));
     }
   }
 
@@ -88,4 +142,17 @@ class SyncService {
       return allWorkouts.where((w) => w.timestamp.isAfter(cutoffDate)).toList();
     }
   }
+}
+
+/// Internal class for tracking pending syncs
+class _PendingSync {
+  final String userId;
+  final WorkoutLog workout;
+  int retryCount;
+
+  _PendingSync({
+    required this.userId,
+    required this.workout,
+    required this.retryCount,
+  });
 }

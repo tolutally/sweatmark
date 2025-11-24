@@ -42,7 +42,7 @@ class SweatMarkApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthNotifier(firebaseService)),
-        ChangeNotifierProvider(create: (_) => WorkoutNotifier()),
+        ChangeNotifierProvider(create: (_) => WorkoutNotifier(syncService)),
         ChangeNotifierProvider(create: (_) => RecoveryNotifier()),
         Provider.value(value: firebaseService),
         Provider.value(value: storageService),
@@ -82,8 +82,69 @@ class SweatMarkApp extends StatelessWidget {
 }
 
 /// Wrapper to show auth screen or main app based on auth state
-class AuthWrapper extends StatelessWidget {
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  @override
+  void initState() {
+    super.initState();
+    _setupListeners();
+  }
+
+  void _setupListeners() {
+    final authNotifier = context.read<AuthNotifier>();
+    final firebaseService = context.read<FirebaseService>();
+    final workoutNotifier = context.read<WorkoutNotifier>();
+
+    // Listen to auth state and start/stop Firestore listeners
+    authNotifier.addListener(() {
+      if (authNotifier.isAuthenticated && authNotifier.user != null) {
+        // Start real-time listeners when authenticated
+        firebaseService.startWorkoutsListener(
+          authNotifier.user!.uid,
+          (workouts) {
+            // Update workout history in local storage when cloud changes
+            // This is silent and invisible to the user
+            print('Received ${workouts.length} workouts from Firestore');
+          },
+        );
+        
+        // Set up PR notification callback
+        workoutNotifier.onPersonalRecords = (newPRs) {
+          if (mounted) {
+            final message = newPRs.length == 1
+                ? '🎉 New PR: ${newPRs.first}!'
+                : '🎉 ${newPRs.length} New PRs: ${newPRs.join(", ")}!';
+            
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(message),
+                backgroundColor: const Color(0xFF2BD4BD),
+                duration: const Duration(seconds: 4),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        };
+      } else {
+        // Stop listeners when signed out
+        firebaseService.stopWorkoutsListener();
+        workoutNotifier.onPersonalRecords = null;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    final firebaseService = context.read<FirebaseService>();
+    firebaseService.stopWorkoutsListener();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

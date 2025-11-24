@@ -1,10 +1,15 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
 import '../models/workout_model.dart';
 
 class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  // Real-time listener
+  StreamSubscription<QuerySnapshot>? _workoutsSubscription;
+  Function(List<WorkoutLog>)? _onWorkoutsUpdate;
 
   // ============================================
   // AUTHENTICATION
@@ -277,5 +282,58 @@ class FirebaseService {
       print('Error batch uploading workouts: $e');
       rethrow;
     }
+  }
+
+  // ============================================
+  // REAL-TIME LISTENERS
+  // ============================================
+
+  /// Start listening to workouts collection for real-time updates
+  void startWorkoutsListener(String userId, Function(List<WorkoutLog>) onUpdate) {
+    _onWorkoutsUpdate = onUpdate;
+    
+    _workoutsSubscription = _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('workouts')
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .listen(
+          (snapshot) {
+            try {
+              final workouts = snapshot.docs
+                  .map((doc) => WorkoutLog.fromJson(doc.data()))
+                  .toList();
+              _onWorkoutsUpdate?.call(workouts);
+            } catch (e) {
+              print('Error parsing workouts in listener: $e');
+            }
+          },
+          onError: (error) {
+            print('Listener error: $error');
+            // Silent reconnection attempt
+            _silentReconnect(userId);
+          },
+          cancelOnError: false, // Keep listening even after errors
+        );
+  }
+
+  /// Stop listening to workouts collection
+  void stopWorkoutsListener() {
+    _workoutsSubscription?.cancel();
+    _workoutsSubscription = null;
+    _onWorkoutsUpdate = null;
+  }
+
+  /// Silent reconnection logic for Firestore listeners
+  void _silentReconnect(String userId) {
+    // Wait 5 seconds before attempting to reconnect
+    Future.delayed(const Duration(seconds: 5), () {
+      if (_onWorkoutsUpdate != null) {
+        // Only reconnect if listener was active
+        stopWorkoutsListener();
+        startWorkoutsListener(userId, _onWorkoutsUpdate!);
+      }
+    });
   }
 }
