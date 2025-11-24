@@ -33,7 +33,7 @@ class LibraryItem extends StatelessWidget {
         title: Text(exercise.name, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text('${exercise.muscleGroup} • ${exercise.equipment}'),
         trailing: IconButton(
-          icon: const Icon(PhosphorIcons.info),
+          icon: Icon(PhosphorIcons.info()),
           onPressed: onInfoTap,
         ),
         onTap: onTap,
@@ -43,20 +43,20 @@ class LibraryItem extends StatelessWidget {
 
   IconData _getIconData(String iconName) {
     switch (iconName) {
-      case 'ph-barbell': return PhosphorIcons.barbell;
-      case 'ph-person-arms-spread': return PhosphorIcons.personArmsSpread;
-      case 'ph-butterfly': return PhosphorIcons.butterfly;
-      case 'ph-arrow-fat-lines-up': return PhosphorIcons.arrowFatLinesUp;
-      case 'ph-arrows-down-up': return PhosphorIcons.arrowsDownUp;
-      case 'ph-person-simple-walk': return PhosphorIcons.personSimpleWalk;
-      case 'ph-arrows-out-line-vertical': return PhosphorIcons.arrowsOutLineVertical;
-      case 'ph-circle-notch': return PhosphorIcons.circleNotch;
-      case 'ph-arrow-fat-up': return PhosphorIcons.arrowFatUp;
-      case 'ph-chair': return PhosphorIcons.chair;
-      case 'ph-hand-fist': return PhosphorIcons.handFist;
-      case 'ph-minus': return PhosphorIcons.minus;
-      case 'ph-person-simple': return PhosphorIcons.personSimple;
-      default: return PhosphorIcons.barbell;
+      case 'ph-barbell': return PhosphorIcons.barbell();
+      case 'ph-person-arms-spread': return PhosphorIcons.personArmsSpread();
+      case 'ph-butterfly': return PhosphorIcons.butterfly();
+      case 'ph-arrow-fat-lines-up': return PhosphorIcons.arrowFatLinesUp();
+      case 'ph-arrows-down-up': return PhosphorIcons.arrowsDownUp();
+      case 'ph-person-simple-walk': return PhosphorIcons.personSimpleWalk();
+      case 'ph-arrows-out-line-vertical': return PhosphorIcons.arrowsOutLineVertical();
+      case 'ph-circle-notch': return PhosphorIcons.circleNotch();
+      case 'ph-arrow-fat-up': return PhosphorIcons.arrowFatUp();
+      case 'ph-chair': return PhosphorIcons.chair();
+      case 'ph-hand-fist': return PhosphorIcons.handFist();
+      case 'ph-minus': return PhosphorIcons.minus();
+      case 'ph-person-simple': return PhosphorIcons.personSimple();
+      default: return PhosphorIcons.barbell();
     }
   }
 }

@@ -46,7 +46,7 @@ class _AppShellState extends State<AppShell> {
             label: 'Workout',
           ),
           NavigationDestination(
-            icon: Icon(PhosphorIconsRegular.activity),
+            icon: Icon(PhosphorIconsRegular.heartbeat),
             label: 'Recovery',
           ),
           NavigationDestination(
