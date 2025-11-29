@@ -22,7 +22,7 @@ class SeedData {
     final testWorkouts = allWorkouts.where((w) => w.isTestData).toList();
 
     for (final workout in testWorkouts) {
-      await firebaseService.deleteWorkout(userId, workout.id);
+      await firebaseService.deleteWorkout(userId, workout);
     }
   }
 
@@ -31,7 +31,7 @@ class SeedData {
     final timestamp = DateTime.now().subtract(const Duration(days: 3));
     
     return WorkoutLog(
-      id: timestamp.toIso8601String(),
+      workoutName: 'Push Day',
       timestamp: timestamp,
       durationSeconds: 3600, // 1 hour
       isTestData: true,
@@ -73,7 +73,7 @@ class SeedData {
     final timestamp = DateTime.now().subtract(const Duration(days: 2));
     
     return WorkoutLog(
-      id: timestamp.toIso8601String(),
+      workoutName: 'Leg Day',
       timestamp: timestamp,
       durationSeconds: 4200, // 70 minutes
       isTestData: true,
@@ -115,7 +115,7 @@ class SeedData {
     final timestamp = DateTime.now().subtract(const Duration(days: 1));
     
     return WorkoutLog(
-      id: timestamp.toIso8601String(),
+      workoutName: 'Pull Day',
       timestamp: timestamp,
       durationSeconds: 3300, // 55 minutes
       isTestData: true,

@@ -219,8 +219,11 @@ class FirebaseService {
   }
 
   /// Delete workout
-  Future<void> deleteWorkout(String userId, String workoutId) async {
+  Future<void> deleteWorkout(String userId, WorkoutLog workout) async {
     try {
+      // Use timestamp as document ID since that's how workouts are stored
+      final workoutId = workout.timestamp.millisecondsSinceEpoch.toString();
+      
       await _firestore
           .collection('users')
           .doc(userId)

@@ -6,6 +6,7 @@ import 'firebase_options.dart';
 import 'state/workout_notifier.dart';
 import 'state/recovery_notifier.dart';
 import 'state/auth_notifier.dart';
+import 'state/settings_notifier.dart';
 import 'services/firebase_service.dart';
 import 'services/storage_service.dart';
 import 'services/sync_service.dart';
@@ -44,6 +45,7 @@ class SweatMarkApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthNotifier(firebaseService)),
         ChangeNotifierProvider(create: (_) => WorkoutNotifier(syncService)),
         ChangeNotifierProvider(create: (_) => RecoveryNotifier()),
+        ChangeNotifierProvider(create: (_) => SettingsNotifier()),
         Provider.value(value: firebaseService),
         Provider.value(value: storageService),
         Provider.value(value: syncService),
@@ -52,26 +54,26 @@ class SweatMarkApp extends StatelessWidget {
         title: 'SweatMark',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          brightness: Brightness.dark,
-          scaffoldBackgroundColor: const Color(0xFF000000),
+          brightness: Brightness.light,
+          scaffoldBackgroundColor: const Color(0xFFF5F5F5),
           primaryColor: const Color(0xFF2BD4BD),
-          colorScheme: const ColorScheme.dark(
+          colorScheme: const ColorScheme.light(
             primary: Color(0xFF2BD4BD),
             secondary: Color(0xFF3B82F6),
-            surface: Color(0xFF1C1C1E),
+            surface: Colors.white,
             error: Color(0xFFEF4444),
-            onPrimary: Colors.black,
+            onPrimary: Colors.white,
             onSecondary: Colors.white,
-            onSurface: Colors.white,
+            onSurface: Colors.black,
           ),
-          textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme).apply(
-            bodyColor: Colors.white,
-            displayColor: Colors.white,
+          textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme).apply(
+            bodyColor: Colors.black,
+            displayColor: Colors.black,
           ),
           cardTheme: CardThemeData(
-            color: const Color(0xFF1C1C1E),
+            color: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            elevation: 0,
+            elevation: 2,
           ),
           useMaterial3: true,
         ),

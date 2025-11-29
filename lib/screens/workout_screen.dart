@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../state/workout_notifier.dart';
+import '../models/workout_model.dart';
+import '../data/exercise_data.dart';
 import 'active_workout_screen.dart';
 
 class WorkoutScreen extends StatelessWidget {
@@ -13,13 +15,13 @@ class WorkoutScreen extends StatelessWidget {
     
     // Calculate stats from workout history
     final history = workoutNotifier.workoutHistory;
-    int totalCalories = 0;
+    int totalTime = 0;
     double totalWeight = 0;
     int streak = 0;
 
     for (var workout in history) {
-      // Calculate calories (placeholder calculation)
-      totalCalories += 63;
+      // Calculate total time in minutes
+      totalTime += (workout.durationSeconds / 60).round();
       
       // Calculate total weight
       for (var exercise in workout.exercises) {
@@ -55,8 +57,8 @@ class WorkoutScreen extends StatelessWidget {
                   child: Container(
                     width: 48,
                     height: 48,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFF6B6B),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFFF6B6B),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -91,45 +93,25 @@ class WorkoutScreen extends StatelessWidget {
                         const SizedBox(width: 12),
                         Expanded(
                           child: _StatCard(
-                            label: 'Most Trained',
-                            value: history.isEmpty ? 'None' : 'Chest',
-                            icon: PhosphorIconsBold.heartbeat,
-                            iconColor: const Color(0xFF34C759),
-                            iconBgColor: const Color(0xFFD4F5E0),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _StatCard(
-                            label: 'Calories',
-                            value: '$totalCalories cal',
-                            icon: PhosphorIconsBold.flame,
+                            label: 'Total Time',
+                            value: '$totalTime min',
+                            icon: PhosphorIconsBold.clock,
                             iconColor: const Color(0xFFFFB84D),
                             iconBgColor: const Color(0xFFFFF3E0),
-                            showProgress: true,
-                            progressValue: totalCalories / 100,
-                            hasWarning: true,
-                            warningText: 'Tap to improve accuracy...',
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _StatCard(
-                            label: 'Total Weight',
-                            value: '${(totalWeight ~/ 2.205).toStringAsFixed(0)} lb',
-                            icon: PhosphorIconsBold.barbell,
-                            iconColor: const Color(0xFF007AFF),
-                            iconBgColor: const Color(0xFFE0F2FF),
                           ),
                         ),
                       ],
                     ),
                   ],
                 ),
+              ),
+            ),
+
+            // Muscle Breakdown Section
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+              sliver: SliverToBoxAdapter(
+                child: _MuscleBreakdownSection(workoutHistory: history),
               ),
             ),
 
@@ -168,10 +150,10 @@ class WorkoutScreen extends StatelessWidget {
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               sliver: history.isEmpty
-                  ? SliverToBoxAdapter(
+                  ? const SliverToBoxAdapter(
                       child: Center(
                         child: Padding(
-                          padding: const EdgeInsets.all(48),
+                          padding: EdgeInsets.all(48),
                           child: Column(
                             children: [
                               Icon(
@@ -179,16 +161,16 @@ class WorkoutScreen extends StatelessWidget {
                                 size: 64,
                                 color: Colors.black26,
                               ),
-                              const SizedBox(height: 16),
-                              const Text(
+                              SizedBox(height: 16),
+                              Text(
                                 'No workouts yet',
                                 style: TextStyle(
                                   fontSize: 18,
                                   color: Colors.black38,
                                 ),
                               ),
-                              const SizedBox(height: 8),
-                              const Text(
+                              SizedBox(height: 8),
+                              Text(
                                 'Tap + to start your first workout',
                                 style: TextStyle(
                                   fontSize: 14,
@@ -240,8 +222,6 @@ class _StatCard extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
   final Color iconBgColor;
-  final bool showProgress;
-  final double progressValue;
   final bool hasWarning;
   final String warningText;
 
@@ -251,8 +231,6 @@ class _StatCard extends StatelessWidget {
     required this.icon,
     required this.iconColor,
     required this.iconBgColor,
-    this.showProgress = false,
-    this.progressValue = 0.0,
     this.hasWarning = false,
     this.warningText = '',
   });
@@ -320,18 +298,6 @@ class _StatCard extends StatelessWidget {
               ],
             ),
           ],
-          if (showProgress) ...[
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: progressValue.clamp(0.0, 1.0),
-                backgroundColor: const Color(0xFFF5F5F5),
-                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFFFB84D)),
-                minHeight: 6,
-              ),
-            ),
-          ],
           const SizedBox(height: 12),
           Row(
             children: [
@@ -349,8 +315,8 @@ class _StatCard extends StatelessWidget {
           ),
           if (hasWarning && warningText == 'Below Average') ...[
             const SizedBox(height: 4),
-            Row(
-              children: const [
+            const Row(
+              children: [
                 Icon(
                   PhosphorIconsRegular.globe,
                   size: 12,
@@ -374,7 +340,7 @@ class _StatCard extends StatelessWidget {
 }
 
 class _WorkoutHistoryCard extends StatelessWidget {
-  final dynamic workout;
+  final WorkoutLog workout;
 
   const _WorkoutHistoryCard({required this.workout});
 
@@ -398,7 +364,7 @@ class _WorkoutHistoryCard extends StatelessWidget {
         ],
       ),
       child: Column(
-        children: exercises.map((exercise) {
+        children: exercises.map<Widget>((exercise) {
           // Get exercise details from the log
           final set = exercise.sets.isNotEmpty ? exercise.sets.first : null;
           final reps = set?.reps ?? 10;
@@ -436,15 +402,15 @@ class _WorkoutHistoryCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Row(
+                      const Row(
                         children: [
-                          const Icon(
+                          Icon(
                             PhosphorIconsRegular.globe,
                             size: 12,
                             color: Color(0xFFFF6B6B),
                           ),
-                          const SizedBox(width: 4),
-                          const Text(
+                          SizedBox(width: 4),
+                          Text(
                             'Top 12%',
                             style: TextStyle(
                               fontSize: 12,
@@ -469,6 +435,220 @@ class _WorkoutHistoryCard extends StatelessWidget {
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+}
+
+class _MuscleBreakdownSection extends StatelessWidget {
+  final List<WorkoutLog> workoutHistory;
+
+  const _MuscleBreakdownSection({required this.workoutHistory});
+
+  Map<String, int> _getWeeklyMuscleFrequency() {
+    final weekAgo = DateTime.now().subtract(const Duration(days: 7));
+    final weeklyWorkouts = workoutHistory.where((w) => w.timestamp.isAfter(weekAgo)).toList();
+    
+    final muscleCount = <String, int>{};
+    
+    for (final workout in weeklyWorkouts) {
+      for (final exercise in workout.exercises) {
+        final exerciseData = EXERCISE_LIBRARY.firstWhere(
+          (e) => e['id'] == exercise.exerciseId,
+          orElse: () => {},
+        );
+        if (exerciseData.isNotEmpty) {
+          final muscleGroup = exerciseData['muscleGroup'] as String;
+          muscleCount[muscleGroup] = (muscleCount[muscleGroup] ?? 0) + 1;
+        }
+      }
+    }
+    
+    return muscleCount;
+  }
+
+  IconData _getMuscleIcon(String muscleGroup) {
+    switch (muscleGroup.toLowerCase()) {
+      case 'chest':
+        return PhosphorIconsBold.heart;
+      case 'back':
+      case 'lats':
+      case 'lower back':
+        return PhosphorIconsBold.arrowBendUpLeft;
+      case 'shoulders':
+        return PhosphorIconsBold.mountains;
+      case 'arms':
+      case 'biceps':
+      case 'triceps':
+      case 'forearms':
+        return PhosphorIconsBold.hand;
+      case 'legs':
+      case 'quads':
+      case 'hamstrings':
+      case 'calves':
+        return PhosphorIconsBold.footprints;
+      case 'abs':
+      case 'core':
+        return PhosphorIconsBold.diamond;
+      default:
+        return PhosphorIconsBold.barbell;
+    }
+  }
+
+  Color _getMuscleColor(String muscleGroup) {
+    switch (muscleGroup.toLowerCase()) {
+      case 'chest':
+        return const Color(0xFFFF6B6B);
+      case 'back':
+      case 'lats':
+      case 'lower back':
+        return const Color(0xFF007AFF);
+      case 'shoulders':
+        return const Color(0xFFFFB84D);
+      case 'arms':
+      case 'biceps':
+      case 'triceps':
+      case 'forearms':
+        return const Color(0xFF34C759);
+      case 'legs':
+      case 'quads':
+      case 'hamstrings':
+      case 'calves':
+        return const Color(0xFF9F44D3);
+      case 'abs':
+      case 'core':
+        return const Color(0xFF2BD4BD);
+      default:
+        return const Color(0xFF8E8E93);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final muscleFrequency = _getWeeklyMuscleFrequency();
+    
+    if (muscleFrequency.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Column(
+          children: [
+            Text(
+              'Weekly Muscle Breakdown',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'None',
+              style: TextStyle(
+                fontSize: 15,
+                color: Colors.black54,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final sortedMuscles = muscleFrequency.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    
+    final maxCount = sortedMuscles.first.value;
+    final totalCount = muscleFrequency.values.reduce((a, b) => a + b);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Weekly Muscle Breakdown',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ...sortedMuscles.map((entry) {
+            final muscleGroup = entry.key;
+            final count = entry.value;
+            final percentage = ((count / totalCount) * 100).round();
+            final barWidth = count / maxCount;
+            final color = _getMuscleColor(muscleGroup);
+            
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      _getMuscleIcon(muscleGroup),
+                      color: color,
+                      size: 16,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              muscleGroup,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black,
+                              ),
+                            ),
+                            Text(
+                              '$percentage%',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: color,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0F0F0),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: FractionallySizedBox(
+                            alignment: Alignment.centerLeft,
+                            widthFactor: barWidth,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: color,
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ],
       ),
     );
   }

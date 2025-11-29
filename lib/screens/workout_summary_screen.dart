@@ -15,6 +15,7 @@ class WorkoutSummaryScreen extends StatefulWidget {
 
 class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
   final TextEditingController _notesController = TextEditingController();
+  bool _showEnergyBanner = true;
 
   @override
   void dispose() {
@@ -29,6 +30,38 @@ class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
       return '${minutes}m ${secs}s';
     }
     return '${secs}s';
+  }
+
+  void _showRenameDialog(BuildContext context, WorkoutNotifier notifier) {
+    final controller = TextEditingController(text: notifier.workoutName);
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Rename Workout'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Workout name'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              if (controller.text.trim().isNotEmpty) {
+                notifier.updateWorkoutName(controller.text.trim());
+              }
+              Navigator.pop(dialogContext);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    ).then((_) {
+      controller.dispose();
+    });
   }
 
   @override
@@ -95,7 +128,17 @@ class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
                           color: Colors.black,
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 4),
+                      TextButton.icon(
+                        onPressed: () => _showRenameDialog(context, notifier),
+                        icon: const Icon(PhosphorIconsRegular.pencilSimple, size: 16),
+                        label: const Text('Edit name'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.black54,
+                          textStyle: const TextStyle(fontSize: 14),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -131,35 +174,40 @@ class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
                     child: Column(
                       children: [
                         // Energy Banner
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(PhosphorIconsBold.fire, color: Color(0xFFFF6B6B), size: 24),
-                              const SizedBox(width: 12),
-                              const Expanded(
-                                child: Text(
-                                  'Energy',
-                                  style: TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFFFF6B6B),
+                        if (_showEnergyBanner)
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(PhosphorIconsBold.fire, color: Color(0xFFFF6B6B), size: 24),
+                                const SizedBox(width: 12),
+                                const Expanded(
+                                  child: Text(
+                                    'Energy',
+                                    style: TextStyle(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFFFF6B6B),
+                                    ),
                                   ),
                                 ),
-                              ),
-                              IconButton(
-                                icon: const Icon(PhosphorIconsRegular.x, size: 20),
-                                onPressed: () {},
-                              ),
-                            ],
+                                IconButton(
+                                  icon: const Icon(PhosphorIconsRegular.x, size: 20),
+                                  onPressed: () {
+                                    setState(() {
+                                      _showEnergyBanner = false;
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
 
-                        const SizedBox(height: 16),
+                        if (_showEnergyBanner) const SizedBox(height: 16),
 
                         // Body Info Card
                         Container(
@@ -200,7 +248,7 @@ class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
                               ),
                             ),
                             const SizedBox(width: 16),
-                            Expanded(
+                            const Expanded(
                               child: _StatCard(
                                 label: 'Streak',
                                 value: '0 days',

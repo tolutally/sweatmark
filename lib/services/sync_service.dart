@@ -142,6 +142,20 @@ class SyncService {
       return allWorkouts.where((w) => w.timestamp.isAfter(cutoffDate)).toList();
     }
   }
+
+  /// Delete a workout from both local and cloud storage
+  Future<void> deleteWorkout(WorkoutLog workout) async {
+    final user = _firebaseService.currentUser;
+    
+    if (user != null) {
+      try {
+        await _firebaseService.deleteWorkout(user.uid, workout);
+      } catch (e) {
+        print('Failed to delete from cloud: $e');
+        // Continue with local deletion even if cloud fails
+      }
+    }
+  }
 }
 
 /// Internal class for tracking pending syncs

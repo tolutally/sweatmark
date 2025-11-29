@@ -1,12 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:table_calendar/table_calendar.dart';
 import '../state/workout_notifier.dart';
 import '../state/recovery_notifier.dart';
 import 'active_workout_screen.dart';
+import 'library_screen.dart';
+import 'workout_history_screen.dart';
+import 'notifications_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  DateTime _focusedDay = DateTime.now();
+  DateTime _selectedDay = DateTime.now();
+  CalendarFormat _calendarFormat = CalendarFormat.week;
 
   @override
   Widget build(BuildContext context) {
@@ -46,9 +59,33 @@ class HomeScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  IconButton(
-                    icon: const Icon(PhosphorIconsRegular.bell),
-                    onPressed: () {},
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      IconButton(
+                        icon: const Icon(PhosphorIconsRegular.bell),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const NotificationsScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      Positioned(
+                        right: 8,
+                        top: 8,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFFF6B6B),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -56,7 +93,7 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: 24),
 
               // Streak Cards
-              Row(
+              const Row(
                 children: [
                   Expanded(
                     child: _StreakCard(
@@ -65,7 +102,7 @@ class HomeScreen extends StatelessWidget {
                       icon: PhosphorIconsBold.fire,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: _StreakCard(
                       count: '1',
@@ -80,82 +117,205 @@ class HomeScreen extends StatelessWidget {
 
               // Calendar Week View
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(vertical: 8),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: List.generate(7, (index) {
-                    final day = 23 + index;
-                    final dayName = ['M', 'T', 'W', 'T', 'F', 'S', 'S'][index];
-                    final isToday = day == 24;
-                    
-                    return Column(
-                      children: [
-                        Text(
-                          dayName,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: isToday ? const Color(0xFF2BD4BD) : Colors.black38,
-                            fontWeight: isToday ? FontWeight.w600 : FontWeight.normal,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: isToday ? const Color(0xFF2BD4BD) : Colors.transparent,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: Text(
-                              '$day',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: isToday ? Colors.white : Colors.black,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  }),
+                child: TableCalendar(
+                  firstDay: DateTime.utc(2020, 1, 1),
+                  lastDay: DateTime.utc(2030, 12, 31),
+                  focusedDay: _focusedDay,
+                  selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+                  calendarFormat: _calendarFormat,
+                  onDaySelected: (selectedDay, focusedDay) {
+                    setState(() {
+                      _selectedDay = selectedDay;
+                      _focusedDay = focusedDay;
+                    });
+                  },
+                  onFormatChanged: (format) {
+                    setState(() {
+                      _calendarFormat = format;
+                    });
+                  },
+                  onPageChanged: (focusedDay) {
+                    _focusedDay = focusedDay;
+                  },
+                  headerStyle: HeaderStyle(
+                    formatButtonVisible: true,
+                    titleCentered: false,
+                    formatButtonShowsNext: false,
+                    formatButtonDecoration: BoxDecoration(
+                      color: const Color(0xFFF5F5F5),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    formatButtonTextStyle: const TextStyle(
+                      color: Colors.black87,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    leftChevronIcon: const Icon(
+                      PhosphorIconsRegular.caretLeft,
+                      color: Colors.black87,
+                      size: 20,
+                    ),
+                    rightChevronIcon: const Icon(
+                      PhosphorIconsRegular.caretRight,
+                      color: Colors.black87,
+                      size: 20,
+                    ),
+                  ),
+                  calendarStyle: CalendarStyle(
+                    selectedDecoration: const BoxDecoration(
+                      color: Color(0xFF2BD4BD),
+                      shape: BoxShape.circle,
+                    ),
+                    todayDecoration: BoxDecoration(
+                      color: const Color(0xFF2BD4BD).withOpacity(0.3),
+                      shape: BoxShape.circle,
+                    ),
+                    selectedTextStyle: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    todayTextStyle: const TextStyle(
+                      color: Color(0xFF2BD4BD),
+                      fontWeight: FontWeight.bold,
+                    ),
+                    weekendTextStyle: const TextStyle(color: Colors.black),
+                    outsideDaysVisible: false,
+                  ),
+                  daysOfWeekStyle: const DaysOfWeekStyle(
+                    weekdayStyle: TextStyle(
+                      color: Colors.black38,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    weekendStyle: TextStyle(
+                      color: Colors.black38,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ),
 
               const SizedBox(height: 24),
 
               // Search Bar
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(PhosphorIconsRegular.magnifyingGlass, color: Colors.black38),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        decoration: const InputDecoration(
-                          hintText: 'Search exercises, workouts...',
-                          hintStyle: TextStyle(color: Colors.black38),
-                          border: InputBorder.none,
-                          isDense: true,
-                        ),
-                        style: const TextStyle(color: Colors.black),
-                      ),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const LibraryScreen(isPicker: false),
                     ),
-                  ],
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(PhosphorIconsRegular.magnifyingGlass, color: Colors.black38),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Search exercises, workouts...',
+                          style: TextStyle(color: Colors.black38, fontSize: 15),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
 
               const SizedBox(height: 24),
+
+              // Resume Draft Workout Banner (if exists)
+              FutureBuilder<bool>(
+                future: workoutNotifier.hasDraftWorkout(),
+                builder: (context, snapshot) {
+                  if (snapshot.data == true) {
+                    return Column(
+                      children: [
+                        GestureDetector(
+                          onTap: () async {
+                            await workoutNotifier.loadDraftWorkout();
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const ActiveWorkoutScreen()),
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF8E1),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: const Color(0xFFFFB800).withOpacity(0.3),
+                                width: 2,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFB800).withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(
+                                    PhosphorIconsBold.clockCounterClockwise,
+                                    color: Color(0xFFFFB800),
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                const Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Resume Workout',
+                                        style: TextStyle(
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        'Continue your saved workout',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.black54,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(
+                                  PhosphorIconsRegular.caretRight,
+                                  color: Color(0xFFFFB800),
+                                  size: 24,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
+              ),
 
               // Start Workout Card
               GestureDetector(
@@ -288,15 +448,15 @@ class HomeScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    const Row(
                       children: [
-                        const Icon(
+                        Icon(
                           PhosphorIconsBold.heartbeat,
                           color: Color(0xFFFF6B6B),
                           size: 24,
                         ),
-                        const SizedBox(width: 8),
-                        const Text(
+                        SizedBox(width: 8),
+                        Text(
                           'Recovery Status',
                           style: TextStyle(
                             fontSize: 18,
@@ -335,8 +495,18 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ),
                   TextButton(
-                    onPressed: () {},
-                    child: const Text('See All'),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const WorkoutHistoryScreen(),
+                        ),
+                      );
+                    },
+                    child: const Text(
+                      'See All',
+                      style: TextStyle(color: Color(0xFF2BD4BD)),
+                    ),
                   ),
                 ],
               ),
@@ -345,9 +515,9 @@ class HomeScreen extends StatelessWidget {
 
               // Collection Items
               if (workoutNotifier.workoutHistory.isEmpty)
-                Center(
+                const Center(
                   child: Padding(
-                    padding: const EdgeInsets.all(32),
+                    padding: EdgeInsets.all(32),
                     child: Column(
                       children: [
                         Icon(
@@ -355,8 +525,8 @@ class HomeScreen extends StatelessWidget {
                           size: 64,
                           color: Colors.black26,
                         ),
-                        const SizedBox(height: 16),
-                        const Text(
+                        SizedBox(height: 16),
+                        Text(
                           'No saved workouts',
                           style: TextStyle(
                             fontSize: 16,

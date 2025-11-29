@@ -4,6 +4,10 @@ import 'package:provider/provider.dart';
 import '../data/seed_data.dart';
 import '../services/firebase_service.dart';
 import '../state/auth_notifier.dart';
+import '../state/settings_notifier.dart';
+import 'workout_history_screen.dart';
+import 'recovery_screen.dart';
+import 'pr_history_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -199,7 +203,14 @@ class ProfileScreen extends StatelessWidget {
                           icon: PhosphorIconsRegular.barbell,
                           label: 'My Workouts',
                           color: const Color(0xFF2BD4BD),
-                          onTap: () {},
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const WorkoutHistoryScreen(),
+                              ),
+                            );
+                          },
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -208,7 +219,14 @@ class ProfileScreen extends StatelessWidget {
                           icon: PhosphorIconsRegular.heartbeat,
                           label: 'Recovery',
                           color: const Color(0xFF3B82F6),
-                          onTap: () {},
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const RecoveryScreen(),
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ],
@@ -221,7 +239,9 @@ class ProfileScreen extends StatelessWidget {
                           icon: PhosphorIconsRegular.gear,
                           label: 'Settings',
                           color: Colors.white.withOpacity(0.1),
-                          onTap: () {},
+                          onTap: () {
+                            _showSettingsDialog(context);
+                          },
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -230,7 +250,9 @@ class ProfileScreen extends StatelessWidget {
                           icon: PhosphorIconsRegular.dotsThree,
                           label: 'More',
                           color: Colors.white.withOpacity(0.1),
-                          onTap: () {},
+                          onTap: () {
+                            _showMoreOptions(context);
+                          },
                         ),
                       ),
                     ],
@@ -265,6 +287,32 @@ class ProfileScreen extends StatelessWidget {
                       _AchievementSlot(),
                     ],
                   ),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const PRHistoryScreen(),
+                          ),
+                        );
+                      },
+                      icon: const Icon(
+                        PhosphorIconsBold.trophy,
+                        size: 16,
+                        color: Color(0xFFFFB800),
+                      ),
+                      label: Text(
+                        'View Personal Records',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withOpacity(0.8),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -281,19 +329,25 @@ class ProfileScreen extends StatelessWidget {
                     icon: PhosphorIconsRegular.mapPin,
                     text: 'Canada',
                     trailing: 'Edit Location',
-                    onTap: () {},
+                    onTap: () {
+                      _showEditLocationDialog(context);
+                    },
                   ),
                   const SizedBox(height: 8),
                   _InfoRow(
                     icon: PhosphorIconsRegular.user,
                     text: 'Add Bio...',
-                    onTap: () {},
+                    onTap: () {
+                      _showEditBioDialog(context);
+                    },
                   ),
                   const SizedBox(height: 8),
                   _InfoRow(
                     icon: PhosphorIconsRegular.instagramLogo,
                     text: 'Add Instagram',
-                    onTap: () {},
+                    onTap: () {
+                      _showEditInstagramDialog(context);
+                    },
                   ),
                 ],
               ),
@@ -654,5 +708,311 @@ class _DevButton extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+void _showSettingsDialog(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: const Color(0xFF1C1C1E),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (context) => Container(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Settings',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 20),
+          ListTile(
+            leading: const Icon(PhosphorIconsBold.timer, color: Colors.white),
+            title: const Text('Rest Timer', style: TextStyle(color: Colors.white)),
+            trailing: const Icon(PhosphorIconsRegular.caretRight, color: Colors.white54),
+            onTap: () {
+              Navigator.pop(context);
+              _showRestTimerSettings(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(PhosphorIconsBold.bell, color: Colors.white),
+            title: const Text('Notifications', style: TextStyle(color: Colors.white)),
+            trailing: Switch(
+              value: true,
+              onChanged: (value) {},
+              activeThumbColor: const Color(0xFF2BD4BD),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(PhosphorIconsBold.lock, color: Colors.white),
+            title: const Text('Privacy', style: TextStyle(color: Colors.white)),
+            trailing: const Icon(PhosphorIconsRegular.caretRight, color: Colors.white54),
+            onTap: () {},
+          ),
+          ListTile(
+            leading: const Icon(PhosphorIconsBold.signOut, color: Colors.red),
+            title: const Text('Sign Out', style: TextStyle(color: Colors.red)),
+            onTap: () {
+              context.read<AuthNotifier>().signOut();
+              Navigator.pop(context);
+            },
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+void _showMoreOptions(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: const Color(0xFF1C1C1E),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (context) => Container(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'More Options',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 20),
+          ListTile(
+            leading: const Icon(PhosphorIconsBold.shareNetwork, color: Colors.white),
+            title: const Text('Share App', style: TextStyle(color: Colors.white)),
+            onTap: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Share functionality coming soon')),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(PhosphorIconsBold.question, color: Colors.white),
+            title: const Text('Help & Support', style: TextStyle(color: Colors.white)),
+            onTap: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Support coming soon')),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(PhosphorIconsBold.info, color: Colors.white),
+            title: const Text('About', style: TextStyle(color: Colors.white)),
+            onTap: () {
+              Navigator.pop(context);
+              showAboutDialog(
+                context: context,
+                applicationName: 'SweatMark',
+                applicationVersion: '1.0.0',
+                applicationLegalese: '\u00a9 2025 SweatMark',
+              );
+            },
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+void _showEditLocationDialog(BuildContext context) {
+  final controller = TextEditingController(text: 'Canada');
+  showDialog(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      backgroundColor: const Color(0xFF1C1C1E),
+      title: const Text('Edit Location', style: TextStyle(color: Colors.white)),
+      content: TextField(
+        controller: controller,
+        style: const TextStyle(color: Colors.white),
+        decoration: const InputDecoration(
+          hintText: 'Enter your location',
+          hintStyle: TextStyle(color: Colors.white54),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.pop(dialogContext);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Location updated')),
+            );
+          },
+          child: const Text('Save'),
+        ),
+      ],
+    ),
+  ).then((_) {
+    controller.dispose();
+  });
+}
+
+void _showEditBioDialog(BuildContext context) {
+  final controller = TextEditingController();
+  showDialog(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      backgroundColor: const Color(0xFF1C1C1E),
+      title: const Text('Edit Bio', style: TextStyle(color: Colors.white)),
+      content: TextField(
+        controller: controller,
+        maxLines: 3,
+        style: const TextStyle(color: Colors.white),
+        decoration: const InputDecoration(
+          hintText: 'Tell us about yourself...',
+          hintStyle: TextStyle(color: Colors.white54),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.pop(dialogContext);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Bio updated')),
+            );
+          },
+          child: const Text('Save'),
+        ),
+      ],
+    ),
+  ).then((_) {
+    controller.dispose();
+  });
+}
+
+void _showEditInstagramDialog(BuildContext context) {
+  final controller = TextEditingController();
+  showDialog(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      backgroundColor: const Color(0xFF1C1C1E),
+      title: const Text('Add Instagram', style: TextStyle(color: Colors.white)),
+      content: TextField(
+        controller: controller,
+        style: const TextStyle(color: Colors.white),
+        decoration: const InputDecoration(
+          hintText: '@username',
+          hintStyle: TextStyle(color: Colors.white54),
+          prefixText: '@',
+          prefixStyle: TextStyle(color: Colors.white),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.pop(dialogContext);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Instagram linked')),
+            );
+          },
+          child: const Text('Save'),
+        ),
+      ],
+    ),
+  ).then((_) {
+    controller.dispose();
+  });
+}
+
+void _showRestTimerSettings(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: const Color(0xFF1C1C1E),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (context) => Consumer<SettingsNotifier>(
+      builder: (context, settings, child) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Rest Timer Duration',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 30),
+            Text(
+              _formatDuration(settings.restTimerDuration),
+              style: const TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF2BD4BD),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                activeTrackColor: const Color(0xFF2BD4BD),
+                thumbColor: const Color(0xFF2BD4BD),
+                overlayColor: const Color(0xFF2BD4BD).withOpacity(0.2),
+                inactiveTrackColor: Colors.white24,
+              ),
+              child: Slider(
+                value: settings.restTimerDuration.toDouble(),
+                min: 30,
+                max: 300,
+                divisions: 18,
+                onChanged: (value) {
+                  settings.setRestTimerDuration(value.round());
+                },
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('30s', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                  Text('5m', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+String _formatDuration(int seconds) {
+  final minutes = seconds ~/ 60;
+  final remainingSeconds = seconds % 60;
+  if (minutes > 0) {
+    return '${minutes}m ${remainingSeconds}s';
+  } else {
+    return '${seconds}s';
   }
 }
