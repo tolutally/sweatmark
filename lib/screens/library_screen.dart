@@ -6,6 +6,8 @@ import '../widgets/library_item.dart';
 import '../services/storage_service.dart';
 import 'create_exercise_screen.dart';
 import '../theme/app_theme.dart';
+import '../services/firebase_service.dart';
+import '../data/seed_exercises.dart';
 
 class LibraryScreen extends StatefulWidget {
   final bool isPicker;
@@ -23,6 +25,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   String? _selectedEquipment;
   String? _selectedDifficulty;
   final StorageService _storageService = StorageService();
+  FirebaseService? _firebaseService;
 
   // Filter options extracted from exercise library
   final List<String> _muscleGroups = [
@@ -40,15 +43,54 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _loadExercises();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _firebaseService ??= context.read<FirebaseService>();
+  }
+
   Future<void> _loadExercises() async {
-    final builtInExercises = EXERCISE_LIBRARY.map((e) => Exercise.fromJson(e)).toList();
+    final builtInExercises = await _loadGlobalExercises();
     // Use merged exercises from local + Firebase
     final customExercises = await _storageService.getCustomExercisesMerged();
-    
+
+    final Map<String, Exercise> merged = {};
+    for (final ex in builtInExercises) {
+      merged[ex.id] = ex;
+    }
+    for (final ex in customExercises) {
+      merged[ex.id] = ex;
+    }
+
     setState(() {
-      _allExercises = [...customExercises, ...builtInExercises];
+      _allExercises = merged.values.toList();
       _filteredExercises = _allExercises;
     });
+  }
+
+  Future<List<Exercise>> _loadGlobalExercises() async {
+    // Try Firestore first
+    try {
+      final firebase = _firebaseService;
+      if (firebase != null) {
+        final data = await firebase.getGlobalExercises();
+        if (data.isNotEmpty) {
+          return data.map((e) => Exercise.fromJson(e)).toList();
+        }
+
+        // If empty, seed Firestore and use seeds locally
+        final seedMaps = seedExercises.map((e) => e.toJson()).toList();
+        await firebase.seedGlobalExercises(seedMaps);
+        return seedExercises;
+      }
+    } catch (e) {
+      print('⚠️ Using local seed exercises due to error: $e');
+    }
+
+    // Fallback to bundled data if Firestore not available
+    return seedExercises.isNotEmpty
+        ? seedExercises
+        : EXERCISE_LIBRARY.map((e) => Exercise.fromJson(e)).toList();
   }
 
   void _filter() {
@@ -66,9 +108,15 @@ class _LibraryScreenState extends State<LibraryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.neutral50,
       appBar: AppBar(
-        title: const Text('Exercise Library'),
-        backgroundColor: Colors.transparent,
+        title: const Text(
+          'Exercise Library',
+          style: TextStyle(color: AppColors.neutral900),
+        ),
+        iconTheme: const IconThemeData(color: AppColors.neutral800),
+        backgroundColor: AppColors.neutral50,
+        elevation: 0,
       ),
       body: Column(
         children: [
@@ -80,10 +128,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 hintText: 'Search exercises...',
                 prefixIcon: const Icon(Icons.search),
                 filled: true,
-                fillColor: Theme.of(context).cardTheme.color,
+                fillColor: Colors.white,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+                  borderSide: const BorderSide(color: AppColors.neutral200),
                 ),
               ),
               onChanged: (value) {
@@ -102,6 +150,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 FilterChip(
                   label: Text(_selectedMuscle ?? 'Any Muscle'),
                   selected: _selectedMuscle != null,
+                  selectedColor: AppColors.brandCoral.withOpacity(0.18),
+                  backgroundColor: Colors.white,
+                  checkmarkColor: AppColors.brandCoral,
+                  labelStyle: TextStyle(
+                    color: _selectedMuscle != null
+                        ? AppColors.brandCoral
+                        : AppColors.neutral800,
+                  ),
                   onSelected: (selected) {
                     if (_selectedMuscle != null) {
                       setState(() {
@@ -117,6 +173,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 FilterChip(
                   label: Text(_selectedEquipment ?? 'Any Equipment'),
                   selected: _selectedEquipment != null,
+                  selectedColor: AppColors.brandCoral.withOpacity(0.18),
+                  backgroundColor: Colors.white,
+                  checkmarkColor: AppColors.brandCoral,
+                  labelStyle: TextStyle(
+                    color: _selectedEquipment != null
+                        ? AppColors.brandCoral
+                        : AppColors.neutral800,
+                  ),
                   onSelected: (selected) {
                     if (_selectedEquipment != null) {
                       setState(() {
@@ -132,6 +196,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 FilterChip(
                   label: Text(_selectedDifficulty ?? 'Any Difficulty'),
                   selected: _selectedDifficulty != null,
+                  selectedColor: AppColors.brandCoral.withOpacity(0.18),
+                  backgroundColor: Colors.white,
+                  checkmarkColor: AppColors.brandCoral,
+                  labelStyle: TextStyle(
+                    color: _selectedDifficulty != null
+                        ? AppColors.brandCoral
+                        : AppColors.neutral800,
+                  ),
                   onSelected: (selected) {
                     if (_selectedDifficulty != null) {
                       setState(() {

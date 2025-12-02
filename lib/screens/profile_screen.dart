@@ -38,7 +38,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.brandNavyDeep,
+      backgroundColor: AppColors.neutral50,
       body: Consumer2<AuthNotifier, ProfileNotifier>(
         builder: (context, authNotifier, profileNotifier, child) {
           final userId = authNotifier.user?.uid;
@@ -56,24 +56,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
               // Header with Profile Info
               SliverToBoxAdapter(
                 child: Container(
-                  decoration: const BoxDecoration(
-                    gradient: AppGradients.fusion,
-                    borderRadius: BorderRadius.vertical(
-                      bottom: Radius.circular(32),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.vertical(
+                      bottom: Radius.circular(24),
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
                   ),
                   child: Container(
-                    decoration: BoxDecoration(
-                      gradient: RadialGradient(
-                        center: Alignment.topCenter,
-                        radius: 1.2,
-                        colors: [
-                          AppColors.brandCoral.withOpacity(0.15),
-                          Colors.transparent,
-                        ],
-                      ),
-                      borderRadius: const BorderRadius.vertical(
-                        bottom: Radius.circular(32),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.vertical(
+                        bottom: Radius.circular(24),
                       ),
                     ),
                     child: SafeArea(
@@ -87,7 +87,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               alignment: Alignment.topRight,
                               child: IconButton(
                                 icon: const Icon(PhosphorIconsRegular.x,
-                                    color: Colors.white70),
+                                    color: AppColors.neutral500),
                                 onPressed: () => _showCloseOptions(context),
                               ),
                             ),
@@ -97,22 +97,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 12, vertical: 6),
                               decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Colors.white.withOpacity(0.25),
-                                    Colors.white.withOpacity(0.1),
-                                  ],
-                                ),
+                                color:
+                                    AppColors.brandCoral.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
-                                  color: Colors.white.withOpacity(0.3),
+                                  color:
+                                      AppColors.brandCoral.withValues(alpha: 0.5),
                                   width: 1,
                                 ),
                                 boxShadow: [
                                   BoxShadow(
                                     color:
-                                        AppColors.brandCoral.withOpacity(0.3),
-                                    blurRadius: 12,
+                                        AppColors.brandCoral.withOpacity(0.2),
+                                    blurRadius: 10,
                                     spreadRadius: 1,
                                   ),
                                 ],
@@ -120,7 +117,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               child: const Text(
                                 'SWEAT ELITE',
                                 style: TextStyle(
-                                  color: Colors.white,
+                                  color: AppColors.brandCoral,
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,
                                   letterSpacing: 1,

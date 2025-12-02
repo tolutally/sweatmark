@@ -716,11 +716,24 @@ class _ScheduleBottomSheetState extends State<ScheduleBottomSheet> {
         // Look up exercise name from database
         final exerciseData = EXERCISE_LIBRARY.firstWhere(
           (ex) => ex['id'] == e.exerciseId,
-          orElse: () => {'id': e.exerciseId, 'name': e.exerciseId},
+          orElse: () => null,
         );
+        final seedData = seedExercises.firstWhere(
+          (ex) => ex.id == e.exerciseId,
+          orElse: () => Exercise(
+            id: e.exerciseId,
+            name: e.exerciseId,
+            muscleGroup: '',
+            equipment: '',
+            icon: '💪',
+          ),
+        );
+        final name = exerciseData != null
+            ? exerciseData['name'] as String
+            : seedData.name;
         return TemplateExercise(
           id: e.exerciseId,
-          name: exerciseData['name'] as String,
+          name: name,
           targetSets: e.sets.length,
           targetReps: e.sets.isNotEmpty ? e.sets.first.reps : null,
           targetWeight: e.sets.isNotEmpty ? e.sets.first.weight?.toDouble() : null,

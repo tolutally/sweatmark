@@ -246,8 +246,16 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                   (e) => e['id'] == log.exerciseId,
                   orElse: () => {},
                 );
-                if (exerciseData.isEmpty) return const SizedBox();
-                final exercise = Exercise.fromJson(exerciseData);
+                final exercise = Exercise.fromJson(
+                  exerciseData.isNotEmpty
+                      ? exerciseData
+                      : {
+                          'id': log.exerciseId,
+                          'name': log.exerciseName ?? 'Custom Exercise',
+                          'muscleGroup': log.muscleGroup ?? 'Custom',
+                          'equipment': log.equipment ?? 'Custom',
+                        },
+                );
 
                 return _ExerciseWorkoutCard(
                   exercise: exercise,
@@ -341,6 +349,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
+                color: Colors.black87,
               ),
             ),
             const SizedBox(height: 20),
@@ -363,6 +372,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                 style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w600,
+                  color: Colors.black87,
                 ),
               ),
               subtitle: const Text(
@@ -398,6 +408,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                 style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w600,
+                  color: Colors.black87,
                 ),
               ),
               subtitle: const Text(
@@ -432,7 +443,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                     style: TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w600,
-                      color: Colors.black54,
+                      color: Colors.black87,
                     ),
                   ),
                 ),

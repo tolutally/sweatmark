@@ -123,6 +123,38 @@ class FirebaseService {
     }
   }
 
+  // ============================================
+  // GLOBAL EXERCISES
+  // ============================================
+
+  Future<List<Map<String, dynamic>>> getGlobalExercises() async {
+    try {
+      final snapshot = await _firestore
+          .collection('exercises')
+          .orderBy('name')
+          .get();
+      return snapshot.docs.map((doc) => doc.data()).toList();
+    } catch (e) {
+      print('Error fetching global exercises: $e');
+      return [];
+    }
+  }
+
+  Future<void> seedGlobalExercises(List<Map<String, dynamic>> exercises) async {
+    final batch = _firestore.batch();
+    try {
+      for (final ex in exercises) {
+        final docRef = _firestore.collection('exercises').doc(ex['id'] as String);
+        batch.set(docRef, ex, SetOptions(merge: true));
+      }
+      await batch.commit();
+      print('✅ Seeded ${exercises.length} exercises to Firestore');
+    } catch (e) {
+      print('Error seeding exercises: $e');
+      rethrow;
+    }
+  }
+
   /// Update user profile
   Future<void> updateUserProfile(
       String userId, Map<String, dynamic> data) async {
@@ -242,6 +274,41 @@ class FirebaseService {
     } catch (e) {
       print('Error getting recent workouts: $e');
       return [];
+    }
+  }
+
+  // ============================================
+  // USER SCHEDULE
+  // ============================================
+
+  /// Save or update a user's workout schedule/preferences
+  Future<void> setUserSchedule(String userId, Map<String, dynamic> data) async {
+    try {
+      await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('schedule')
+          .doc('data')
+          .set(data, SetOptions(merge: true));
+    } catch (e) {
+      print('Error saving user schedule: $e');
+      rethrow;
+    }
+  }
+
+  /// Get a user's workout schedule/preferences
+  Future<Map<String, dynamic>?> getUserSchedule(String userId) async {
+    try {
+      final doc = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('schedule')
+          .doc('data')
+          .get();
+      return doc.data();
+    } catch (e) {
+      print('Error fetching user schedule: $e');
+      return null;
     }
   }
 

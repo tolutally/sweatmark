@@ -61,6 +61,7 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen> {
       backgroundColor: const Color(0xFFF8F8F8),
       appBar: AppBar(
         backgroundColor: const Color(0xFFF8F8F8),
+        iconTheme: const IconThemeData(color: Colors.black87),
         title: const Text(
           'Workout History',
           style: TextStyle(

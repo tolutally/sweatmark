@@ -188,6 +188,9 @@ class WorkoutNotifier extends ChangeNotifier {
     if (_currentWorkout == null) return;
     _currentWorkout!.exercises.add(WorkoutExerciseLog(
       exerciseId: exercise.id,
+      exerciseName: exercise.name,
+      muscleGroup: exercise.muscleGroup,
+      equipment: exercise.equipment,
       sets: [
         WorkoutSet(weight: null, reps: null),
         WorkoutSet(weight: null, reps: null),
@@ -228,6 +231,9 @@ class WorkoutNotifier extends ChangeNotifier {
 
     _currentWorkout!.exercises.add(WorkoutExerciseLog(
       exerciseId: exerciseData['id'] as String,
+      exerciseName: exerciseData['name'] as String?,
+      muscleGroup: exerciseData['muscleGroup'] as String?,
+      equipment: exerciseData['equipment'] as String?,
       sets: sets,
     ));
     notifyListeners();

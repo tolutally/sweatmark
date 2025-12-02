@@ -259,24 +259,42 @@ class CollectionScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               ListTile(
-                leading: Icon(PhosphorIcons.play(PhosphorIconsStyle.fill)),
-                title: const Text('Start Workout'),
+                leading: const Icon(
+                  PhosphorIconsBold.play,
+                  color: AppColors.neutral900,
+                ),
+                title: const Text(
+                  'Start Workout',
+                  style: TextStyle(color: AppColors.neutral900),
+                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _startWorkoutFromTemplate(context, template);
                 },
               ),
               ListTile(
-                leading: Icon(PhosphorIcons.pencil(PhosphorIconsStyle.regular)),
-                title: const Text('Edit Template'),
+                leading: const Icon(
+                  PhosphorIconsRegular.pencilSimple,
+                  color: AppColors.neutral900,
+                ),
+                title: const Text(
+                  'Edit Template',
+                  style: TextStyle(color: AppColors.neutral900),
+                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _showEditTemplateDialog(context, template, templateNotifier);
                 },
               ),
               ListTile(
-                leading: Icon(PhosphorIcons.folderSimple(PhosphorIconsStyle.regular)),
-                title: const Text('Move to Collection'),
+                leading: const Icon(
+                  PhosphorIconsRegular.folderSimple,
+                  color: AppColors.neutral900,
+                ),
+                title: const Text(
+                  'Move to Collection',
+                  style: TextStyle(color: AppColors.neutral900),
+                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _showMoveToCollectionDialog(context, template, templateNotifier);

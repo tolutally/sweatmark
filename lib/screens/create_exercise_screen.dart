@@ -73,35 +73,36 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: AppColors.neutral50,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: AppColors.neutral50,
+        foregroundColor: AppColors.neutral900,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(PhosphorIconsRegular.x, color: Colors.black),
+          icon: const Icon(PhosphorIconsRegular.x, color: AppColors.neutral800),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Create Custom Exercise',
           style: TextStyle(
-            color: Colors.black,
-            fontSize: 20,
+            color: AppColors.neutral900,
+            fontSize: 18,
             fontWeight: FontWeight.w600,
           ),
         ),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Name Section
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(14),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.05),
@@ -116,27 +117,43 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
                   const Text(
                     'Name',
                     style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.black38,
+                      fontSize: 12,
+                      color: AppColors.neutral600,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   TextField(
                     controller: _nameController,
                     style: const TextStyle(
-                      fontSize: 24,
+                      fontSize: 20,
                       fontWeight: FontWeight.w600,
-                      color: Colors.black,
+                      color: AppColors.neutral900,
                     ),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Name',
-                      hintStyle: TextStyle(
-                        fontSize: 24,
-                        color: Colors.black12,
+                      hintStyle: const TextStyle(
+                        fontSize: 20,
+                        color: Colors.black26,
                       ),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
+                      filled: true,
+                      fillColor: AppColors.neutral100,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppColors.neutral200),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppColors.neutral200),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppColors.brandCoral),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
                     ),
                   ),
                 ],
@@ -147,10 +164,10 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
 
             // Set Types Section
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(14),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.05),
@@ -165,15 +182,15 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
                   const Text(
                     'Set Types',
                     style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.black38,
+                      fontSize: 12,
+                      color: AppColors.neutral600,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+                    spacing: 6,
+                    runSpacing: 6,
                     children: _setTypes.map((type) {
                       final isSelected = _selectedSetTypes.contains(type);
                       return GestureDetector(
@@ -188,19 +205,28 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
+                            horizontal: 14,
+                            vertical: 8,
                           ),
                           decoration: BoxDecoration(
-                            color: isSelected ? Colors.black : const Color(0xFFF5F5F5),
-                            borderRadius: BorderRadius.circular(12),
+                            color: isSelected
+                                ? AppColors.brandCoral.withValues(alpha: 0.12)
+                                : AppColors.neutral100,
+                            border: Border.all(
+                              color: isSelected
+                                  ? AppColors.brandCoral
+                                  : AppColors.neutral200,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
                             type,
                             style: TextStyle(
-                              fontSize: 15,
+                              fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: isSelected ? Colors.white : Colors.black,
+                              color: isSelected
+                                  ? AppColors.brandCoral
+                                  : AppColors.neutral800,
                             ),
                           ),
                         ),
@@ -217,10 +243,10 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
             GestureDetector(
               onTap: () => _showMuscleGroupPicker(),
               child: Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.05),
@@ -249,16 +275,16 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
                       child: Text(
                         'Muscle Group',
                         style: TextStyle(
-                          fontSize: 17,
+                          fontSize: 15,
                           fontWeight: FontWeight.w600,
-                          color: Colors.black,
+                          color: AppColors.neutral900,
                         ),
                       ),
                     ),
                     Text(
                       _selectedMuscleGroup ?? 'Select',
                       style: const TextStyle(
-                        fontSize: 17,
+                        fontSize: 14,
                         color: AppColors.info,
                       ),
                     ),
@@ -279,10 +305,10 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
             GestureDetector(
               onTap: () => _showEquipmentPicker(),
               child: Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.05),
@@ -311,16 +337,16 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
                       child: Text(
                         'Equipment',
                         style: TextStyle(
-                          fontSize: 17,
+                          fontSize: 15,
                           fontWeight: FontWeight.w600,
-                          color: Colors.black,
+                          color: AppColors.neutral900,
                         ),
                       ),
                     ),
                     Text(
                       _selectedEquipment ?? 'Select',
                       style: const TextStyle(
-                        fontSize: 17,
+                        fontSize: 14,
                         color: AppColors.info,
                       ),
                     ),
@@ -341,10 +367,10 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
             GestureDetector(
               onTap: () => _showInstructionsDialog(),
               child: Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.05),
@@ -373,16 +399,16 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
                       child: Text(
                         'Instructions',
                         style: TextStyle(
-                          fontSize: 17,
+                          fontSize: 15,
                           fontWeight: FontWeight.w600,
-                          color: Colors.black,
+                          color: AppColors.neutral900,
                         ),
                       ),
                     ),
                     Text(
                       _instructionsController.text.isEmpty ? 'Add' : 'Edit',
                       style: const TextStyle(
-                        fontSize: 17,
+                        fontSize: 14,
                         color: AppColors.info,
                       ),
                     ),
@@ -405,18 +431,18 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
               child: ElevatedButton(
                 onPressed: _createExercise,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  backgroundColor: AppColors.brandCoral,
+                  foregroundColor: AppColors.neutral0,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                   elevation: 0,
                 ),
                 child: const Text(
                   'Create',
                   style: TextStyle(
-                    fontSize: 17,
+                    fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -448,8 +474,9 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
               child: Text(
                 'Select Muscle Group',
                 style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.neutral900,
                 ),
               ),
             ),
@@ -459,10 +486,13 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
                 children: _muscleGroups.map((muscle) => ListTile(
                   title: Text(
                     muscle,
-                    style: const TextStyle(fontSize: 17),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      color: AppColors.neutral900,
+                    ),
                   ),
                   trailing: _selectedMuscleGroup == muscle
-                      ? const Icon(PhosphorIconsBold.check, color: AppColors.info)
+                      ? const Icon(PhosphorIconsBold.check, color: AppColors.brandCoral)
                       : null,
                   onTap: () {
                     setState(() {
@@ -497,8 +527,9 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
               child: Text(
                 'Select Equipment',
                 style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.neutral900,
                 ),
               ),
             ),
@@ -508,10 +539,13 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
                 children: _equipment.map((equip) => ListTile(
                   title: Text(
                     equip,
-                    style: const TextStyle(fontSize: 17),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      color: AppColors.neutral900,
+                    ),
                   ),
                   trailing: _selectedEquipment == equip
-                      ? const Icon(PhosphorIconsBold.check, color: AppColors.info)
+                      ? const Icon(PhosphorIconsBold.check, color: AppColors.brandCoral)
                       : null,
                   onTap: () {
                     setState(() {

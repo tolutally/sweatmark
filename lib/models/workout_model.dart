@@ -32,12 +32,18 @@ class WorkoutSet {
 
 class WorkoutExerciseLog {
   final String exerciseId;
+  final String? exerciseName;
+  final String? muscleGroup;
+  final String? equipment;
   final List<WorkoutSet> sets;
   final String? superSetId;
   final int? orderInSuperSet;
 
   WorkoutExerciseLog({
-    required this.exerciseId, 
+    required this.exerciseId,
+    this.exerciseName,
+    this.muscleGroup,
+    this.equipment,
     required this.sets,
     this.superSetId,
     this.orderInSuperSet,
@@ -45,6 +51,9 @@ class WorkoutExerciseLog {
 
   Map<String, dynamic> toJson() => {
         'exerciseId': exerciseId,
+        'exerciseName': exerciseName,
+        'muscleGroup': muscleGroup,
+        'equipment': equipment,
         'sets': sets.map((s) => s.toJson()).toList(),
         'superSetId': superSetId,
         'orderInSuperSet': orderInSuperSet,
@@ -53,6 +62,9 @@ class WorkoutExerciseLog {
   factory WorkoutExerciseLog.fromJson(Map<String, dynamic> json) {
     return WorkoutExerciseLog(
       exerciseId: json['exerciseId'],
+      exerciseName: json['exerciseName'],
+      muscleGroup: json['muscleGroup'],
+      equipment: json['equipment'],
       sets: (json['sets'] as List).map((s) => WorkoutSet.fromJson(s)).toList(),
       superSetId: json['superSetId'],
       orderInSuperSet: json['orderInSuperSet'],
