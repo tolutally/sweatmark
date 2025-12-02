@@ -3,7 +3,9 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import '../models/template_model.dart';
 import '../models/workout_model.dart';
+import '../models/exercise_model.dart';
 import '../data/exercise_data.dart';
+import '../data/seed_exercises.dart';
 import '../state/template_notifier.dart';
 
 /// Bottom sheet for setting up schedule, repeat, and saving as template
@@ -714,23 +716,25 @@ class _ScheduleBottomSheetState extends State<ScheduleBottomSheet> {
       // Convert exercises to template exercises
       final templateExercises = widget.exercises.map((e) {
         // Look up exercise name from database
-        final exerciseData = EXERCISE_LIBRARY.firstWhere(
-          (ex) => ex['id'] == e.exerciseId,
-          orElse: () => null,
-        );
-        final seedData = seedExercises.firstWhere(
-          (ex) => ex.id == e.exerciseId,
-          orElse: () => Exercise(
-            id: e.exerciseId,
-            name: e.exerciseId,
-            muscleGroup: '',
-            equipment: '',
-            icon: '💪',
-          ),
-        );
+        Map<String, dynamic>? exerciseData;
+        try {
+          exerciseData = EXERCISE_LIBRARY.firstWhere(
+            (ex) => ex['id'] == e.exerciseId,
+          );
+        } catch (_) {
+          exerciseData = null;
+        }
+        Exercise? seedData;
+        try {
+          seedData = seedExercises.firstWhere(
+            (ex) => ex.id == e.exerciseId,
+          );
+        } catch (_) {
+          seedData = null;
+        }
         final name = exerciseData != null
             ? exerciseData['name'] as String
-            : seedData.name;
+            : (seedData?.name ?? e.exerciseId);
         return TemplateExercise(
           id: e.exerciseId,
           name: name,
