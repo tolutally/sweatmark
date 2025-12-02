@@ -22,6 +22,7 @@ class WorkoutNotifier extends ChangeNotifier {
 
   DateTime? _startTime;
   Timer? _timer;
+  Timer? _autoSaveTimer;
   int _elapsedSeconds = 0;
   int get elapsedSeconds => _elapsedSeconds;
   bool _timerStarted = false;
@@ -38,6 +39,7 @@ class WorkoutNotifier extends ChangeNotifier {
 
   WorkoutNotifier(this._syncService) {
     _loadWorkoutHistory();
+    _autoRestoreDraftWorkout();
   }
 
   Future<void> _loadWorkoutHistory() async {
@@ -71,6 +73,7 @@ class WorkoutNotifier extends ChangeNotifier {
   }
 
   Future<void> loadDraftWorkout() async {
+    if (_isWorkoutActive) return;
     final draftData = await _storageService.getDraftWorkout();
     if (draftData == null) return;
 
@@ -79,7 +82,11 @@ class WorkoutNotifier extends ChangeNotifier {
     _elapsedSeconds = draftData['elapsedSeconds'] as int? ?? 0;
     
     if (draftData['startTime'] != null) {
-      _startTime = DateTime.parse(draftData['startTime'] as String);
+      try {
+        _startTime = DateTime.parse(draftData['startTime'] as String);
+      } catch (_) {
+        _startTime = null;
+      }
     }
 
     final exercises = (draftData['exercises'] as List?)?.map((e) {
@@ -99,14 +106,20 @@ class WorkoutNotifier extends ChangeNotifier {
 
     _currentWorkout = WorkoutLog(
       workoutName: _workoutName,
-      timestamp: DateTime.now(),
+      timestamp: _startTime ?? DateTime.now(),
       durationSeconds: 0,
       exercises: exercises,
     );
 
     _isWorkoutActive = true;
-    _timerStarted = true;
-    _startTimer();
+    _timerStarted = false;
+
+    if (_startTime != null) {
+      _elapsedSeconds = _calculateElapsedSeconds();
+      _startTimer(restart: true);
+    }
+
+    _startAutoSave();
     notifyListeners();
   }
 
@@ -115,6 +128,7 @@ class WorkoutNotifier extends ChangeNotifier {
   }
 
   void resetWorkout() {
+    _stopAutoSave();
     _isWorkoutActive = false;
     _currentWorkout = null;
     _workoutName = 'My Workout 1';
@@ -128,6 +142,7 @@ class WorkoutNotifier extends ChangeNotifier {
   }
 
   void startWorkout({String? workoutName}) {
+    _stopAutoSave();
     _isWorkoutActive = true;
     _startTime = null;
     _elapsedSeconds = 0;
@@ -140,7 +155,8 @@ class WorkoutNotifier extends ChangeNotifier {
       durationSeconds: 0,
       exercises: [],
     );
-    
+
+    _startAutoSave();
     // Timer will be started when first set is marked complete
     notifyListeners();
   }
@@ -155,14 +171,17 @@ class WorkoutNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _startTimer() {
-    if (_timerStarted) return;
+  void _startTimer({bool restart = false}) {
+    if (_timerStarted && !restart) return;
+    _timer?.cancel();
     _timerStarted = true;
-    _startTime = DateTime.now();
+    _startTime ??= DateTime.now();
+    _elapsedSeconds = _calculateElapsedSeconds();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      _elapsedSeconds++;
+      _elapsedSeconds = _calculateElapsedSeconds();
       notifyListeners();
     });
+    notifyListeners();
   }
 
   void addExercise(Exercise exercise) {
@@ -174,6 +193,42 @@ class WorkoutNotifier extends ChangeNotifier {
         WorkoutSet(weight: null, reps: null),
         WorkoutSet(weight: null, reps: null),
       ], 
+    ));
+    notifyListeners();
+  }
+
+  /// Add exercise from a template with pre-configured sets
+  void addExerciseFromTemplate({
+    required String name,
+    int targetSets = 3,
+    int? targetReps,
+    double? targetWeight,
+  }) {
+    if (_currentWorkout == null) return;
+    
+    // Try to find the exercise in the database, or create a custom one
+    final exerciseData = EXERCISE_LIBRARY.firstWhere(
+      (e) => (e['name'] as String).toLowerCase() == name.toLowerCase(),
+      orElse: () => {
+        'id': 'custom_${DateTime.now().millisecondsSinceEpoch}',
+        'name': name,
+        'muscleGroup': 'Full Body',
+        'equipment': 'None',
+      },
+    );
+
+    // Create sets with template values
+    final sets = List.generate(
+      targetSets,
+      (_) => WorkoutSet(
+        weight: targetWeight?.toInt(),
+        reps: targetReps,
+      ),
+    );
+
+    _currentWorkout!.exercises.add(WorkoutExerciseLog(
+      exerciseId: exerciseData['id'] as String,
+      sets: sets,
     ));
     notifyListeners();
   }
@@ -222,8 +277,10 @@ class WorkoutNotifier extends ChangeNotifier {
   Future<void> finishWorkout(String? userId) async {
     if (_currentWorkout == null) return;
     
+    _elapsedSeconds = _calculateElapsedSeconds();
     _timer?.cancel();
     _timer = null;
+    _stopAutoSave();
     
     // Update duration
     final finishedWorkout = WorkoutLog(
@@ -518,6 +575,50 @@ class WorkoutNotifier extends ChangeNotifier {
   @override
   void dispose() {
     _timer?.cancel();
+    _stopAutoSave();
     super.dispose();
+  }
+
+  void _startAutoSave() {
+    _autoSaveTimer?.cancel();
+    if (!_isWorkoutActive || _currentWorkout == null) return;
+
+    _autoSaveTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      saveDraftWorkout();
+    });
+  }
+
+  void _stopAutoSave() {
+    _autoSaveTimer?.cancel();
+    _autoSaveTimer = null;
+  }
+
+  Future<void> _autoRestoreDraftWorkout() async {
+    if (_isWorkoutActive) return;
+    final hasDraft = await _storageService.hasDraftWorkout();
+    if (!hasDraft || _isWorkoutActive) return;
+    await loadDraftWorkout();
+  }
+
+  Future<void> onAppPaused() async {
+    if (_isWorkoutActive) {
+      await saveDraftWorkout();
+    }
+  }
+
+  void onAppResumed() {
+    if (!_isWorkoutActive) return;
+    if (_startTime != null) {
+      _elapsedSeconds = _calculateElapsedSeconds();
+      _startTimer(restart: true);
+    }
+    _startAutoSave();
+    notifyListeners();
+  }
+
+  int _calculateElapsedSeconds() {
+    if (_startTime == null) return _elapsedSeconds;
+    final seconds = DateTime.now().difference(_startTime!).inSeconds;
+    return seconds < 0 ? 0 : seconds;
   }
 }

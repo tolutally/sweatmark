@@ -57,10 +57,14 @@ class FirebaseService {
   /// Sign in with email and password
   Future<UserCredential?> signInWithEmail(String email, String password) async {
     try {
-      return await _auth.signInWithEmailAndPassword(
+      final credential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
+      if (credential.user != null) {
+        await _createUserProfileIfNeeded(credential.user!.uid);
+      }
+      return credential;
     } catch (e) {
       print('Error signing in: $e');
       return null;
@@ -77,9 +81,11 @@ class FirebaseService {
   }
 
   /// Convert anonymous account to email/password
-  Future<UserCredential?> linkEmailPassword(String email, String password) async {
+  Future<UserCredential?> linkEmailPassword(
+      String email, String password) async {
     try {
-      final credential = EmailAuthProvider.credential(email: email, password: password);
+      final credential =
+          EmailAuthProvider.credential(email: email, password: password);
       return await _auth.currentUser?.linkWithCredential(credential);
     } catch (e) {
       print('Error linking account: $e');
@@ -94,12 +100,17 @@ class FirebaseService {
   /// Create user profile document if it doesn't exist
   Future<void> _createUserProfileIfNeeded(String userId) async {
     try {
-      final docRef = _firestore.collection('users').doc(userId).collection('profile').doc('data');
+      final docRef = _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('profile')
+          .doc('data');
       final doc = await docRef.get();
-      
+
       if (!doc.exists) {
         await docRef.set({
           'username': 'Flex User',
+          'handle': '@sweatmark_user',
           'createdAt': FieldValue.serverTimestamp(),
           'stats': {
             'totalWorkouts': 0,
@@ -113,16 +124,32 @@ class FirebaseService {
   }
 
   /// Update user profile
-  Future<void> updateUserProfile(String userId, Map<String, dynamic> data) async {
+  Future<void> updateUserProfile(
+      String userId, Map<String, dynamic> data) async {
     try {
       await _firestore
           .collection('users')
           .doc(userId)
           .collection('profile')
           .doc('data')
-          .update(data);
+          .set(data, SetOptions(merge: true));
     } catch (e) {
       print('Error updating user profile: $e');
+    }
+  }
+
+  /// Overwrite or create user profile
+  Future<void> setUserProfile(String userId, Map<String, dynamic> data) async {
+    try {
+      await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('profile')
+          .doc('data')
+          .set(data, SetOptions(merge: true));
+    } catch (e) {
+      print('Error setting user profile: $e');
+      rethrow;
     }
   }
 
@@ -200,7 +227,7 @@ class FirebaseService {
   Future<List<WorkoutLog>> getRecentWorkouts(String userId, int days) async {
     try {
       final cutoffDate = DateTime.now().subtract(Duration(days: days));
-      
+
       final snapshot = await _firestore
           .collection('users')
           .doc(userId)
@@ -223,7 +250,7 @@ class FirebaseService {
     try {
       // Use timestamp as document ID since that's how workouts are stored
       final workoutId = workout.timestamp.millisecondsSinceEpoch.toString();
-      
+
       await _firestore
           .collection('users')
           .doc(userId)
@@ -253,14 +280,102 @@ class FirebaseService {
   }
 
   // ============================================
+  // CUSTOM EXERCISES (Firebase Sync)
+  // ============================================
+
+  /// Save custom exercise to Firebase
+  Future<void> saveCustomExercise(String userId, Map<String, dynamic> exercise) async {
+    try {
+      await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('custom_exercises')
+          .doc(exercise['id'])
+          .set(exercise);
+      print('✅ Custom exercise saved to Firebase: ${exercise['name']}');
+    } catch (e) {
+      print('❌ Error saving custom exercise to Firebase: $e');
+      rethrow;
+    }
+  }
+
+  /// Get all custom exercises for a user
+  Future<List<Map<String, dynamic>>> getCustomExercises(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('custom_exercises')
+          .orderBy('name')
+          .get();
+
+      return snapshot.docs.map((doc) => doc.data()).toList();
+    } catch (e) {
+      print('❌ Error getting custom exercises from Firebase: $e');
+      return [];
+    }
+  }
+
+  /// Stream of custom exercises for real-time updates
+  Stream<List<Map<String, dynamic>>> getCustomExercisesStream(String userId) {
+    return _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('custom_exercises')
+        .orderBy('name')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
+  }
+
+  /// Delete custom exercise from Firebase
+  Future<void> deleteCustomExercise(String userId, String exerciseId) async {
+    try {
+      await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('custom_exercises')
+          .doc(exerciseId)
+          .delete();
+      print('✅ Custom exercise deleted from Firebase: $exerciseId');
+    } catch (e) {
+      print('❌ Error deleting custom exercise from Firebase: $e');
+      rethrow;
+    }
+  }
+
+  /// Batch upload custom exercises (for migration from local storage)
+  Future<void> batchUploadCustomExercises(
+      String userId, List<Map<String, dynamic>> exercises) async {
+    try {
+      final batch = _firestore.batch();
+
+      for (final exercise in exercises) {
+        final docRef = _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('custom_exercises')
+            .doc(exercise['id']);
+        batch.set(docRef, exercise);
+      }
+
+      await batch.commit();
+      print('✅ Batch uploaded ${exercises.length} custom exercises to Firebase');
+    } catch (e) {
+      print('❌ Error batch uploading custom exercises: $e');
+      rethrow;
+    }
+  }
+
+  // ============================================
   // BATCH OPERATIONS (for data migration)
   // ============================================
 
   /// Batch upload workouts (for migration from local storage)
-  Future<void> batchUploadWorkouts(String userId, List<WorkoutLog> workouts) async {
+  Future<void> batchUploadWorkouts(
+      String userId, List<WorkoutLog> workouts) async {
     try {
       final batch = _firestore.batch();
-      
+
       for (final workout in workouts) {
         final docRef = _firestore
             .collection('users')
@@ -292,9 +407,10 @@ class FirebaseService {
   // ============================================
 
   /// Start listening to workouts collection for real-time updates
-  void startWorkoutsListener(String userId, Function(List<WorkoutLog>) onUpdate) {
+  void startWorkoutsListener(
+      String userId, Function(List<WorkoutLog>) onUpdate) {
     _onWorkoutsUpdate = onUpdate;
-    
+
     _workoutsSubscription = _firestore
         .collection('users')
         .doc(userId)
@@ -302,23 +418,23 @@ class FirebaseService {
         .orderBy('timestamp', descending: true)
         .snapshots()
         .listen(
-          (snapshot) {
-            try {
-              final workouts = snapshot.docs
-                  .map((doc) => WorkoutLog.fromJson(doc.data()))
-                  .toList();
-              _onWorkoutsUpdate?.call(workouts);
-            } catch (e) {
-              print('Error parsing workouts in listener: $e');
-            }
-          },
-          onError: (error) {
-            print('Listener error: $error');
-            // Silent reconnection attempt
-            _silentReconnect(userId);
-          },
-          cancelOnError: false, // Keep listening even after errors
-        );
+      (snapshot) {
+        try {
+          final workouts = snapshot.docs
+              .map((doc) => WorkoutLog.fromJson(doc.data()))
+              .toList();
+          _onWorkoutsUpdate?.call(workouts);
+        } catch (e) {
+          print('Error parsing workouts in listener: $e');
+        }
+      },
+      onError: (error) {
+        print('Listener error: $error');
+        // Silent reconnection attempt
+        _silentReconnect(userId);
+      },
+      cancelOnError: false, // Keep listening even after errors
+    );
   }
 
   /// Stop listening to workouts collection

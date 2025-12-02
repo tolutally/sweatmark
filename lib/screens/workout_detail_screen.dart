@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../models/workout_model.dart';
-import '../models/exercise_model.dart';
 import '../data/exercise_data.dart';
 import '../state/workout_notifier.dart';
 

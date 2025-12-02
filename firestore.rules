@@ -1,0 +1,70 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================
+    // USER DATA (workouts, profile, custom exercises)
+    // ============================================
+    match /users/{userId} {
+      // Allow read/write only if the user is authenticated and accessing their own data
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // User profile subcollection
+      match /profile/{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // User workouts subcollection
+      match /workouts/{workoutId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // User custom exercises subcollection
+      match /custom_exercises/{exerciseId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
+    // ============================================
+    // WORKOUT TEMPLATES
+    // ============================================
+    match /templates/{templateId} {
+      // Allow read if user owns the template
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      
+      // Allow create if user is authenticated and setting themselves as owner
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      
+      // Allow update/delete if user owns the template
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+    
+    // ============================================
+    // TEMPLATE COLLECTIONS (folders)
+    // ============================================
+    match /template_collections/{collectionId} {
+      // Allow read if user owns the collection
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      
+      // Allow create if user is authenticated and setting themselves as owner
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      
+      // Allow update/delete if user owns the collection
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+    
+    // ============================================
+    // HELPER FUNCTIONS
+    // ============================================
+    
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Check if user owns the resource
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

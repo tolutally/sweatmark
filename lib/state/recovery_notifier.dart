@@ -9,6 +9,12 @@ class RecoveryNotifier extends ChangeNotifier {
   final Map<String, DateTime> _lastWorked = {};
   final StorageService _storageService = StorageService();
 
+  /// Expose last worked timestamps per muscle group
+  Map<String, DateTime> get lastWorkedMap => Map.unmodifiable(_lastWorked);
+
+  /// Check if any workout history exists
+  bool get hasWorkoutHistory => _lastWorked.isNotEmpty;
+
   RecoveryNotifier() {
     _loadData();
   }

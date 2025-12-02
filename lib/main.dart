@@ -1,21 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'state/workout_notifier.dart';
 import 'state/recovery_notifier.dart';
 import 'state/auth_notifier.dart';
 import 'state/settings_notifier.dart';
+import 'state/profile/profile_notifier.dart';
+import 'state/navigation/tab_navigation_notifier.dart';
+import 'state/template_notifier.dart';
 import 'services/firebase_service.dart';
 import 'services/storage_service.dart';
 import 'services/sync_service.dart';
 import 'widgets/app_shell.dart';
 import 'screens/auth_screen.dart';
+import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize Firebase
   try {
     await Firebase.initializeApp(
@@ -26,7 +29,7 @@ void main() async {
     print('Firebase initialization error: $e');
     print('Please run: flutterfire configure');
   }
-  
+
   runApp(const SweatMarkApp());
 }
 
@@ -46,6 +49,9 @@ class SweatMarkApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => WorkoutNotifier(syncService)),
         ChangeNotifierProvider(create: (_) => RecoveryNotifier()),
         ChangeNotifierProvider(create: (_) => SettingsNotifier()),
+        ChangeNotifierProvider(create: (_) => ProfileNotifier(firebaseService)),
+        ChangeNotifierProvider(create: (_) => TabNavigationNotifier()),
+        ChangeNotifierProvider(create: (_) => TemplateNotifier()),
         Provider.value(value: firebaseService),
         Provider.value(value: storageService),
         Provider.value(value: syncService),
@@ -53,30 +59,9 @@ class SweatMarkApp extends StatelessWidget {
       child: MaterialApp(
         title: 'SweatMark',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          brightness: Brightness.light,
-          scaffoldBackgroundColor: const Color(0xFFF5F5F5),
-          primaryColor: const Color(0xFF2BD4BD),
-          colorScheme: const ColorScheme.light(
-            primary: Color(0xFF2BD4BD),
-            secondary: Color(0xFF3B82F6),
-            surface: Colors.white,
-            error: Color(0xFFEF4444),
-            onPrimary: Colors.white,
-            onSecondary: Colors.white,
-            onSurface: Colors.black,
-          ),
-          textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme).apply(
-            bodyColor: Colors.black,
-            displayColor: Colors.black,
-          ),
-          cardTheme: CardThemeData(
-            color: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            elevation: 2,
-          ),
-          useMaterial3: true,
-        ),
+        theme: lightTheme,
+        darkTheme: darkTheme,
+        themeMode: ThemeMode.system,
         home: const AuthWrapper(),
       ),
     );
@@ -91,10 +76,11 @@ class AuthWrapper extends StatefulWidget {
   State<AuthWrapper> createState() => _AuthWrapperState();
 }
 
-class _AuthWrapperState extends State<AuthWrapper> {
+class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _setupListeners();
   }
 
@@ -102,6 +88,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
     final authNotifier = context.read<AuthNotifier>();
     final firebaseService = context.read<FirebaseService>();
     final workoutNotifier = context.read<WorkoutNotifier>();
+    final profileNotifier = context.read<ProfileNotifier>();
+    final templateNotifier = context.read<TemplateNotifier>();
 
     // Listen to auth state and start/stop Firestore listeners
     authNotifier.addListener(() {
@@ -115,14 +103,17 @@ class _AuthWrapperState extends State<AuthWrapper> {
             print('Received ${workouts.length} workouts from Firestore');
           },
         );
-        
+
+        // Initialize template notifier for the user
+        templateNotifier.initialize(authNotifier.user!.uid);
+
         // Set up PR notification callback
         workoutNotifier.onPersonalRecords = (newPRs) {
           if (mounted) {
             final message = newPRs.length == 1
                 ? '🎉 New PR: ${newPRs.first}!'
                 : '🎉 ${newPRs.length} New PRs: ${newPRs.join(", ")}!';
-            
+
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(message),
@@ -133,19 +124,35 @@ class _AuthWrapperState extends State<AuthWrapper> {
             );
           }
         };
+
+        profileNotifier.loadProfile(authNotifier.user!.uid, forceRefresh: true);
       } else {
         // Stop listeners when signed out
         firebaseService.stopWorkoutsListener();
         workoutNotifier.onPersonalRecords = null;
+        profileNotifier.clear();
       }
     });
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     final firebaseService = context.read<FirebaseService>();
     firebaseService.stopWorkoutsListener();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final workoutNotifier = context.read<WorkoutNotifier>();
+
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      workoutNotifier.onAppPaused();
+    } else if (state == AppLifecycleState.resumed) {
+      workoutNotifier.onAppResumed();
+    }
   }
 
   @override

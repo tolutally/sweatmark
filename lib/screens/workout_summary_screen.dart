@@ -5,6 +5,7 @@ import '../state/workout_notifier.dart';
 import '../state/recovery_notifier.dart';
 import '../state/auth_notifier.dart';
 import '../data/exercise_data.dart';
+import '../theme/app_theme.dart';
 
 class WorkoutSummaryScreen extends StatefulWidget {
   const WorkoutSummaryScreen({super.key});
@@ -183,7 +184,7 @@ class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
                             ),
                             child: Row(
                               children: [
-                                const Icon(PhosphorIconsBold.fire, color: Color(0xFFFF6B6B), size: 24),
+                                const Icon(PhosphorIconsBold.fire, color: AppColors.error, size: 24),
                                 const SizedBox(width: 12),
                                 const Expanded(
                                   child: Text(
@@ -191,7 +192,7 @@ class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
                                     style: TextStyle(
                                       fontSize: 17,
                                       fontWeight: FontWeight.w600,
-                                      color: Color(0xFFFF6B6B),
+                                      color: AppColors.error,
                                     ),
                                   ),
                                 ),
@@ -313,7 +314,7 @@ class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
           color: Colors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, -2),
             ),
@@ -399,7 +400,7 @@ class _StatCard extends StatelessWidget {
             label,
             style: const TextStyle(
               fontSize: 13,
-              color: Color(0xFFFFB84D),
+              color: AppColors.warning,
               fontWeight: FontWeight.w600,
             ),
           ),

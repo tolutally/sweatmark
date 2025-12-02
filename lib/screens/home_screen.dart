@@ -4,10 +4,14 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../state/workout_notifier.dart';
 import '../state/recovery_notifier.dart';
+import '../state/template_notifier.dart';
+import '../models/template_model.dart';
+import '../theme/app_theme.dart';
 import 'active_workout_screen.dart';
 import 'library_screen.dart';
 import 'workout_history_screen.dart';
 import 'notifications_screen.dart';
+import 'collection_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -80,7 +84,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           width: 8,
                           height: 8,
                           decoration: const BoxDecoration(
-                            color: Color(0xFFFF6B6B),
+                            color: AppColors.error,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -168,11 +172,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   calendarStyle: CalendarStyle(
                     selectedDecoration: const BoxDecoration(
-                      color: Color(0xFF2BD4BD),
+                      color: AppColors.brandCoral,
                       shape: BoxShape.circle,
                     ),
                     todayDecoration: BoxDecoration(
-                      color: const Color(0xFF2BD4BD).withOpacity(0.3),
+                      color: AppColors.brandCoral.withValues(alpha: 0.3),
                       shape: BoxShape.circle,
                     ),
                     selectedTextStyle: const TextStyle(
@@ -180,7 +184,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                     todayTextStyle: const TextStyle(
-                      color: Color(0xFF2BD4BD),
+                      color: AppColors.brandCoral,
                       fontWeight: FontWeight.bold,
                     ),
                     weekendTextStyle: const TextStyle(color: Colors.black),
@@ -246,6 +250,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         GestureDetector(
                           onTap: () async {
                             await workoutNotifier.loadDraftWorkout();
+                            if (!context.mounted) return;
                             Navigator.push(
                               context,
                               MaterialPageRoute(builder: (_) => const ActiveWorkoutScreen()),
@@ -257,7 +262,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               color: const Color(0xFFFFF8E1),
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
-                                color: const Color(0xFFFFB800).withOpacity(0.3),
+                                color: AppColors.warning.withValues(alpha: 0.3),
                                 width: 2,
                               ),
                             ),
@@ -267,12 +272,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                   width: 48,
                                   height: 48,
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFFFB800).withOpacity(0.2),
+                                    color: AppColors.warning.withValues(alpha: 0.2),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: const Icon(
                                     PhosphorIconsBold.clockCounterClockwise,
-                                    color: Color(0xFFFFB800),
+                                    color: AppColors.warning,
                                     size: 24,
                                   ),
                                 ),
@@ -302,7 +307,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                                 const Icon(
                                   PhosphorIconsRegular.caretRight,
-                                  color: Color(0xFFFFB800),
+                                  color: AppColors.warning,
                                   size: 24,
                                 ),
                               ],
@@ -330,12 +335,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF2BD4BD), Color(0xFF007AFF)],
+                      colors: [AppColors.brandCoral, AppColors.info],
                     ),
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF2BD4BD).withOpacity(0.3),
+                        color: AppColors.brandCoral.withValues(alpha: 0.3),
                         blurRadius: 20,
                         offset: const Offset(0, 8),
                       ),
@@ -346,7 +351,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(
@@ -396,19 +401,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF2BD4BD).withOpacity(0.3)),
+                  border: Border.all(color: AppColors.brandCoral.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF2BD4BD).withOpacity(0.1),
+                        color: AppColors.brandCoral.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Icon(
                         PhosphorIconsBold.sparkle,
-                        color: Color(0xFF2BD4BD),
+                        color: AppColors.brandCoral,
                         size: 24,
                       ),
                     ),
@@ -439,8 +444,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      const Color(0xFFFF6B6B).withOpacity(0.1),
-                      const Color(0xFFFFB84D).withOpacity(0.1),
+                      AppColors.error.withValues(alpha: 0.1),
+                      AppColors.warning.withValues(alpha: 0.1),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(16),
@@ -452,7 +457,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         Icon(
                           PhosphorIconsBold.heartbeat,
-                          color: Color(0xFFFF6B6B),
+                          color: AppColors.error,
                           size: 24,
                         ),
                         SizedBox(width: 8),
@@ -487,7 +492,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    'My Collection',
+                    'My Collections',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -505,7 +510,135 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                     child: const Text(
                       'See All',
-                      style: TextStyle(color: Color(0xFF2BD4BD)),
+                      style: TextStyle(color: AppColors.brandCoral),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              // Template Collections Grid
+              Consumer<TemplateNotifier>(
+                builder: (context, templateNotifier, _) {
+                  final collections = templateNotifier.collections;
+                  final uncategorizedTemplates = templateNotifier.uncategorizedTemplates;
+
+                  if (collections.isEmpty && uncategorizedTemplates.isEmpty) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Column(
+                          children: [
+                            Icon(
+                              PhosphorIconsRegular.folder,
+                              size: 64,
+                              color: Colors.black26,
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              'No saved templates',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.black38,
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              'Save workouts as templates to see them here',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.black26,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+
+                  return GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: 1.3,
+                    ),
+                    itemCount: collections.length + (uncategorizedTemplates.isNotEmpty ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      // Uncategorized templates folder
+                      if (index == 0 && uncategorizedTemplates.isNotEmpty) {
+                        return _CollectionCard(
+                          name: 'Uncategorized',
+                          templateCount: uncategorizedTemplates.length,
+                          icon: TemplateIcon.dumbbell,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const CollectionScreen(
+                                  collectionId: null,
+                                  collectionName: 'Uncategorized',
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      }
+
+                      final adjustedIndex = uncategorizedTemplates.isNotEmpty ? index - 1 : index;
+                      final collection = collections[adjustedIndex];
+
+                      return _CollectionCard(
+                        name: collection.name,
+                        templateCount: collection.templateCount,
+                        icon: collection.icon,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => CollectionScreen(
+                                collectionId: collection.id,
+                                collectionName: collection.name,
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+
+              const SizedBox(height: 24),
+
+              // Recent Workouts History
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Recent Workouts',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const WorkoutHistoryScreen(),
+                        ),
+                      );
+                    },
+                    child: const Text(
+                      'See All',
+                      style: TextStyle(color: AppColors.brandCoral),
                     ),
                   ),
                 ],
@@ -521,15 +654,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       children: [
                         Icon(
-                          PhosphorIconsRegular.folder,
-                          size: 64,
+                          PhosphorIconsRegular.clockCounterClockwise,
+                          size: 48,
                           color: Colors.black26,
                         ),
-                        SizedBox(height: 16),
+                        SizedBox(height: 12),
                         Text(
-                          'No saved workouts',
+                          'No workout history yet',
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize: 15,
                             color: Colors.black38,
                           ),
                         ),
@@ -557,7 +690,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: const Icon(
                             PhosphorIconsBold.barbell,
                             size: 24,
-                            color: Color(0xFF2BD4BD),
+                            color: AppColors.brandCoral,
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -599,6 +732,107 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
+class _CollectionCard extends StatelessWidget {
+  final String name;
+  final int templateCount;
+  final TemplateIcon icon;
+  final VoidCallback onTap;
+
+  const _CollectionCard({
+    required this.name,
+    required this.templateCount,
+    required this.icon,
+    required this.onTap,
+  });
+
+  IconData _getPhosphorIcon(TemplateIcon icon) {
+    switch (icon) {
+      case TemplateIcon.dumbbell:
+        return PhosphorIcons.barbell(PhosphorIconsStyle.fill);
+      case TemplateIcon.barbell:
+        return PhosphorIcons.barbell(PhosphorIconsStyle.bold);
+      case TemplateIcon.kettlebell:
+        return PhosphorIcons.personSimpleRun(PhosphorIconsStyle.fill);
+      case TemplateIcon.running:
+        return PhosphorIcons.personSimpleRun(PhosphorIconsStyle.fill);
+      case TemplateIcon.heart:
+        return PhosphorIcons.heart(PhosphorIconsStyle.fill);
+      case TemplateIcon.fire:
+        return PhosphorIcons.fire(PhosphorIconsStyle.fill);
+      case TemplateIcon.lightning:
+        return PhosphorIcons.lightning(PhosphorIconsStyle.fill);
+      case TemplateIcon.target:
+        return PhosphorIcons.target(PhosphorIconsStyle.fill);
+      case TemplateIcon.trophy:
+        return PhosphorIcons.trophy(PhosphorIconsStyle.fill);
+      case TemplateIcon.star:
+        return PhosphorIcons.star(PhosphorIconsStyle.fill);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.brandCoral.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                _getPhosphorIcon(icon),
+                color: AppColors.brandCoral,
+                size: 22,
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$templateCount template${templateCount != 1 ? 's' : ''}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.black45,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _StreakCard extends StatelessWidget {
   final String count;
   final String label;
@@ -623,10 +857,10 @@ class _StreakCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFB84D).withOpacity(0.1),
+              color: AppColors.warning.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: const Color(0xFFFFB84D), size: 20),
+            child: Icon(icon, color: AppColors.warning, size: 20),
           ),
           const SizedBox(width: 12),
           Column(

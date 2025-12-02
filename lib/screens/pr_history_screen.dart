@@ -5,6 +5,7 @@ import '../state/workout_notifier.dart';
 import '../models/workout_model.dart';
 import '../data/exercise_data.dart';
 import '../services/pr_service.dart';
+import '../theme/app_theme.dart';
 
 class PRHistoryScreen extends StatelessWidget {
   const PRHistoryScreen({super.key});
@@ -214,7 +215,7 @@ class _PRCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -232,7 +233,7 @@ class _PRCard extends StatelessWidget {
                   height: 48,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFFFFD700), Color(0xFFFFB800)],
+                      colors: [Color(0xFFFFD700), AppColors.warning],
                     ),
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -277,7 +278,7 @@ class _PRCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFFFFB800),
+                      color: AppColors.warning,
                     ),
                   ),
                 ),

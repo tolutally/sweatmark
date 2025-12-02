@@ -4,7 +4,6 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../models/exercise_model.dart';
 import '../state/workout_notifier.dart';
 import '../state/settings_notifier.dart';
-import 'dart:async';
 
 class ExerciseDetailScreen extends StatefulWidget {
   final Exercise exercise;

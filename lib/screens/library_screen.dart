@@ -5,6 +5,7 @@ import '../models/exercise_model.dart';
 import '../widgets/library_item.dart';
 import '../services/storage_service.dart';
 import 'create_exercise_screen.dart';
+import '../theme/app_theme.dart';
 
 class LibraryScreen extends StatefulWidget {
   final bool isPicker;
@@ -41,7 +42,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   Future<void> _loadExercises() async {
     final builtInExercises = EXERCISE_LIBRARY.map((e) => Exercise.fromJson(e)).toList();
-    final customExercises = await _storageService.getCustomExercises();
+    // Use merged exercises from local + Firebase
+    final customExercises = await _storageService.getCustomExercisesMerged();
     
     setState(() {
       _allExercises = [...customExercises, ...builtInExercises];
@@ -181,6 +183,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                         if (newExercise != null) {
                           await _storageService.saveCustomExercise(newExercise);
                           await _loadExercises();
+                          if (!context.mounted) return;
                           if (widget.isPicker) {
                             Navigator.pop(context, newExercise);
                           }
@@ -190,12 +193,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 20),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
-                            colors: [Color(0xFF2BD4BD), Color(0xFF8EC5FC)],
+                            colors: [AppColors.brandCoral, AppColors.infoSoft],
                           ),
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF2BD4BD).withOpacity(0.3),
+                              color: AppColors.brandCoral.withValues(alpha: 0.3),
                               blurRadius: 15,
                               offset: const Offset(0, 5),
                             ),
@@ -271,7 +274,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     style: const TextStyle(fontSize: 17),
                   ),
                   trailing: _selectedMuscle == muscle
-                      ? const Icon(PhosphorIconsBold.check, color: Color(0xFF007AFF))
+                      ? const Icon(PhosphorIconsBold.check, color: AppColors.info)
                       : null,
                   onTap: () {
                     setState(() {
@@ -321,7 +324,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     style: const TextStyle(fontSize: 17),
                   ),
                   trailing: _selectedEquipment == equipment
-                      ? const Icon(PhosphorIconsBold.check, color: Color(0xFF007AFF))
+                      ? const Icon(PhosphorIconsBold.check, color: AppColors.info)
                       : null,
                   onTap: () {
                     setState(() {
@@ -371,7 +374,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     style: const TextStyle(fontSize: 17),
                   ),
                   trailing: _selectedDifficulty == difficulty
-                      ? const Icon(PhosphorIconsBold.check, color: Color(0xFF007AFF))
+                      ? const Icon(PhosphorIconsBold.check, color: AppColors.info)
                       : null,
                   onTap: () {
                     setState(() {

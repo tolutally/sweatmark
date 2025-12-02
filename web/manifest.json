@@ -1,11 +1,11 @@
 {
-    "name": "sweatmark",
-    "short_name": "sweatmark",
+    "name": "SweatMark",
+    "short_name": "SweatMark",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0B1530",
+    "theme_color": "#FF6E5F",
+    "description": "A high-fidelity fitness application.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

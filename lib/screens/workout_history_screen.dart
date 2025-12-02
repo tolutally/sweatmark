@@ -5,6 +5,7 @@ import '../models/workout_model.dart';
 import '../data/exercise_data.dart';
 import '../state/workout_notifier.dart';
 import 'workout_detail_screen.dart';
+import '../theme/app_theme.dart';
 
 class WorkoutHistoryScreen extends StatefulWidget {
   const WorkoutHistoryScreen({super.key});
@@ -30,18 +31,19 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen> {
   }
 
   void _deleteWorkout(WorkoutLog workout) async {
+    final notifier = context.read<WorkoutNotifier>();
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Delete Workout'),
         content: const Text('Are you sure you want to delete this workout? This action cannot be undone.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
@@ -49,7 +51,7 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen> {
     );
 
     if (confirmed == true) {
-      context.read<WorkoutNotifier>().deleteWorkout(workout);
+      notifier.deleteWorkout(workout);
     }
   }
 
@@ -180,7 +182,7 @@ class _WorkoutCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, 2),
             ),
@@ -220,7 +222,7 @@ class _WorkoutCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE8F5F3),
+                      color: AppColors.successSoft,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -228,7 +230,7 @@ class _WorkoutCard extends StatelessWidget {
                         const Icon(
                           PhosphorIconsRegular.clock,
                           size: 14,
-                          color: Color(0xFF2BD4BD),
+                          color: AppColors.brandCoral,
                         ),
                         const SizedBox(width: 4),
                         Text(
@@ -236,7 +238,7 @@ class _WorkoutCard extends StatelessWidget {
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF2BD4BD),
+                            color: AppColors.brandCoral,
                           ),
                         ),
                       ],
@@ -263,7 +265,7 @@ class _WorkoutCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 decoration: BoxDecoration(
                   border: Border(
-                    top: BorderSide(color: Colors.black.withOpacity(0.05)),
+                    top: BorderSide(color: Colors.black.withValues(alpha: 0.05)),
                   ),
                 ),
                 child: Row(
@@ -357,7 +359,7 @@ class _WorkoutCard extends StatelessWidget {
                       '+${workout.exercises.length - 3} more',
                       style: const TextStyle(
                         fontSize: 13,
-                        color: Color(0xFF007AFF),
+                        color: AppColors.info,
                         fontWeight: FontWeight.w600,
                       ),
                     ),

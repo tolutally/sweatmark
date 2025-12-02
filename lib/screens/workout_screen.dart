@@ -5,6 +5,7 @@ import '../state/workout_notifier.dart';
 import '../models/workout_model.dart';
 import '../data/exercise_data.dart';
 import 'active_workout_screen.dart';
+import '../theme/app_theme.dart';
 
 class WorkoutScreen extends StatelessWidget {
   const WorkoutScreen({super.key});
@@ -16,21 +17,12 @@ class WorkoutScreen extends StatelessWidget {
     // Calculate stats from workout history
     final history = workoutNotifier.workoutHistory;
     int totalTime = 0;
-    double totalWeight = 0;
     int streak = 0;
 
     for (var workout in history) {
       // Calculate total time in minutes
       totalTime += (workout.durationSeconds / 60).round();
       
-      // Calculate total weight
-      for (var exercise in workout.exercises) {
-        for (var set in exercise.sets) {
-          if (set.weight != null && set.reps != null) {
-            totalWeight += (set.weight! * set.reps!);
-          }
-        }
-      }
     }
 
     return Scaffold(
@@ -58,7 +50,7 @@ class WorkoutScreen extends StatelessWidget {
                     width: 48,
                     height: 48,
                     decoration: const BoxDecoration(
-                      color: Color(0xFFFF6B6B),
+                      color: AppColors.error,
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -84,7 +76,7 @@ class WorkoutScreen extends StatelessWidget {
                             label: 'Streak',
                             value: '$streak days',
                             icon: PhosphorIconsBold.fire,
-                            iconColor: const Color(0xFFFF6B6B),
+                            iconColor: AppColors.error,
                             iconBgColor: const Color(0xFFFFE5E5),
                             hasWarning: streak == 0,
                             warningText: 'Below Average',
@@ -96,7 +88,7 @@ class WorkoutScreen extends StatelessWidget {
                             label: 'Total Time',
                             value: '$totalTime min',
                             icon: PhosphorIconsBold.clock,
-                            iconColor: const Color(0xFFFFB84D),
+                            iconColor: AppColors.warning,
                             iconBgColor: const Color(0xFFFFF3E0),
                           ),
                         ),
@@ -244,7 +236,7 @@ class _StatCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -281,7 +273,7 @@ class _StatCard extends StatelessWidget {
                 const Icon(
                   PhosphorIconsBold.warning,
                   size: 14,
-                  color: Color(0xFFFFB84D),
+                  color: AppColors.warning,
                 ),
                 const SizedBox(width: 4),
                 Flexible(
@@ -289,7 +281,7 @@ class _StatCard extends StatelessWidget {
                     warningText,
                     style: const TextStyle(
                       fontSize: 11,
-                      color: Color(0xFFFFB84D),
+                      color: AppColors.warning,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -357,7 +349,7 @@ class _WorkoutHistoryCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -407,14 +399,14 @@ class _WorkoutHistoryCard extends StatelessWidget {
                           Icon(
                             PhosphorIconsRegular.globe,
                             size: 12,
-                            color: Color(0xFFFF6B6B),
+                            color: AppColors.error,
                           ),
                           SizedBox(width: 4),
                           Text(
                             'Top 12%',
                             style: TextStyle(
                               fontSize: 12,
-                              color: Color(0xFFFF6B6B),
+                              color: AppColors.error,
                             ),
                           ),
                         ],
@@ -498,13 +490,13 @@ class _MuscleBreakdownSection extends StatelessWidget {
   Color _getMuscleColor(String muscleGroup) {
     switch (muscleGroup.toLowerCase()) {
       case 'chest':
-        return const Color(0xFFFF6B6B);
+        return AppColors.error;
       case 'back':
       case 'lats':
       case 'lower back':
-        return const Color(0xFF007AFF);
+        return AppColors.info;
       case 'shoulders':
-        return const Color(0xFFFFB84D);
+        return AppColors.warning;
       case 'arms':
       case 'biceps':
       case 'triceps':
@@ -517,7 +509,7 @@ class _MuscleBreakdownSection extends StatelessWidget {
         return const Color(0xFF9F44D3);
       case 'abs':
       case 'core':
-        return const Color(0xFF2BD4BD);
+        return AppColors.brandCoral;
       default:
         return const Color(0xFF8E8E93);
     }
@@ -588,7 +580,7 @@ class _MuscleBreakdownSection extends StatelessWidget {
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: color.withOpacity(0.15),
+                      color: color.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(

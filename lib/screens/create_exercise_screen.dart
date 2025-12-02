@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../models/exercise_model.dart';
+import '../theme/app_theme.dart';
 
 class CreateExerciseScreen extends StatefulWidget {
   const CreateExerciseScreen({super.key});
@@ -103,7 +104,7 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
@@ -152,7 +153,7 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
@@ -222,7 +223,7 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: 0.05),
                       blurRadius: 10,
                       offset: const Offset(0, 2),
                     ),
@@ -234,12 +235,12 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFE0F2FF),
+                        color: AppColors.infoSoft,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Icon(
                         PhosphorIconsBold.user,
-                        color: Color(0xFF007AFF),
+                        color: AppColors.info,
                         size: 20,
                       ),
                     ),
@@ -258,7 +259,7 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
                       _selectedMuscleGroup ?? 'Select',
                       style: const TextStyle(
                         fontSize: 17,
-                        color: Color(0xFF007AFF),
+                        color: AppColors.info,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -284,7 +285,7 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: 0.05),
                       blurRadius: 10,
                       offset: const Offset(0, 2),
                     ),
@@ -301,7 +302,7 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
                       ),
                       child: const Icon(
                         PhosphorIconsBold.barbell,
-                        color: Color(0xFFFFB84D),
+                        color: AppColors.warning,
                         size: 20,
                       ),
                     ),
@@ -320,7 +321,7 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
                       _selectedEquipment ?? 'Select',
                       style: const TextStyle(
                         fontSize: 17,
-                        color: Color(0xFF007AFF),
+                        color: AppColors.info,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -346,7 +347,7 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: 0.05),
                       blurRadius: 10,
                       offset: const Offset(0, 2),
                     ),
@@ -382,7 +383,7 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
                       _instructionsController.text.isEmpty ? 'Add' : 'Edit',
                       style: const TextStyle(
                         fontSize: 17,
-                        color: Color(0xFF007AFF),
+                        color: AppColors.info,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -461,7 +462,7 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
                     style: const TextStyle(fontSize: 17),
                   ),
                   trailing: _selectedMuscleGroup == muscle
-                      ? const Icon(PhosphorIconsBold.check, color: Color(0xFF007AFF))
+                      ? const Icon(PhosphorIconsBold.check, color: AppColors.info)
                       : null,
                   onTap: () {
                     setState(() {
@@ -510,7 +511,7 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
                     style: const TextStyle(fontSize: 17),
                   ),
                   trailing: _selectedEquipment == equip
-                      ? const Icon(PhosphorIconsBold.check, color: Color(0xFF007AFF))
+                      ? const Icon(PhosphorIconsBold.check, color: AppColors.info)
                       : null,
                   onTap: () {
                     setState(() {
