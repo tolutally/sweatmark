@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../models/exercise_model.dart';
@@ -57,8 +58,14 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
     final notifier = context.watch<WorkoutNotifier>();
     final totalSets = widget.exerciseLog.sets.length;
 
-    return Scaffold(
-      backgroundColor: Colors.black,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light, // Light icons on dark bg
+        statusBarBrightness: Brightness.dark, // iOS: light icons on dark bg
+      ),
+      child: Scaffold(
+        backgroundColor: Colors.black,
       body: SafeArea(
         child: Column(
           children: [
@@ -533,6 +540,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

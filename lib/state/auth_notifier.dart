@@ -16,22 +16,13 @@ class AuthNotifier extends ChangeNotifier {
   }
 
   User? get user => _user;
-  bool get isAuthenticated => _user != null;
+  bool get isAuthenticated => _user != null && !(_user?.isAnonymous ?? true);
   bool get isLoading => _isLoading;
-  bool get isAnonymous => _user?.isAnonymous ?? false;
+  
+  /// Check if user has a verified email (for extra security if needed)
+  bool get hasVerifiedEmail => _user?.emailVerified ?? false;
 
-  /// Sign in anonymously
-  Future<bool> signInAnonymously() async {
-    _isLoading = true;
-    notifyListeners();
-
-    final credential = await _firebaseService.signInAnonymously();
-    
-    _isLoading = false;
-    notifyListeners();
-    
-    return credential != null;
-  }
+  // Anonymous sign-in is DISABLED - all users must authenticate properly
 
   /// Sign up with email and password
   Future<bool> signUpWithEmail(String email, String password) async {
@@ -64,12 +55,40 @@ class AuthNotifier extends ChangeNotifier {
     await _firebaseService.signOut();
   }
 
-  /// Link anonymous account to email/password
-  Future<bool> linkEmailPassword(String email, String password) async {
+  // linkEmailPassword removed - no anonymous accounts to link
+
+  /// Send password reset email
+  Future<bool> sendPasswordResetEmail(String email) async {
     _isLoading = true;
     notifyListeners();
 
-    final credential = await _firebaseService.linkEmailPassword(email, password);
+    final success = await _firebaseService.sendPasswordResetEmail(email);
+    
+    _isLoading = false;
+    notifyListeners();
+    
+    return success;
+  }
+
+  /// Sign in with Google
+  Future<bool> signInWithGoogle() async {
+    _isLoading = true;
+    notifyListeners();
+
+    final credential = await _firebaseService.signInWithGoogle();
+    
+    _isLoading = false;
+    notifyListeners();
+    
+    return credential != null;
+  }
+
+  /// Sign in with Apple
+  Future<bool> signInWithApple() async {
+    _isLoading = true;
+    notifyListeners();
+
+    final credential = await _firebaseService.signInWithApple();
     
     _isLoading = false;
     notifyListeners();

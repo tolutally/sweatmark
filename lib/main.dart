@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
@@ -12,12 +13,20 @@ import 'state/template_notifier.dart';
 import 'services/firebase_service.dart';
 import 'services/storage_service.dart';
 import 'services/sync_service.dart';
+import 'services/notification_service.dart';
 import 'widgets/app_shell.dart';
 import 'screens/auth_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Set system UI overlay style for light theme (dark status bar icons)
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.dark, // Dark icons for Android
+    statusBarBrightness: Brightness.light, // Light status bar for iOS (means dark icons)
+  ));
 
   // Initialize Firebase
   try {
@@ -28,6 +37,14 @@ void main() async {
   } catch (e) {
     print('Firebase initialization error: $e');
     print('Please run: flutterfire configure');
+  }
+
+  // Initialize notification service
+  try {
+    await NotificationService().initialize();
+    print('NotificationService initialized successfully');
+  } catch (e) {
+    print('NotificationService initialization error: $e');
   }
 
   runApp(const SweatMarkApp());
@@ -42,6 +59,7 @@ class SweatMarkApp extends StatelessWidget {
     final firebaseService = FirebaseService();
     final storageService = StorageService();
     final syncService = SyncService(firebaseService, storageService);
+    final notificationService = NotificationService();
 
     return MultiProvider(
       providers: [
@@ -55,6 +73,7 @@ class SweatMarkApp extends StatelessWidget {
         Provider.value(value: firebaseService),
         Provider.value(value: storageService),
         Provider.value(value: syncService),
+        Provider.value(value: notificationService),
       ],
       child: MaterialApp(
         title: 'SweatMark',

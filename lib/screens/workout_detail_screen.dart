@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../models/workout_model.dart';
@@ -236,8 +237,14 @@ class WorkoutDetailScreen extends StatelessWidget {
       }
     }
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+      ),
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
         backgroundColor: const Color(0xFFF5F5F5),
         elevation: 0,
@@ -532,6 +539,7 @@ class WorkoutDetailScreen extends StatelessWidget {
             const SizedBox(height: 40),
           ],
         ),
+      ),
       ),
     );
   }

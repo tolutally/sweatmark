@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../state/workout_notifier.dart';
@@ -10,7 +11,6 @@ import '../data/exercise_data.dart';
 import '../widgets/schedule_bottom_sheet.dart';
 import 'library_screen.dart';
 import 'workout_summary_screen.dart';
-import 'exercise_detail_screen.dart';
 
 class ActiveWorkoutScreen extends StatefulWidget {
   const ActiveWorkoutScreen({super.key});
@@ -29,8 +29,14 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
       return const Scaffold(body: Center(child: Text('No active workout')));
     }
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+      ),
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
         backgroundColor: const Color(0xFFF5F5F5),
         elevation: 0,
@@ -307,6 +313,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
             ),
           ),
         ),
+      ),
       ),
     );
   }

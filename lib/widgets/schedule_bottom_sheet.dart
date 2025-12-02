@@ -7,6 +7,7 @@ import '../models/exercise_model.dart';
 import '../data/exercise_data.dart';
 import '../data/seed_exercises.dart';
 import '../state/template_notifier.dart';
+import '../services/notification_service.dart';
 
 /// Bottom sheet for setting up schedule, repeat, and saving as template
 class ScheduleBottomSheet extends StatefulWidget {
@@ -659,6 +660,94 @@ class _ScheduleBottomSheetState extends State<ScheduleBottomSheet> {
     }
   }
 
+  /// Schedule notification reminders based on the workout schedule
+  Future<void> _scheduleReminders(
+    String workoutName,
+    String templateId,
+    WorkoutSchedule schedule,
+  ) async {
+    try {
+      final notificationService = context.read<NotificationService>();
+      
+      switch (schedule.frequency) {
+        case RepeatFrequency.daily:
+          // Schedule daily reminders at the set time
+          final now = DateTime.now();
+          var scheduledTime = DateTime(
+            now.year,
+            now.month,
+            now.day,
+            _reminderTime.hour,
+            _reminderTime.minute,
+          );
+          
+          // If time has passed today, schedule for tomorrow
+          if (scheduledTime.isBefore(now)) {
+            scheduledTime = scheduledTime.add(const Duration(days: 1));
+          }
+          
+          // Schedule for all 7 days of the week
+          await notificationService.scheduleRepeatingReminders(
+            workoutName: workoutName,
+            weekdays: [1, 2, 3, 4, 5, 6, 7],
+            hour: _reminderTime.hour,
+            minute: _reminderTime.minute,
+            templateId: templateId,
+          );
+          print('📅 Scheduled daily reminders for "$workoutName"');
+          break;
+          
+        case RepeatFrequency.weekly:
+          // Schedule for selected weekdays
+          if (_selectedWeekDays.isNotEmpty) {
+            await notificationService.scheduleRepeatingReminders(
+              workoutName: workoutName,
+              weekdays: _selectedWeekDays.toList(),
+              hour: _reminderTime.hour,
+              minute: _reminderTime.minute,
+              templateId: templateId,
+            );
+            print('📅 Scheduled weekly reminders for "$workoutName" on days $_selectedWeekDays');
+          }
+          break;
+          
+        case RepeatFrequency.everyOtherDay:
+        case RepeatFrequency.everyThreeDays:
+        case RepeatFrequency.biweekly:
+        case RepeatFrequency.monthly:
+        case RepeatFrequency.custom:
+          // For fixed intervals, schedule the next occurrence
+          final intervalDays = schedule.frequency == RepeatFrequency.custom
+              ? _customIntervalDays
+              : schedule.frequency.intervalDays;
+          
+          final now = DateTime.now();
+          var nextOccurrence = DateTime(
+            now.year,
+            now.month,
+            now.day,
+            _reminderTime.hour,
+            _reminderTime.minute,
+          );
+          
+          // If time has passed today, start from the next interval
+          if (nextOccurrence.isBefore(now)) {
+            nextOccurrence = nextOccurrence.add(Duration(days: intervalDays));
+          }
+          
+          await notificationService.scheduleWorkoutReminder(
+            workoutName: workoutName,
+            scheduledTime: nextOccurrence,
+            templateId: templateId,
+          );
+          print('📅 Scheduled interval reminder for "$workoutName" at $nextOccurrence');
+          break;
+      }
+    } catch (e) {
+      print('❌ Error scheduling reminders: $e');
+    }
+  }
+
   Future<void> _saveTemplate() async {
     if (_nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -763,6 +852,11 @@ class _ScheduleBottomSheetState extends State<ScheduleBottomSheet> {
 
       if (result != null) {
         print('✅ Template saved successfully with ID: ${result.id}');
+        
+        // Schedule notification reminders if enabled
+        if (_hasReminder && schedule != null) {
+          await _scheduleReminders(result.name, result.id, schedule);
+        }
       } else {
         print('⚠️ Template creation returned null - user may not be logged in');
       }

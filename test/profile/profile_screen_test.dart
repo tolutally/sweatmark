@@ -179,10 +179,7 @@ class _FakeFirebaseService implements FirebaseService {
   @override
   Stream<User?> get authStateChanges => _authController.stream;
 
-  @override
-  Future<UserCredential?> signInAnonymously() async {
-    return null;
-  }
+  // signInAnonymously removed - anonymous sign-in is disabled
 
   @override
   Future<UserCredential?> signUpWithEmail(
@@ -201,11 +198,7 @@ class _FakeFirebaseService implements FirebaseService {
     emitAuth(null);
   }
 
-  @override
-  Future<UserCredential?> linkEmailPassword(
-      String email, String password) async {
-    return null;
-  }
+  // linkEmailPassword removed - anonymous sign-in is disabled
 
   @override
   Future<void> updateUserProfile(
@@ -264,6 +257,43 @@ class _FakeFirebaseService implements FirebaseService {
 
   @override
   void stopWorkoutsListener() {}
+
+  // Additional methods required by FirebaseService
+  @override
+  Future<bool> sendPasswordResetEmail(String email) async => true;
+
+  @override
+  Future<UserCredential?> signInWithGoogle() async => null;
+
+  @override
+  Future<UserCredential?> signInWithApple() async => null;
+
+  @override
+  Future<void> batchUploadCustomExercises(String userId, List<dynamic> exercises) async {}
+
+  @override
+  Future<void> deleteCustomExercise(String userId, String exerciseId) async {}
+
+  @override
+  Future<List<Map<String, dynamic>>> getCustomExercises(String userId) async => [];
+
+  @override
+  Stream<List<Map<String, dynamic>>> getCustomExercisesStream(String userId) => const Stream.empty();
+
+  @override
+  Future<void> saveCustomExercise(String userId, dynamic exercise) async {}
+
+  @override
+  Future<Map<String, dynamic>?> getUserSchedule(String userId) async => null;
+
+  @override
+  Future<void> setUserSchedule(String userId, Map<String, dynamic> schedule) async {}
+
+  @override
+  Future<List<Map<String, dynamic>>> getGlobalExercises() async => [];
+
+  @override
+  Future<void> seedGlobalExercises(List<Map<String, dynamic>> exercises) async {}
 }
 
 class _FakeUser implements User {

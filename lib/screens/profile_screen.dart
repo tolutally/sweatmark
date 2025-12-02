@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import '../state/auth_notifier.dart';
@@ -37,28 +38,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.neutral50,
-      body: Consumer2<AuthNotifier, ProfileNotifier>(
-        builder: (context, authNotifier, profileNotifier, child) {
-          final userId = authNotifier.user?.uid;
-          final profile = profileNotifier.profile ??
-              ProfileModel(
-                displayName: 'Loading...',
-                handle: '@loading',
-                createdAt: null,
-                totalWorkouts: 0,
-                totalPersonalRecords: 0,
-              );
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+      ),
+      child: Scaffold(
+        backgroundColor: AppColors.neutral50,
+        body: Consumer2<AuthNotifier, ProfileNotifier>(
+          builder: (context, authNotifier, profileNotifier, child) {
+            final userId = authNotifier.user?.uid;
+            final profile = profileNotifier.profile ??
+                ProfileModel(
+                  displayName: 'Loading...',
+                  handle: '@loading',
+                  createdAt: null,
+                  totalWorkouts: 0,
+                  totalPersonalRecords: 0,
+                );
 
-          return CustomScrollView(
-            slivers: [
-              // Header with Profile Info
-              SliverToBoxAdapter(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: const BorderRadius.vertical(
+            return CustomScrollView(
+              slivers: [
+                // Header with Profile Info
+                SliverToBoxAdapter(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: const BorderRadius.vertical(
                       bottom: Radius.circular(24),
                     ),
                     boxShadow: [
@@ -69,192 +76,162 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ],
                   ),
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.vertical(
-                        bottom: Radius.circular(24),
-                      ),
-                    ),
-                    child: SafeArea(
-                      bottom: false,
-                      child: Padding(
-                        padding: const EdgeInsets.all(20.0),
-                        child: Column(
-                          children: [
-                            // Close button
-                            Align(
-                              alignment: Alignment.topRight,
-                              child: IconButton(
-                                icon: const Icon(PhosphorIconsRegular.x,
-                                    color: AppColors.neutral500),
-                                onPressed: () => _showCloseOptions(context),
+                  child: SafeArea(
+                    bottom: false,
+                    child: Padding(
+                      padding: const EdgeInsets.all(20.0),
+                      child: Column(
+                        children: [
+                          // Close button
+                          Align(
+                            alignment: Alignment.topRight,
+                            child: IconButton(
+                              icon: const Icon(PhosphorIconsRegular.x,
+                                  color: AppColors.neutral500),
+                              onPressed: () => _showCloseOptions(context),
+                            ),
+                          ),
+
+                          // Premium Badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: AppColors.neutral100,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: AppColors.neutral200,
+                                width: 1,
                               ),
                             ),
-
-                            // Premium Badge
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color:
-                                    AppColors.brandCoral.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color:
-                                      AppColors.brandCoral.withValues(alpha: 0.5),
-                                  width: 1,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color:
-                                        AppColors.brandCoral.withOpacity(0.2),
-                                    blurRadius: 10,
-                                    spreadRadius: 1,
-                                  ),
-                                ],
-                              ),
-                              child: const Text(
-                                'SWEAT ELITE',
-                                style: TextStyle(
-                                  color: AppColors.brandCoral,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1,
-                                ),
+                            child: const Text(
+                              'SWEAT ELITE',
+                              style: TextStyle(
+                                color: AppColors.neutral600,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.1,
                               ),
                             ),
+                          ),
 
-                            const SizedBox(height: 12),
+                          const SizedBox(height: 12),
 
-                            // Avatar
-                            Container(
-                              width: 84,
-                              height: 84,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: AppGradients.primary,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color:
-                                        AppColors.brandCoral.withOpacity(0.4),
-                                    blurRadius: 28,
-                                    spreadRadius: 0,
-                                    offset: const Offset(0, 8),
-                                  ),
-                                  BoxShadow(
-                                    color:
-                                        AppColors.brandCoral.withOpacity(0.2),
-                                    blurRadius: 16,
-                                    spreadRadius: 2,
-                                  ),
-                                ],
-                              ),
-                              child: const Center(
-                                child: Icon(
-                                  PhosphorIconsBold.barbell,
-                                  size: 36,
-                                  color: Colors.black,
-                                ),
+                          // Avatar
+                          Container(
+                            width: 76,
+                            height: 76,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.neutral100,
+                              border: Border.all(
+                                color: AppColors.neutral200,
                               ),
                             ),
+                            child: const Center(
+                              child: Icon(
+                                PhosphorIconsBold.barbell,
+                                size: 30,
+                                color: AppColors.brandCoral,
+                              ),
+                            ),
+                          ),
 
-                            const SizedBox(height: 12),
+                          const SizedBox(height: 12),
 
-                            // Username
-                            Column(
-                              children: [
-                                GestureDetector(
-                                  behavior: HitTestBehavior.translucent,
-                                  onTap: userId == null
-                                      ? null
-                                      : () => _handleNameHandleEdit(
-                                            context,
-                                            userId,
-                                            profile,
-                                          ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Flexible(
-                                        child: Text(
-                                          profile.displayName,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          textAlign: TextAlign.center,
-                                          style: const TextStyle(
-                                            fontSize: 24,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white,
-                                          ),
+                          // Username
+                          Column(
+                            children: [
+                              GestureDetector(
+                                behavior: HitTestBehavior.translucent,
+                                onTap: userId == null
+                                    ? null
+                                    : () => _handleNameHandleEdit(
+                                          context,
+                                          userId,
+                                          profile,
+                                        ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        profile.displayName,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.neutral900,
                                         ),
                                       ),
-                                      const SizedBox(width: 6),
-                                      Icon(
-                                        PhosphorIconsRegular.pencilSimple,
-                                        size: 18,
-                                        color: Colors.white.withOpacity(0.6),
-                                      ),
-                                    ],
+                                    ),
+                                    const SizedBox(width: 6),
+                                    const Icon(
+                                      PhosphorIconsRegular.pencilSimple,
+                                      size: 18,
+                                      color: AppColors.neutral500,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              ConstrainedBox(
+                                constraints:
+                                    const BoxConstraints(maxWidth: 240),
+                                child: Text(
+                                  profile.handle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.neutral500,
                                   ),
                                 ),
-                                const SizedBox(height: 4),
-                                ConstrainedBox(
-                                  constraints:
-                                      const BoxConstraints(maxWidth: 240),
-                                  child: Text(
-                                    profile.handle,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.white.withOpacity(0.6),
-                                    ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 10),
+
+                          // Stats
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: AppColors.neutral100,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: AppColors.neutral200,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '${profile.totalWorkouts}',
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.neutral900,
+                                  ),
+                                ),
+                                const Text(
+                                  ' workouts',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.neutral600,
                                   ),
                                 ),
                               ],
                             ),
+                          ),
 
-                            const SizedBox(height: 12),
-
-                            // Stats
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 10),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.2),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    '${profile.totalWorkouts}',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  Text(
-                                    ' workouts',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.white.withOpacity(0.7),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                            const SizedBox(height: 18),
-                          ],
-                        ),
+                          const SizedBox(height: 18),
+                        ],
                       ),
                     ),
                   ),
@@ -324,20 +301,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const SizedBox(width: 12),
                           Container(
                             decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Colors.white.withOpacity(0.15),
-                                  Colors.white.withOpacity(0.05),
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(16),
+                              color: AppColors.neutral100,
+                              borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                color: Colors.white.withOpacity(0.2),
+                                color: AppColors.neutral200,
                               ),
                             ),
                             child: IconButton(
                               icon: const Icon(PhosphorIconsRegular.dotsThree),
-                              color: Colors.white,
+                              color: AppColors.neutral800,
                               onPressed: () {
                                 _showSettingsDialog(context);
                               },
@@ -357,11 +329,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      const Text(
                         'Achievement Display',
                         style: TextStyle(
                           fontSize: 11,
-                          color: Colors.white.withOpacity(0.4),
+                          color: AppColors.neutral500,
                           letterSpacing: 0.5,
                         ),
                       ),
@@ -391,12 +363,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             size: 16,
                             color: AppColors.warning,
                           ),
-                          label: Text(
+                          label: const Text(
                             'View Personal Records',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: Colors.white.withOpacity(0.8),
+                              color: AppColors.neutral800,
                             ),
                           ),
                         ),
@@ -465,7 +437,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: AppColors.neutral900,
                         ),
                       ),
                       const SizedBox(height: 18),
@@ -476,25 +448,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               'No Posts',
                               style: TextStyle(
                                 fontSize: 14,
-                                color: Colors.white.withOpacity(0.3),
+                                color: AppColors.neutral400,
                               ),
                             ),
                             const SizedBox(height: 16),
                             Container(
                               decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Colors.white.withOpacity(0.15),
-                                    Colors.white.withOpacity(0.05),
-                                  ],
-                                ),
+                                color: AppColors.neutral100,
                                 borderRadius: BorderRadius.circular(16),
                                 border: Border.all(
-                                  color: Colors.white.withOpacity(0.2),
+                                  color: AppColors.neutral200,
                                 ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.1),
+                                    color: Colors.black.withOpacity(0.04),
                                     blurRadius: 8,
                                     offset: const Offset(0, 2),
                                   ),
@@ -516,13 +483,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         Icon(
                                           PhosphorIconsRegular.plus,
                                           size: 16,
-                                          color: Colors.white,
+                                          color: AppColors.neutral600,
                                         ),
                                         SizedBox(width: 8),
                                         Text(
                                           'Post Activity',
                                           style: TextStyle(
-                                            color: Colors.white,
+                                            color: AppColors.neutral800,
                                             fontWeight: FontWeight.w500,
                                           ),
                                         ),
@@ -543,6 +510,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           );
         },
+      ),
       ),
     );
   }
@@ -790,19 +758,13 @@ class _ActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        gradient: isPrimary
-            ? AppGradients.primary
-            : LinearGradient(
-                colors: [
-                  Colors.white.withOpacity(0.15),
-                  Colors.white.withOpacity(0.05),
-                ],
-              ),
+        gradient: isPrimary ? AppGradients.primary : null,
+        color: isPrimary ? null : AppColors.neutral100,
         borderRadius: BorderRadius.circular(14),
         border: isPrimary
             ? null
             : Border.all(
-                color: Colors.white.withOpacity(0.2),
+                color: AppColors.neutral200,
               ),
         boxShadow: isPrimary
             ? [
@@ -827,8 +789,7 @@ class _ActionButton extends StatelessWidget {
                 Icon(
                   icon,
                   size: 18,
-                  color:
-                      isPrimary ? Colors.white : Colors.white.withOpacity(0.9),
+                  color: isPrimary ? Colors.white : AppColors.neutral600,
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -836,9 +797,7 @@ class _ActionButton extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: isPrimary
-                        ? Colors.white
-                        : Colors.white.withOpacity(0.9),
+                    color: isPrimary ? Colors.white : AppColors.neutral800,
                   ),
                 ),
               ],
@@ -859,28 +818,23 @@ class _AchievementSlot extends StatelessWidget {
       width: 60,
       height: 60,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.white.withOpacity(0.1),
-            Colors.white.withOpacity(0.05),
-          ],
-        ),
+        color: AppColors.neutral100,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: Colors.white.withOpacity(0.15),
+          color: AppColors.neutral200,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withOpacity(0.04),
             blurRadius: 3,
             offset: const Offset(0, 1),
           ),
         ],
       ),
-      child: Center(
+      child: const Center(
         child: Icon(
           PhosphorIconsRegular.plus,
-          color: Colors.white.withOpacity(0.35),
+          color: AppColors.neutral400,
           size: 20,
         ),
       ),
@@ -906,19 +860,14 @@ class _InfoRow extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.brandNavy.withOpacity(0.4),
-            AppColors.brandNavy.withOpacity(0.2),
-          ],
-        ),
+        color: AppColors.neutral100,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: Colors.white.withOpacity(0.1),
+          color: AppColors.neutral200,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withOpacity(0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -937,14 +886,8 @@ class _InfoRow extends StatelessWidget {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    gradient: isPlaceholder
-                        ? LinearGradient(
-                            colors: [
-                              Colors.white.withOpacity(0.08),
-                              Colors.white.withOpacity(0.04),
-                            ],
-                          )
-                        : AppGradients.primary,
+                    color: isPlaceholder ? AppColors.neutral200 : null,
+                    gradient: isPlaceholder ? null : AppGradients.primary,
                     shape: BoxShape.circle,
                     boxShadow: isPlaceholder
                         ? null
@@ -959,9 +902,7 @@ class _InfoRow extends StatelessWidget {
                   child: Icon(
                     icon,
                     size: 20,
-                    color: isPlaceholder
-                        ? Colors.white.withOpacity(0.4)
-                        : Colors.white,
+                    color: isPlaceholder ? AppColors.neutral400 : Colors.white,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -973,15 +914,15 @@ class _InfoRow extends StatelessWidget {
                       fontWeight:
                           isPlaceholder ? FontWeight.w400 : FontWeight.w500,
                       color: isPlaceholder
-                          ? Colors.white.withOpacity(0.4)
-                          : Colors.white.withOpacity(0.9),
+                          ? AppColors.neutral400
+                          : AppColors.neutral800,
                     ),
                   ),
                 ),
-                Icon(
+                const Icon(
                   PhosphorIconsRegular.pencilSimple,
                   size: 16,
-                  color: Colors.white.withOpacity(0.4),
+                  color: AppColors.neutral400,
                 ),
               ],
             ),
@@ -1039,30 +980,7 @@ void _showSettingsDialog(BuildContext context) {
               _showRestTimerSettings(context);
             },
           ),
-          Consumer<AuthNotifier>(
-            builder: (context, auth, _) {
-              if (!auth.isAnonymous) return const SizedBox.shrink();
-              return ListTile(
-                leading:
-                    const Icon(PhosphorIconsBold.userPlus, color: Colors.white),
-                title: const Text('Create Account',
-                    style: TextStyle(color: Colors.white)),
-                subtitle: Text(
-                  'Save progress to your email',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.6),
-                    fontSize: 12,
-                  ),
-                ),
-                trailing: const Icon(PhosphorIconsRegular.caretRight,
-                    color: Colors.white54),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showLinkAccountDialog(context);
-                },
-              );
-            },
-          ),
+          // Anonymous sign-in removed - all users are authenticated
         ],
       ),
     ),
@@ -1533,204 +1451,7 @@ Future<void> _showEditInstagramDialog(
   controller.dispose();
 }
 
-Future<void> _showLinkAccountDialog(BuildContext context) async {
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
-  bool isLoading = false;
-  String? errorText;
-
-  await showDialog<void>(
-    context: context,
-    builder: (dialogContext) => StatefulBuilder(
-      builder: (context, setState) => AlertDialog(
-        backgroundColor: Colors.transparent,
-        content: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                AppColors.brandNavy.withOpacity(0.9),
-                AppColors.brandNavyDeep.withOpacity(0.95),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.15),
-            ),
-          ),
-          padding: const EdgeInsets.all(20),
-          child: SingleChildScrollView(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(dialogContext).viewInsets.bottom,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Create Account',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    hintText: 'you@example.com',
-                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                    filled: true,
-                    fillColor: Colors.white.withOpacity(0.1),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(
-                        color: Colors.white.withOpacity(0.2),
-                      ),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(
-                        color: Colors.white.withOpacity(0.2),
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(
-                        color: AppColors.brandCoral,
-                        width: 1.4,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: passwordController,
-                  obscureText: true,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    hintText: 'Password (min 6 chars)',
-                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                    filled: true,
-                    fillColor: Colors.white.withOpacity(0.1),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(
-                        color: Colors.white.withOpacity(0.2),
-                      ),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(
-                        color: Colors.white.withOpacity(0.2),
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(
-                        color: AppColors.brandCoral,
-                        width: 1.4,
-                      ),
-                    ),
-                  ),
-                ),
-                if (errorText != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      errorText!,
-                      style: const TextStyle(
-                          color: Colors.redAccent, fontSize: 12),
-                    ),
-                  ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed:
-                          isLoading ? null : () => Navigator.pop(dialogContext),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.white.withOpacity(0.7),
-                      ),
-                      child: const Text('Cancel'),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: isLoading
-                          ? null
-                          : () async {
-                              final email = emailController.text.trim();
-                              final password = passwordController.text;
-                              if (email.isEmpty || password.length < 6) {
-                                setState(() {
-                                  errorText =
-                                      'Enter a valid email and password (6+ chars)';
-                                });
-                                return;
-                              }
-
-                              setState(() {
-                                isLoading = true;
-                                errorText = null;
-                              });
-
-                              final auth = context.read<AuthNotifier>();
-                              final success = await auth.linkEmailPassword(
-                                  email, password);
-
-                              if (!dialogContext.mounted) return;
-                              setState(() {
-                                isLoading = false;
-                              });
-
-                              if (success) {
-                                Navigator.pop(dialogContext);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Account created and linked'),
-                                    backgroundColor: AppColors.brandCoral,
-                                  ),
-                                );
-                              } else {
-                                setState(() {
-                                  errorText = 'Failed to link account';
-                                });
-                              }
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.brandCoral,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: isLoading
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text('Create'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
-
-  emailController.dispose();
-  passwordController.dispose();
-}
+// _showLinkAccountDialog removed - anonymous sign-in is disabled
 
 void _showRestTimerSettings(BuildContext context) {
   showModalBottomSheet(

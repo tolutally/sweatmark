@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:table_calendar/table_calendar.dart';
@@ -68,7 +69,7 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _isLoadingSchedule = false);
   }
 
-  Future<void> _saveScheduleToCloud() async {
+  Future<void> _saveScheduleToCloud({String frequency = 'Weekly'}) async {
     final userId = context.read<AuthNotifier>().user?.uid;
     if (userId == null) return;
     final firebaseService = context.read<FirebaseService>();
@@ -76,6 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
       'weekdays': _scheduledWeekdays.toList(),
       'reminder': _reminderOption,
       'updatedAt': Timestamp.now(),
+      'frequency': frequency,
     });
   }
 
@@ -100,6 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (sheetContext) {
         final tempWeekdays = Set<int>.from(_scheduledWeekdays);
         String tempReminder = _reminderOption;
+        String tempFrequency = 'Weekly';
 
         return StatefulBuilder(
           builder: (context, setSheetState) => SafeArea(
@@ -117,10 +120,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
+                          color: AppColors.neutral900,
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(PhosphorIconsRegular.x),
+                        icon: const Icon(PhosphorIconsRegular.x,
+                            color: AppColors.neutral600),
                         onPressed: () => Navigator.pop(sheetContext),
                       ),
                     ],
@@ -128,7 +133,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 12),
                   const Text(
                     'Pick your training days',
-                    style: TextStyle(color: Colors.black54, fontSize: 13),
+                    style: TextStyle(color: AppColors.neutral800, fontSize: 13),
                   ),
                   const SizedBox(height: 12),
                   Wrap(
@@ -150,7 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             }
                           });
                         },
-                        selectedColor: AppColors.brandCoral.withOpacity(0.2),
+                        selectedColor: AppColors.brandCoral.withOpacity(0.15),
                         labelStyle: TextStyle(
                           color:
                               isSelected ? AppColors.brandCoral : AppColors.neutral900,
@@ -170,12 +175,50 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    'Reminder',
-                    style: TextStyle(fontWeight: FontWeight.w600),
+                    'Repeat frequency',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.neutral900,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: tempReminder,
+                    initialValue: tempFrequency,
+                    decoration: InputDecoration(
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppColors.neutral200),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppColors.neutral200),
+                      ),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'Daily', child: Text('Every day')),
+                      DropdownMenuItem(value: 'Every 2 days', child: Text('Every 2 days')),
+                      DropdownMenuItem(value: 'Every 3 days', child: Text('Every 3 days')),
+                      DropdownMenuItem(value: 'Weekly', child: Text('Weekly (by weekday)')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setSheetState(() => tempFrequency = value);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Reminder',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.neutral900,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    initialValue: tempReminder,
                     decoration: InputDecoration(
                       contentPadding:
                           const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -210,7 +253,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           _scheduledWeekdays = tempWeekdays;
                           _reminderOption = tempReminder;
                         });
-                        _saveScheduleToCloud();
+                        _saveScheduleToCloud(frequency: tempFrequency);
                         Navigator.pop(sheetContext);
                       },
                       style: ElevatedButton.styleFrom(
@@ -227,7 +270,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 8),
                   const Text(
                     'Reminders will respect your OS notification settings.',
-                    style: TextStyle(color: Colors.black45, fontSize: 12),
+                    style: TextStyle(color: AppColors.neutral600, fontSize: 12),
                   ),
                 ],
               ),
@@ -243,16 +286,22 @@ class _HomeScreenState extends State<HomeScreen> {
     final workoutNotifier = context.watch<WorkoutNotifier>();
     final recoveryNotifier = context.watch<RecoveryNotifier>();
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header with date
-                  Row(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark, // Dark icons for Android
+        statusBarBrightness: Brightness.light, // Light status bar for iOS (means dark icons)
+      ),
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF5F5F5),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header with date
+                    Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Column(
@@ -1035,6 +1084,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }
