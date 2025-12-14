@@ -4,7 +4,7 @@
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0B1530",
-    "theme_color": "#FF6E5F",
+    "theme_color": "#5EDDC8",
     "description": "A high-fidelity fitness application.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,

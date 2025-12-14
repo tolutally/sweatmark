@@ -231,7 +231,7 @@ class _NotificationCard extends StatelessWidget {
       case NotificationType.milestone:
         return AppColors.error;
       case NotificationType.social:
-        return AppColors.brandCoral;
+        return AppColors.brandTeal;
     }
   }
 

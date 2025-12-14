@@ -5,8 +5,8 @@ class AppColors {
   // Brand
   static const brandNavy = Color(0xFF0B1530);
   static const brandNavyDeep = Color(0xFF050A1A);
-  static const brandCoral = Color(0xFFFF6E5F);
-  static const brandCoralSoft = Color(0xFFFF917A);
+  static const brandTeal = Color(0xFF5EDDC8);
+  static const brandTealSoft = Color(0xFF7EECD8);
 
   // Neutrals
   static const neutral0 = Color(0xFFFFFFFF);
@@ -31,11 +31,11 @@ class AppColors {
 }
 
 class AppGradients {
-  /// Primary coral gradient – for main CTAs
+  /// Primary teal gradient – for main CTAs
   static const primary = LinearGradient(
     colors: [
-      AppColors.brandCoral,
-      AppColors.brandCoralSoft,
+      AppColors.brandTeal,
+      AppColors.brandTealSoft,
     ],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -62,11 +62,11 @@ class AppGradients {
     end: Alignment.bottomCenter,
   );
 
-  /// Coral ↔ Navy hero fusion
+  /// Teal ↔ Navy hero fusion
   static const fusion = LinearGradient(
     colors: [
-      AppColors.brandCoral,
-      Color(0xFFEC5A6A),
+      AppColors.brandTeal,
+      Color(0xFF4EC9B0),
       AppColors.brandNavy,
     ],
     begin: Alignment.topLeft,
@@ -108,12 +108,12 @@ final ThemeData lightTheme = ThemeData(
   useMaterial3: true,
   brightness: Brightness.light,
   visualDensity: VisualDensity.compact,
-  primaryColor: AppColors.brandCoral,
+  primaryColor: AppColors.brandTeal,
   scaffoldBackgroundColor: AppColors.neutral50,
   colorScheme: const ColorScheme(
     brightness: Brightness.light,
-    primary: AppColors.brandCoral,
-    onPrimary: Colors.white,
+    primary: AppColors.brandTeal,
+    onPrimary: AppColors.brandNavy,
     secondary: AppColors.brandNavy,
     onSecondary: Colors.white,
     error: AppColors.error,
@@ -143,8 +143,8 @@ final ThemeData lightTheme = ThemeData(
   ),
   elevatedButtonTheme: ElevatedButtonThemeData(
     style: ElevatedButton.styleFrom(
-      backgroundColor: AppColors.brandCoral,
-      foregroundColor: Colors.white,
+      backgroundColor: AppColors.brandTeal,
+      foregroundColor: AppColors.brandNavy,
       elevation: 0,
       padding: const EdgeInsets.symmetric(
         vertical: _compactButtonPaddingV,
@@ -161,7 +161,7 @@ final ThemeData lightTheme = ThemeData(
   ),
   textButtonTheme: TextButtonThemeData(
     style: TextButton.styleFrom(
-      foregroundColor: AppColors.brandCoral,
+      foregroundColor: AppColors.brandTeal,
       textStyle: const TextStyle(
         fontSize: 14,
         fontWeight: FontWeight.w500,
@@ -182,7 +182,7 @@ final ThemeData lightTheme = ThemeData(
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(_compactRadius),
-      borderSide: const BorderSide(color: AppColors.brandCoral, width: 1.1),
+      borderSide: const BorderSide(color: AppColors.brandTeal, width: 1.1),
     ),
     hintStyle: const TextStyle(
       color: AppColors.neutral400,
@@ -191,7 +191,7 @@ final ThemeData lightTheme = ThemeData(
   ),
   navigationBarTheme: NavigationBarThemeData(
     height: 62,
-    indicatorColor: AppColors.brandCoral.withValues(alpha: 0.18),
+    indicatorColor: AppColors.brandTeal.withValues(alpha: 0.18),
     iconTheme: const WidgetStatePropertyAll(
       IconThemeData(size: 22),
     ),
@@ -204,7 +204,7 @@ final ThemeData lightTheme = ThemeData(
   ),
   bottomNavigationBarTheme: const BottomNavigationBarThemeData(
     backgroundColor: AppColors.neutral0,
-    selectedItemColor: AppColors.brandCoral,
+    selectedItemColor: AppColors.brandTeal,
     unselectedItemColor: AppColors.neutral400,
     type: BottomNavigationBarType.fixed,
     showUnselectedLabels: true,
@@ -215,11 +215,11 @@ final ThemeData darkTheme = ThemeData(
   useMaterial3: true,
   brightness: Brightness.dark,
   visualDensity: VisualDensity.compact,
-  primaryColor: AppColors.brandCoral,
+  primaryColor: AppColors.brandTeal,
   scaffoldBackgroundColor: AppColors.brandNavyDeep,
   colorScheme: const ColorScheme(
     brightness: Brightness.dark,
-    primary: AppColors.brandCoral,
+    primary: AppColors.brandTeal,
     onPrimary: AppColors.brandNavy,
     secondary: AppColors.neutral100,
     onSecondary: AppColors.brandNavyDeep,
@@ -251,7 +251,7 @@ final ThemeData darkTheme = ThemeData(
   ),
   elevatedButtonTheme: ElevatedButtonThemeData(
     style: ElevatedButton.styleFrom(
-      backgroundColor: AppColors.brandCoral,
+      backgroundColor: AppColors.brandTeal,
       foregroundColor: AppColors.brandNavy,
       elevation: 0,
       padding: const EdgeInsets.symmetric(
@@ -269,7 +269,7 @@ final ThemeData darkTheme = ThemeData(
   ),
   textButtonTheme: TextButtonThemeData(
     style: TextButton.styleFrom(
-      foregroundColor: AppColors.brandCoralSoft,
+      foregroundColor: AppColors.brandTealSoft,
       textStyle: const TextStyle(
         fontSize: 14,
         fontWeight: FontWeight.w500,
@@ -290,7 +290,7 @@ final ThemeData darkTheme = ThemeData(
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(_compactRadius),
-      borderSide: const BorderSide(color: AppColors.brandCoralSoft, width: 1.1),
+      borderSide: const BorderSide(color: AppColors.brandTealSoft, width: 1.1),
     ),
     hintStyle: const TextStyle(
       color: AppColors.neutral400,
@@ -299,7 +299,7 @@ final ThemeData darkTheme = ThemeData(
   ),
   navigationBarTheme: NavigationBarThemeData(
     height: 62,
-    indicatorColor: AppColors.brandCoral.withValues(alpha: 0.2),
+    indicatorColor: AppColors.brandTeal.withValues(alpha: 0.2),
     iconTheme: const WidgetStatePropertyAll(
       IconThemeData(size: 22),
     ),
@@ -312,7 +312,7 @@ final ThemeData darkTheme = ThemeData(
   ),
   bottomNavigationBarTheme: const BottomNavigationBarThemeData(
     backgroundColor: AppColors.brandNavyDeep,
-    selectedItemColor: AppColors.brandCoral,
+    selectedItemColor: AppColors.brandTeal,
     unselectedItemColor: AppColors.neutral400,
     type: BottomNavigationBarType.fixed,
     showUnselectedLabels: true,
@@ -344,7 +344,7 @@ class PrimaryGradientButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(18),
             boxShadow: [
               BoxShadow(
-                color: AppColors.brandCoral.withValues(alpha: 0.35),
+                color: AppColors.brandTeal.withValues(alpha: 0.35),
                 blurRadius: 18,
                 offset: const Offset(0, 8),
               ),
@@ -354,7 +354,7 @@ class PrimaryGradientButton extends StatelessWidget {
           child: Text(
             label,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: Colors.white,
+                  color: AppColors.brandNavy,
                   fontWeight: FontWeight.w600,
                 ),
           ),

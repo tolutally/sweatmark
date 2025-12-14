@@ -44,7 +44,7 @@ class AppShell extends StatelessWidget {
       ),
       bottomNavigationBar: NavigationBar(
         backgroundColor: Theme.of(context).colorScheme.surface,
-        indicatorColor: AppColors.brandCoral.withValues(alpha: 0.18),
+        indicatorColor: AppColors.brandTeal.withValues(alpha: 0.18),
         selectedIndex: currentIndex,
         onDestinationSelected: tabController.goTo,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
@@ -52,27 +52,27 @@ class AppShell extends StatelessWidget {
           NavigationDestination(
             icon: Icon(PhosphorIconsRegular.house, color: AppColors.neutral400),
             selectedIcon:
-                Icon(PhosphorIconsFill.house, color: AppColors.brandCoral),
+                Icon(PhosphorIconsFill.house, color: AppColors.brandTeal),
             label: 'Home',
           ),
           NavigationDestination(
             icon:
-                Icon(PhosphorIconsRegular.barbell, color: AppColors.neutral400),
+                Icon(PhosphorIconsRegular.chartBar, color: AppColors.neutral400),
             selectedIcon:
-                Icon(PhosphorIconsFill.barbell, color: AppColors.brandCoral),
-            label: 'Workout',
+                Icon(PhosphorIconsFill.chartBar, color: AppColors.brandTeal),
+            label: 'Analytics',
           ),
           NavigationDestination(
             icon: Icon(PhosphorIconsRegular.heartbeat,
                 color: AppColors.neutral400),
             selectedIcon:
-                Icon(PhosphorIconsFill.heartbeat, color: AppColors.brandCoral),
+                Icon(PhosphorIconsFill.heartbeat, color: AppColors.brandTeal),
             label: 'Recovery',
           ),
           NavigationDestination(
             icon: Icon(PhosphorIconsRegular.user, color: AppColors.neutral400),
             selectedIcon:
-                Icon(PhosphorIconsFill.user, color: AppColors.brandCoral),
+                Icon(PhosphorIconsFill.user, color: AppColors.brandTeal),
             label: 'Profile',
           ),
         ],

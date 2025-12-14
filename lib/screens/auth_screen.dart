@@ -72,7 +72,7 @@ class _AuthScreenState extends State<AuthScreen> {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: AppColors.brandCoral.withOpacity(0.35),
+            color: AppColors.brandTeal.withOpacity(0.35),
             blurRadius: 24,
             offset: const Offset(0, 10),
           ),
@@ -154,7 +154,7 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
               decoration: InputDecoration(
                 hintText: 'you@example.com',
-                hintStyle: TextStyle(color: AppColors.neutral400),
+                hintStyle: const TextStyle(color: AppColors.neutral400),
                 prefixIcon: const Icon(
                   Icons.email_outlined,
                   color: AppColors.neutral400,
@@ -166,7 +166,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.brandCoral, width: 1.5),
+                  borderSide: const BorderSide(color: AppColors.brandTeal, width: 1.5),
                 ),
                 errorBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -213,7 +213,7 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
               decoration: InputDecoration(
                 hintText: _isSignUp ? 'Min. 6 characters' : 'Enter your password',
-                hintStyle: TextStyle(color: AppColors.neutral400),
+                hintStyle: const TextStyle(color: AppColors.neutral400),
                 prefixIcon: const Icon(
                   Icons.lock_outline,
                   color: AppColors.neutral400,
@@ -233,7 +233,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.brandCoral, width: 1.5),
+                  borderSide: const BorderSide(color: AppColors.brandTeal, width: 1.5),
                 ),
                 errorBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -272,7 +272,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.brandCoral,
+                      color: AppColors.brandTeal,
                     ),
                   ),
                 ),
@@ -381,9 +381,9 @@ class _AuthScreenState extends State<AuthScreen> {
       child: ElevatedButton(
         onPressed: authNotifier.isLoading ? null : () => _submitForm(authNotifier),
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.brandCoral,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: AppColors.brandCoral.withOpacity(0.6),
+          backgroundColor: AppColors.brandTeal,
+          foregroundColor: AppColors.brandNavy,
+          disabledBackgroundColor: AppColors.brandTeal.withOpacity(0.6),
           elevation: 0,
           shadowColor: Colors.transparent,
           shape: RoundedRectangleBorder(
@@ -419,8 +419,8 @@ class _AuthScreenState extends State<AuthScreen> {
             color: AppColors.neutral200,
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16),
           child: Text(
             'OR',
             style: TextStyle(
@@ -466,7 +466,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
                   width: 20,
                   height: 20,
-                  errorBuilder: (context, error, stackTrace) => Icon(
+                  errorBuilder: (context, error, stackTrace) => const Icon(
                     Icons.g_mobiledata,
                     size: 24,
                     color: AppColors.neutral800,
@@ -551,7 +551,7 @@ class _AuthScreenState extends State<AuthScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        Row(
+        const Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
@@ -559,8 +559,8 @@ class _AuthScreenState extends State<AuthScreen> {
               size: 14,
               color: AppColors.neutral400,
             ),
-            const SizedBox(width: 6),
-            const Text(
+            SizedBox(width: 6),
+            Text(
               'Secured with Firebase Authentication',
               style: TextStyle(
                 fontSize: 12,
@@ -678,7 +678,7 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
               decoration: InputDecoration(
                 hintText: 'you@example.com',
-                hintStyle: TextStyle(color: AppColors.neutral400),
+                hintStyle: const TextStyle(color: AppColors.neutral400),
                 prefixIcon: const Icon(
                   Icons.email_outlined,
                   color: AppColors.neutral400,
@@ -690,7 +690,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.brandCoral, width: 1.5),
+                  borderSide: const BorderSide(color: AppColors.brandTeal, width: 1.5),
                 ),
                 filled: true,
                 fillColor: AppColors.neutral50,
@@ -746,8 +746,8 @@ class _AuthScreenState extends State<AuthScreen> {
               );
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.brandCoral,
-              foregroundColor: Colors.white,
+              backgroundColor: AppColors.brandTeal,
+              foregroundColor: AppColors.brandNavy,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),

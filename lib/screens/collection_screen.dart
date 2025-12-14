@@ -556,12 +556,12 @@ class _TemplateCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.brandCoral.withOpacity(0.1),
+                    color: AppColors.brandTeal.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
                     _getPhosphorIcon(template.icon),
-                    color: AppColors.brandCoral,
+                    color: AppColors.brandTeal,
                     size: 24,
                   ),
                 ),
@@ -593,14 +593,14 @@ class _TemplateCard extends StatelessWidget {
                             Icon(
                               PhosphorIcons.repeat(PhosphorIconsStyle.regular),
                               size: 14,
-                              color: AppColors.brandCoral,
+                              color: AppColors.brandTeal,
                             ),
                             const SizedBox(width: 4),
                             Text(
                               template.schedule!.frequency.displayName,
                               style: const TextStyle(
                                 fontSize: 12,
-                                color: AppColors.brandCoral,
+                                color: AppColors.brandTeal,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -615,7 +615,7 @@ class _TemplateCard extends StatelessWidget {
                   icon: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.brandCoral,
+                      color: AppColors.brandTeal,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../../models/profile_model.dart';
@@ -10,10 +11,12 @@ class ProfileNotifier extends ChangeNotifier {
 
   ProfileModel? _profile;
   bool _isLoading = false;
+  bool _isUploadingImage = false;
   String? _errorMessage;
 
   ProfileModel? get profile => _profile;
   bool get isLoading => _isLoading;
+  bool get isUploadingImage => _isUploadingImage;
   String? get errorMessage => _errorMessage;
 
   bool get hasProfile => _profile != null;
@@ -122,6 +125,70 @@ class ProfileNotifier extends ChangeNotifier {
     return updateProfileField(userId, {
       'instagram': instagramHandle,
     });
+  }
+
+  /// Upload profile image and update the avatarUrl field
+  Future<bool> updateProfileImage(String userId, File imageFile) async {
+    _isUploadingImage = true;
+    notifyListeners();
+
+    try {
+      // Get old avatar URL to delete later
+      final oldAvatarUrl = _profile?.avatarUrl;
+
+      // Upload new image
+      final newAvatarUrl = await _firebaseService.uploadProfileImage(userId, imageFile);
+      
+      if (newAvatarUrl == null) {
+        _isUploadingImage = false;
+        notifyListeners();
+        return false;
+      }
+
+      // Update profile with new avatar URL
+      await updateProfileField(userId, {'avatarUrl': newAvatarUrl});
+
+      // Delete old avatar if it exists
+      if (oldAvatarUrl != null && oldAvatarUrl.isNotEmpty) {
+        await _firebaseService.deleteProfileImage(oldAvatarUrl);
+      }
+
+      _isUploadingImage = false;
+      notifyListeners();
+      return true;
+    } catch (error, stack) {
+      debugPrint('Profile image update failed: $error\n$stack');
+      _isUploadingImage = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Remove profile image
+  Future<bool> removeProfileImage(String userId) async {
+    _isUploadingImage = true;
+    notifyListeners();
+
+    try {
+      final oldAvatarUrl = _profile?.avatarUrl;
+
+      // Remove avatarUrl from profile
+      await updateProfileField(userId, {'avatarUrl': null});
+
+      // Delete image from storage
+      if (oldAvatarUrl != null && oldAvatarUrl.isNotEmpty) {
+        await _firebaseService.deleteProfileImage(oldAvatarUrl);
+      }
+
+      _isUploadingImage = false;
+      notifyListeners();
+      return true;
+    } catch (error, stack) {
+      debugPrint('Profile image removal failed: $error\n$stack');
+      _isUploadingImage = false;
+      notifyListeners();
+      return false;
+    }
   }
 
   void clear() {

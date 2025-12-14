@@ -1,17 +1,16 @@
 enum MuscleStatus { recovered, recovering, fatigued }
 
 class WorkoutSet {
-  int? weight;
+  double? weight;
   int? reps;
   bool isCompleted;
   final bool isSuperSetRest;
 
-  WorkoutSet({
-    this.weight, 
-    this.reps, 
-    this.isCompleted = false, 
-    this.isSuperSetRest = false
-  });
+  WorkoutSet(
+      {this.weight,
+      this.reps,
+      this.isCompleted = false,
+      this.isSuperSetRest = false});
 
   Map<String, dynamic> toJson() => {
         'weight': weight,
@@ -22,7 +21,7 @@ class WorkoutSet {
 
   factory WorkoutSet.fromJson(Map<String, dynamic> json) {
     return WorkoutSet(
-      weight: json['weight'],
+      weight: (json['weight'] as num?)?.toDouble(),
       reps: json['reps'],
       isCompleted: json['isCompleted'] ?? false,
       isSuperSetRest: json['isSuperSetRest'] ?? false,
@@ -142,12 +141,12 @@ class WorkoutLog {
     required this.timestamp,
     required this.durationSeconds,
     required this.exercises,
-    this.superSets = const [],
+    List<SuperSet>? superSets,
     this.notes,
     this.isTestData = false,
-  });
+  }) : superSets = superSets ?? [];
 
-  // Keep backward compatibility 
+  // Keep backward compatibility
   String get id => workoutName;
 
   Map<String, dynamic> toJson() => {

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +10,7 @@ import '../models/exercise_model.dart';
 import '../models/workout_model.dart';
 import '../data/exercise_data.dart';
 import '../widgets/schedule_bottom_sheet.dart';
+import '../services/notification_service.dart';
 import 'library_screen.dart';
 import 'workout_summary_screen.dart';
 
@@ -19,10 +21,57 @@ class ActiveWorkoutScreen extends StatefulWidget {
   State<ActiveWorkoutScreen> createState() => _ActiveWorkoutScreenState();
 }
 
-class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
+class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
+    with WidgetsBindingObserver {
+  final NotificationService _notificationService = NotificationService();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final settings = context.read<SettingsNotifier>();
+
+    if (state == AppLifecycleState.paused) {
+      // App going to background
+      if (settings.isResting && !settings.isPaused) {
+        // Schedule notification for when timer completes (iOS)
+        if (Platform.isIOS) {
+          _notificationService.scheduleRestTimerCompleteNotification(
+              settings.currentRestSeconds);
+        }
+        // For Android, update the notification with current time
+        if (Platform.isAndroid) {
+          _notificationService
+              .showRestTimerNotification(settings.currentRestSeconds);
+        }
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      // App returning to foreground
+      if (settings.isResting) {
+        // Sync timer from wall-clock time
+        settings.syncTimerFromBackground();
+        // Cancel scheduled notification
+        _notificationService.cancelScheduledRestTimerNotification();
+        // Cancel ongoing timer notification
+        _notificationService.cancelRestTimerNotification();
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final notifier = context.watch<WorkoutNotifier>();
+    final settings = context.watch<SettingsNotifier>();
     final workout = notifier.currentWorkout;
 
     if (workout == null) {
@@ -37,283 +86,333 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
       ),
       child: Scaffold(
         backgroundColor: const Color(0xFFF5F5F5),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFF5F5F5),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(PhosphorIconsRegular.x, color: Colors.black54),
-          onPressed: () => _showExitOptions(context, notifier),
-        ),
-
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE8F5F3),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              children: [
-                const Icon(PhosphorIconsBold.play, color: Color(0xFF2BD4BD), size: 16),
-                const SizedBox(width: 8),
-                Text(
-                  _formatDuration(notifier.elapsedSeconds),
-                  style: const TextStyle(
-                    color: Colors.black,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
-                  ),
-                ),
-              ],
-            ),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFFF5F5F5),
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(PhosphorIconsRegular.caretLeft,
+                color: Colors.black87, size: 28),
+            onPressed: () {
+              // Save draft and go back without cancelling
+              notifier.saveDraftWorkout();
+              Navigator.pop(context);
+            },
           ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Workout Header - Compact
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-            color: const Color(0xFFF5F5F5),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFFB84D), Color(0xFFFF8E53)],
+          actions: [
+            Container(
+              margin: const EdgeInsets.only(right: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F5F3),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                children: [
+                  const Icon(PhosphorIconsBold.play,
+                      color: Color(0xFF2BD4BD), size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    _formatDuration(notifier.elapsedSeconds),
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
                     ),
-                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(
-                    PhosphorIconsBold.barbell,
-                    color: Colors.black,
-                    size: 22,
+                ],
+              ),
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            // Workout Header - Compact
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              color: const Color(0xFFF5F5F5),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFFB84D), Color(0xFFFF8E53)],
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      PhosphorIconsBold.barbell,
+                      color: Colors.black,
+                      size: 22,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      GestureDetector(
-                        onTap: () => _showRenameDialog(context, notifier),
-                        child: Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                notifier.workoutName,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        GestureDetector(
+                          onTap: () => _showRenameDialog(context, notifier),
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  notifier.workoutName,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              const Icon(
+                                PhosphorIconsRegular.pencilSimple,
+                                size: 16,
+                                color: Colors.black54,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        GestureDetector(
+                          onTap: () {
+                            ScheduleBottomSheet.show(
+                              context,
+                              workoutName: notifier.workoutName,
+                              exercises: workout.exercises,
+                            );
+                          },
+                          child: const Row(
+                            children: [
+                              Text(
+                                'Set up schedule & repeat',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF007AFF),
+                                ),
+                              ),
+                              SizedBox(width: 4),
+                              Icon(PhosphorIconsRegular.caretRight,
+                                  size: 12, color: Color(0xFF007AFF)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Exercise List
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: workout.exercises.length +
+                    2, // +1 for Add Button, +1 for Build For Me
+                itemBuilder: (context, index) {
+                  // Add Exercise Button - Compact
+                  if (index == 0) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10.0),
+                      child: GestureDetector(
+                        onTap: () async {
+                          final Exercise? selected = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) =>
+                                    const LibraryScreen(isPicker: true)),
+                          );
+                          if (selected != null) {
+                            notifier.addExercise(selected);
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.04),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(PhosphorIconsBold.plus,
+                                  color: Color(0xFF2BD4BD), size: 18),
+                              SizedBox(width: 8),
+                              Text(
+                                'Add Exercise',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
                                   color: Colors.black,
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 6),
-                            const Icon(
-                              PhosphorIconsRegular.pencilSimple,
-                              size: 16,
-                              color: Colors.black54,
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      GestureDetector(
-                        onTap: () {
-                          ScheduleBottomSheet.show(
-                            context,
-                            workoutName: notifier.workoutName,
-                            exercises: workout.exercises,
-                          );
-                        },
-                        child: const Row(
-                          children: [
-                            Text(
-                              'Set up schedule & repeat',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Color(0xFF007AFF),
-                              ),
-                            ),
-                            SizedBox(width: 4),
-                            Icon(PhosphorIconsRegular.caretRight, size: 12, color: Color(0xFF007AFF)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+                    );
+                  }
 
-          // Exercise List
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: workout.exercises.length + 2, // +1 for Add Button, +1 for Build For Me
-              itemBuilder: (context, index) {
-                // Add Exercise Button - Compact
-                if (index == 0) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 10.0),
-                    child: GestureDetector(
-                      onTap: () async {
-                        final Exercise? selected = await Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const LibraryScreen(isPicker: true)),
-                        );
-                        if (selected != null) {
-                          notifier.addExercise(selected);
-                        }
-                      },
+                  // Build For Me Button - Compact
+                  if (index == workout.exercises.length + 1) {
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 6, bottom: 16),
+                      child: GestureDetector(
+                        onTap: () {
+                          // AI workout builder
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF2BD4BD), Color(0xFF8EC5FC)],
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF2BD4BD)
+                                    .withValues(alpha: 0.25),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(PhosphorIconsBold.sparkle,
+                                  color: Colors.white, size: 18),
+                              SizedBox(width: 8),
+                              Text(
+                                'Add with AI',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  final log = workout.exercises[index - 1];
+                  final exerciseData = EXERCISE_LIBRARY.firstWhere(
+                    (e) => e['id'] == log.exerciseId,
+                    orElse: () => {},
+                  );
+                  final exercise = Exercise.fromJson(
+                    exerciseData.isNotEmpty
+                        ? exerciseData
+                        : {
+                            'id': log.exerciseId,
+                            'name': log.exerciseName ?? 'Custom Exercise',
+                            'muscleGroup': log.muscleGroup ?? 'Custom',
+                            'equipment': log.equipment ?? 'Custom',
+                          },
+                  );
+
+                  return _ExerciseWorkoutCard(
+                    key: ValueKey(log.exerciseId),
+                    exercise: exercise,
+                    log: log,
+                    exerciseIndex: index - 1,
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+        bottomNavigationBar: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Global Rest Timer Overlay
+            if (settings.isResting)
+              _GlobalRestTimerOverlay(
+                settings: settings,
+                onDismiss: () => settings.stopRestTimer(),
+              ),
+            // Finish Workout Button - Clean design without white box
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                child: Row(
+                  children: [
+                    // More options button (discard/save)
+                    GestureDetector(
+                      onTap: () => _showExitOptions(context, notifier),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        width: 52,
+                        height: 52,
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.04),
-                              blurRadius: 6,
+                              color: Colors.black.withValues(alpha: 0.06),
+                              blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
                           ],
                         ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(PhosphorIconsBold.plus, color: Color(0xFF2BD4BD), size: 18),
-                            SizedBox(width: 8),
-                            Text(
-                              'Add Exercise',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black,
-                              ),
-                            ),
-                          ],
+                        child: const Icon(
+                          PhosphorIconsBold.dotsThreeOutline,
+                          color: Colors.black54,
+                          size: 22,
                         ),
                       ),
                     ),
-                  );
-                }
-
-                // Build For Me Button - Compact
-                if (index == workout.exercises.length + 1) {
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 6, bottom: 16),
-                    child: GestureDetector(
-                      onTap: () {
-                        // AI workout builder
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF2BD4BD), Color(0xFF8EC5FC)],
+                    const SizedBox(width: 12),
+                    // Finish Workout Button - Full width
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => _showFinishWorkoutConfirmation(
+                            context, notifier, workout),
+                        child: Container(
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: Colors.black,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.15),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
                           ),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF2BD4BD).withOpacity(0.25),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(PhosphorIconsBold.sparkle, color: Colors.white, size: 18),
-                            SizedBox(width: 8),
-                            Text(
-                              'Add with AI',
+                          child: const Center(
+                            child: Text(
+                              'Finish Workout',
                               style: TextStyle(
-                                fontSize: 15,
+                                fontSize: 17,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                               ),
                             ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
-                  );
-                }
-
-                final log = workout.exercises[index - 1];
-                final exerciseData = EXERCISE_LIBRARY.firstWhere(
-                  (e) => e['id'] == log.exerciseId,
-                  orElse: () => {},
-                );
-                final exercise = Exercise.fromJson(
-                  exerciseData.isNotEmpty
-                      ? exerciseData
-                      : {
-                          'id': log.exerciseId,
-                          'name': log.exerciseName ?? 'Custom Exercise',
-                          'muscleGroup': log.muscleGroup ?? 'Custom',
-                          'equipment': log.equipment ?? 'Custom',
-                        },
-                );
-
-                return _ExerciseWorkoutCard(
-                  exercise: exercise,
-                  log: log,
-                  exerciseIndex: index - 1,
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -2),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
-        child: SafeArea(
-          child: ElevatedButton(
-            onPressed: () async {
-              // Navigate to summary screen
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const WorkoutSummaryScreen(),
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.black,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 18),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
-              ),
-            ),
-            child: const Text(
-              'Finish Workout',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-      ),
       ),
     );
   }
@@ -352,7 +451,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
           children: [
             const SizedBox(height: 20),
             const Text(
-              'Exit Workout',
+              'Workout Options',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -383,55 +482,15 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                 ),
               ),
               subtitle: const Text(
-                'All progress will be lost',
+                'Delete this workout permanently',
                 style: TextStyle(fontSize: 14, color: Colors.black54),
               ),
               onTap: () async {
                 // Delete draft and reset workout without saving
                 await notifier.deleteDraftWorkout();
                 notifier.resetWorkout();
+                if (!context.mounted) return;
                 Navigator.pop(sheetContext); // Close bottom sheet
-                if (!mounted) return;
-                Navigator.pop(parentContext); // Close workout screen
-              },
-            ),
-            const Divider(height: 1),
-            ListTile(
-              leading: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE0F2FF),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  PhosphorIconsBold.floppyDisk,
-                  color: Color(0xFF007AFF),
-                  size: 20,
-                ),
-              ),
-              title: const Text(
-                'Save for Later',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-              ),
-              subtitle: const Text(
-                'Continue this workout later',
-                style: TextStyle(fontSize: 14, color: Colors.black54),
-              ),
-              onTap: () async {
-                await notifier.saveDraftWorkout();
-                Navigator.pop(sheetContext); // Close bottom sheet
-                if (!mounted) return;
-                ScaffoldMessenger.of(parentContext).showSnackBar(
-                  const SnackBar(
-                    content: Text('Workout saved for later'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
                 Navigator.pop(parentContext); // Close workout screen
               },
             ),
@@ -463,6 +522,193 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
     );
   }
 
+  void _showFinishWorkoutConfirmation(
+      BuildContext context, WorkoutNotifier notifier, dynamic workout) {
+    // Calculate workout stats
+    int totalSets = 0;
+    int completedSets = 0;
+
+    for (var exercise in workout.exercises) {
+      for (var set in exercise.sets) {
+        totalSets++;
+        if (set.isCompleted) {
+          completedSets++;
+        }
+      }
+    }
+
+    final hasIncompleteSets = completedSets < totalSets;
+    final exerciseCount = workout.exercises.length;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Title
+              const Text(
+                'Finish Workout?',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Stats Row
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F5F5),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _StatItem(
+                      icon: PhosphorIconsBold.barbell,
+                      value: exerciseCount.toString(),
+                      label: 'Exercises',
+                      color: const Color(0xFF2BD4BD),
+                    ),
+                    Container(width: 1, height: 40, color: Colors.grey[300]),
+                    _StatItem(
+                      icon: PhosphorIconsBold.checkCircle,
+                      value: '$completedSets/$totalSets',
+                      label: 'Sets Done',
+                      color: hasIncompleteSets
+                          ? const Color(0xFFFF9500)
+                          : const Color(0xFF34C759),
+                    ),
+                    Container(width: 1, height: 40, color: Colors.grey[300]),
+                    _StatItem(
+                      icon: PhosphorIconsBold.timer,
+                      value: _formatDuration(notifier.elapsedSeconds),
+                      label: 'Duration',
+                      color: const Color(0xFF007AFF),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Warning if incomplete sets
+              if (hasIncompleteSets) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF3E0),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: const Color(0xFFFF9500).withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        PhosphorIconsBold.warning,
+                        color: Color(0xFFFF9500),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'You have ${totalSets - completedSets} incomplete ${(totalSets - completedSets) == 1 ? 'set' : 'sets'}',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFFE65100),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 24),
+
+              // Action Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(sheetContext),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        side: const BorderSide(color: Colors.black26),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
+                      child: const Text(
+                        'Continue',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Navigator.pop(sheetContext); // Close bottom sheet
+                        // Navigate to summary screen
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const WorkoutSummaryScreen(),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
+                      child: const Text(
+                        'Finish',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   String _formatDuration(int seconds) {
     final minutes = seconds ~/ 60;
     final remainingSeconds = seconds % 60;
@@ -476,6 +722,7 @@ class _ExerciseWorkoutCard extends StatefulWidget {
   final int exerciseIndex;
 
   const _ExerciseWorkoutCard({
+    super.key,
     required this.exercise,
     required this.log,
     required this.exerciseIndex,
@@ -487,71 +734,6 @@ class _ExerciseWorkoutCard extends StatefulWidget {
 
 class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
   bool _isCollapsed = false;
-  Timer? _restTimer;
-  int _restSecondsRemaining = 0;
-  bool _isRestTimerActive = false;
-  bool _isRestTimerPaused = false;
-
-  @override
-  void dispose() {
-    _restTimer?.cancel();
-    super.dispose();
-  }
-
-  void _startRestTimer(int duration) {
-    _restTimer?.cancel();
-    setState(() {
-      _restSecondsRemaining = duration;
-      _isRestTimerActive = true;
-      _isRestTimerPaused = false;
-    });
-    _restTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_restSecondsRemaining > 0) {
-        setState(() {
-          _restSecondsRemaining--;
-        });
-      } else {
-        _stopRestTimer();
-      }
-    });
-  }
-
-  void _pauseRestTimer() {
-    _restTimer?.cancel();
-    setState(() {
-      _isRestTimerPaused = true;
-    });
-  }
-
-  void _resumeRestTimer() {
-    setState(() {
-      _isRestTimerPaused = false;
-    });
-    _restTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_restSecondsRemaining > 0) {
-        setState(() {
-          _restSecondsRemaining--;
-        });
-      } else {
-        _stopRestTimer();
-      }
-    });
-  }
-
-  void _stopRestTimer() {
-    _restTimer?.cancel();
-    setState(() {
-      _isRestTimerActive = false;
-      _isRestTimerPaused = false;
-      _restSecondsRemaining = 0;
-    });
-  }
-
-  String _formatRestTime(int seconds) {
-    final minutes = seconds ~/ 60;
-    final secs = seconds % 60;
-    return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
-  }
 
   void _showExerciseMenu(BuildContext context) {
     final notifier = context.read<WorkoutNotifier>();
@@ -578,7 +760,8 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
             const SizedBox(height: 20),
             ListTile(
               leading: const Icon(PhosphorIconsBold.info, color: Colors.white),
-              title: const Text('Exercise Info', style: TextStyle(color: Colors.white)),
+              title: const Text('Exercise Info',
+                  style: TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(sheetContext);
                 if (!mounted) return;
@@ -587,7 +770,8 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
             ),
             ListTile(
               leading: const Icon(PhosphorIconsBold.copy, color: Colors.white),
-              title: const Text('Duplicate Exercise', style: TextStyle(color: Colors.white)),
+              title: const Text('Duplicate Exercise',
+                  style: TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(sheetContext);
                 if (!mounted) return;
@@ -599,7 +783,8 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
             ),
             ListTile(
               leading: const Icon(PhosphorIconsBold.trash, color: Colors.red),
-              title: const Text('Remove Exercise', style: TextStyle(color: Colors.red)),
+              title: const Text('Remove Exercise',
+                  style: TextStyle(color: Colors.red)),
               onTap: () {
                 Navigator.pop(sheetContext);
                 if (!mounted) return;
@@ -617,7 +802,8 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1C1C1E),
-        title: Text(widget.exercise.name, style: const TextStyle(color: Colors.white)),
+        title: Text(widget.exercise.name,
+            style: const TextStyle(color: Colors.white)),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -650,20 +836,24 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                 widget.exercise.equipment,
                 style: const TextStyle(fontSize: 15, color: Colors.white),
               ),
-              if (widget.exercise.instructions != null) const SizedBox(height: 16),
-              if (widget.exercise.instructions != null) const Text(
-                'Instructions',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.white54,
-                  fontWeight: FontWeight.w600,
+              if (widget.exercise.instructions != null)
+                const SizedBox(height: 16),
+              if (widget.exercise.instructions != null)
+                const Text(
+                  'Instructions',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.white54,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-              if (widget.exercise.instructions != null) const SizedBox(height: 4),
-              if (widget.exercise.instructions != null) Text(
-                widget.exercise.instructions!,
-                style: const TextStyle(fontSize: 15, color: Colors.white),
-              ),
+              if (widget.exercise.instructions != null)
+                const SizedBox(height: 4),
+              if (widget.exercise.instructions != null)
+                Text(
+                  widget.exercise.instructions!,
+                  style: const TextStyle(fontSize: 15, color: Colors.white),
+                ),
             ],
           ),
         ),
@@ -680,8 +870,8 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
   @override
   Widget build(BuildContext context) {
     final notifier = context.watch<WorkoutNotifier>();
-    final superSet = widget.log.superSetId != null 
-        ? notifier.getSuperSet(widget.log.superSetId!) 
+    final superSet = widget.log.superSetId != null
+        ? notifier.getSuperSet(widget.log.superSetId!)
         : null;
     final isInSuperSet = superSet != null;
     final superSetPosition = widget.log.orderInSuperSet;
@@ -691,13 +881,15 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: isInSuperSet ? Border.all(
-          color: const Color(0xFF2BD4BD),
-          width: 2,
-        ) : null,
+        border: isInSuperSet
+            ? Border.all(
+                color: const Color(0xFF2BD4BD),
+                width: 2,
+              )
+            : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -758,7 +950,8 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                     color: const Color(0xFFF5F5F5),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(PhosphorIconsBold.barbell, size: 22, color: Colors.black54),
+                  child: const Icon(PhosphorIconsBold.barbell,
+                      size: 22, color: Colors.black54),
                 ),
                 const SizedBox(width: 12),
                 // Exercise name
@@ -774,21 +967,27 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                 ),
                 // Menu button
                 IconButton(
-                  icon: const Icon(PhosphorIconsRegular.dotsThree, color: Colors.black38, size: 22),
+                  icon: const Icon(PhosphorIconsRegular.dotsThree,
+                      color: Colors.black38, size: 22),
                   onPressed: () => _showExerciseMenu(context),
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                  constraints:
+                      const BoxConstraints(minWidth: 36, minHeight: 36),
                 ),
                 // Collapse button
                 IconButton(
                   icon: Icon(
-                    _isCollapsed ? PhosphorIconsRegular.caretDown : PhosphorIconsRegular.check,
-                    color: _isCollapsed ? Colors.black38 : const Color(0xFF007AFF),
+                    _isCollapsed
+                        ? PhosphorIconsRegular.caretDown
+                        : PhosphorIconsRegular.check,
+                    color:
+                        _isCollapsed ? Colors.black38 : const Color(0xFF007AFF),
                     size: 22,
                   ),
                   onPressed: () => setState(() => _isCollapsed = !_isCollapsed),
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                  constraints:
+                      const BoxConstraints(minWidth: 36, minHeight: 36),
                 ),
               ],
             ),
@@ -854,51 +1053,58 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                     return Dismissible(
                       key: Key('${widget.exercise.id}_set_$index'),
                       direction: DismissDirection.endToStart,
-                      dismissThresholds: const {DismissDirection.endToStart: 0.4},
+                      dismissThresholds: const {
+                        DismissDirection.endToStart: 0.4
+                      },
                       confirmDismiss: (direction) async {
                         // Show confirmation dialog instead of auto-dismissing
                         return await showDialog<bool>(
-                          context: context,
-                          builder: (dialogContext) => AlertDialog(
-                            backgroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            title: const Text(
-                              'Delete Set?',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            content: Text(
-                              'Remove set ${index + 1} from ${widget.exercise.name}?',
-                              style: const TextStyle(fontSize: 15, color: Colors.black54),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(dialogContext, false),
-                                child: const Text(
-                                  'Cancel',
-                                  style: TextStyle(color: Colors.black54),
+                              context: context,
+                              builder: (dialogContext) => AlertDialog(
+                                backgroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
                                 ),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(dialogContext, true),
-                                style: TextButton.styleFrom(
-                                  backgroundColor: Colors.red.withOpacity(0.1),
-                                ),
-                                child: const Text(
-                                  'Delete',
+                                title: const Text(
+                                  'Delete Set?',
                                   style: TextStyle(
-                                    color: Colors.red,
-                                    fontWeight: FontWeight.w600,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
+                                content: Text(
+                                  'Remove set ${index + 1} from ${widget.exercise.name}?',
+                                  style: const TextStyle(
+                                      fontSize: 15, color: Colors.black54),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(dialogContext, false),
+                                    child: const Text(
+                                      'Cancel',
+                                      style: TextStyle(color: Colors.black54),
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(dialogContext, true),
+                                    style: TextButton.styleFrom(
+                                      backgroundColor:
+                                          Colors.red.withValues(alpha: 0.1),
+                                    ),
+                                    child: const Text(
+                                      'Delete',
+                                      style: TextStyle(
+                                        color: Colors.red,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                        ) ?? false;
+                            ) ??
+                            false;
                       },
                       onDismissed: (direction) {
                         notifier.removeSet(widget.exercise.id, index);
@@ -923,7 +1129,8 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                               ),
                             ),
                             SizedBox(width: 8),
-                            Icon(PhosphorIconsBold.trash, color: Colors.white, size: 20),
+                            Icon(PhosphorIconsBold.trash,
+                                color: Colors.white, size: 20),
                           ],
                         ),
                       ),
@@ -932,113 +1139,14 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                         set: set,
                         exerciseId: widget.exercise.id,
                         setIndex: index,
-                        isWarmup: index == 0 && set.weight != null && set.weight! < 50,
-                        onSetCompleted: () {
-                          final restDuration = context.read<SettingsNotifier>().restTimerDuration;
-                          _startRestTimer(restDuration);
-                        },
+                        totalSets: widget.log.sets.length,
+                        isWarmup: index == 0 &&
+                            set.weight != null &&
+                            set.weight! < 50,
+                        superSetId: widget.log.superSetId,
                       ),
                     );
                   }).toList(),
-
-                  // Rest Timer Display
-                  if (_isRestTimerActive)
-                    Container(
-                      margin: const EdgeInsets.only(top: 8),
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            const Color(0xFF2BD4BD).withOpacity(0.15),
-                            const Color(0xFF8EC5FC).withOpacity(0.15),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: const Color(0xFF2BD4BD).withOpacity(0.3),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF2BD4BD),
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                            child: const Icon(
-                              PhosphorIconsBold.timer,
-                              color: Colors.white,
-                              size: 18,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _isRestTimerPaused ? 'Paused' : 'Rest Timer',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: _isRestTimerPaused ? Colors.orange : Colors.black54,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                Text(
-                                  _formatRestTime(_restSecondsRemaining),
-                                  style: TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: _isRestTimerPaused ? Colors.orange : const Color(0xFF2BD4BD),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          // Pause/Resume button
-                          GestureDetector(
-                            onTap: _isRestTimerPaused ? _resumeRestTimer : _pauseRestTimer,
-                            child: Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: _isRestTimerPaused 
-                                    ? const Color(0xFF2BD4BD) 
-                                    : Colors.black.withOpacity(0.05),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Icon(
-                                _isRestTimerPaused 
-                                    ? PhosphorIconsBold.play 
-                                    : PhosphorIconsBold.pause,
-                                size: 18,
-                                color: _isRestTimerPaused ? Colors.white : Colors.black54,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          // Stop button
-                          GestureDetector(
-                            onTap: _stopRestTimer,
-                            child: Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: Colors.red.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Icon(
-                                PhosphorIconsBold.stop,
-                                size: 18,
-                                color: Colors.red,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
 
                   const SizedBox(height: 8),
 
@@ -1060,8 +1168,8 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                               child: const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(PhosphorIconsRegular.plusCircle, 
-                                    color: Color(0xFF2BD4BD), size: 18),
+                                  Icon(PhosphorIconsRegular.plusCircle,
+                                      color: Color(0xFF2BD4BD), size: 18),
                                   SizedBox(width: 8),
                                   Text(
                                     'Add Set',
@@ -1083,15 +1191,16 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                           flex: 2,
                           child: GestureDetector(
                             onTap: () {
-                              // TODO: Show super set options
+                              _showSuperSetOptions(
+                                  context, notifier, widget.exercise.id);
                             },
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               child: const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(PhosphorIconsRegular.arrowsClockwise, 
-                                    color: Color(0xFF007AFF), size: 18),
+                                  Icon(PhosphorIconsRegular.arrowsClockwise,
+                                      color: Color(0xFF007AFF), size: 18),
                                   SizedBox(width: 6),
                                   Text(
                                     'Super Set',
@@ -1113,12 +1222,14 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                           onTap: () {
                             for (int i = 0; i < widget.log.sets.length; i++) {
                               if (!widget.log.sets[i].isCompleted) {
-                                notifier.toggleSetCompletion(widget.exercise.id, i);
+                                notifier.toggleSetCompletion(
+                                    widget.exercise.id, i);
                               }
                             }
                           },
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 14),
                             child: const Icon(
                               PhosphorIconsBold.checks,
                               color: Color(0xFFB0B0B0),
@@ -1138,26 +1249,95 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
   }
 }
 
-class _SetRow extends StatelessWidget {
+class _SetRow extends StatefulWidget {
   final int setNumber;
   final dynamic set;
   final String exerciseId;
   final int setIndex;
+  final int totalSets;
   final bool isWarmup;
-  final VoidCallback? onSetCompleted;
+  final String? superSetId;
 
   const _SetRow({
     required this.setNumber,
     required this.set,
     required this.exerciseId,
     required this.setIndex,
+    required this.totalSets,
     this.isWarmup = false,
-    this.onSetCompleted,
+    this.superSetId,
   });
+
+  @override
+  State<_SetRow> createState() => _SetRowState();
+}
+
+class _SetRowState extends State<_SetRow> {
+  late TextEditingController _weightController;
+  late TextEditingController _repsController;
+
+  @override
+  void initState() {
+    super.initState();
+    _weightController =
+        TextEditingController(text: widget.set.weight?.toString() ?? '');
+    _repsController =
+        TextEditingController(text: widget.set.reps?.toString() ?? '');
+  }
+
+  @override
+  void didUpdateWidget(covariant _SetRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Update controllers when set data changes externally
+    final newWeight = widget.set.weight?.toString() ?? '';
+    final newReps = widget.set.reps?.toString() ?? '';
+    if (_weightController.text != newWeight &&
+        !_weightController.text.endsWith('.')) {
+      _weightController.text = newWeight;
+    }
+    if (_repsController.text != newReps) {
+      _repsController.text = newReps;
+    }
+  }
+
+  @override
+  void dispose() {
+    _weightController.dispose();
+    _repsController.dispose();
+    super.dispose();
+  }
+
+  /// Check if this is the last set that should skip the timer
+  /// For supersets: only skip on last set of last exercise in the superset
+  /// For standalone exercises: skip on last set
+  bool _isLastSetOfBlock(BuildContext context) {
+    final isLastSetOfExercise = widget.setIndex == widget.totalSets - 1;
+
+    if (widget.superSetId == null) {
+      // Standalone exercise - skip timer on last set
+      return isLastSetOfExercise;
+    }
+
+    // For supersets, check if this is the last exercise in the superset
+    final workout = context.read<WorkoutNotifier>().currentWorkout;
+    if (workout == null) return isLastSetOfExercise;
+
+    final superSet =
+        workout.superSets.where((s) => s.id == widget.superSetId).firstOrNull;
+    if (superSet == null) return isLastSetOfExercise;
+
+    // Check if this exercise is the last in the superset
+    final isLastExerciseInSuperSet = superSet.exerciseIds.isNotEmpty &&
+        superSet.exerciseIds.last == widget.exerciseId;
+
+    // Only skip timer on last set of last exercise in superset
+    return isLastSetOfExercise && isLastExerciseInSuperSet;
+  }
 
   @override
   Widget build(BuildContext context) {
     final notifier = context.watch<WorkoutNotifier>();
+    final settings = context.read<SettingsNotifier>();
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -1165,9 +1345,9 @@ class _SetRow extends StatelessWidget {
         children: [
           // Set type badge (W for warmup, or set number with x)
           _SetTypeBadge(
-            setNumber: setNumber,
-            isWarmup: isWarmup,
-            isCompleted: set.isCompleted,
+            setNumber: widget.setNumber,
+            isWarmup: widget.isWarmup,
+            isCompleted: widget.set.isCompleted,
           ),
           const SizedBox(width: 8),
           // Previous value
@@ -1183,124 +1363,132 @@ class _SetRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          // Weight input
-          GestureDetector(
-            onTap: () => _showWeightInput(context, set, exerciseId, setIndex),
-            child: Container(
-              width: 80,
-              height: 36,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    set.weight?.toString() ?? '10',
+          // Weight input - inline TextField
+          Container(
+            width: 80,
+            height: 36,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5F5F5),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _weightController,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
                       color: Colors.black87,
                     ),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(vertical: 8),
+                      hintText: '0',
+                      hintStyle: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    onChanged: (val) {
+                      final weight = double.tryParse(val);
+                      context.read<WorkoutNotifier>().updateSet(
+                          widget.exerciseId,
+                          widget.setIndex,
+                          weight,
+                          widget.set.reps);
+                    },
                   ),
-                  const SizedBox(width: 4),
-                  Text(
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Text(
                     'lb',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.grey[500],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: 16),
-          // Reps input
-          GestureDetector(
-            onTap: () => _showRepsInput(context, set, exerciseId, setIndex),
-            child: Container(
-              width: 50,
-              height: 36,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
-                borderRadius: BorderRadius.circular(6),
+          // Reps input - inline TextField
+          Container(
+            width: 50,
+            height: 36,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5F5F5),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: TextField(
+              controller: _repsController,
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
               ),
-              child: Center(
-                child: Text(
-                  set.reps?.toString() ?? '10',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(vertical: 8),
+                hintText: '0',
+                hintStyle: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey,
                 ),
               ),
+              onChanged: (val) {
+                final reps = int.tryParse(val);
+                context.read<WorkoutNotifier>().updateSet(widget.exerciseId,
+                    widget.setIndex, widget.set.weight, reps);
+              },
             ),
           ),
           const Spacer(),
           // Completion checkmark
           GestureDetector(
             onTap: () {
-              final wasCompleted = set.isCompleted;
-              notifier.toggleSetCompletion(exerciseId, setIndex);
+              final wasCompleted = widget.set.isCompleted;
+              notifier.toggleSetCompletion(widget.exerciseId, widget.setIndex);
               // Only start timer when marking as complete (not when unchecking)
-              if (!wasCompleted && onSetCompleted != null) {
-                onSetCompleted!();
+              // and not on the last set of the block
+              if (!wasCompleted && !_isLastSetOfBlock(context)) {
+                settings.startRestTimer();
               }
             },
             child: Container(
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: set.isCompleted ? const Color(0xFF2BD4BD) : Colors.transparent,
+                color: widget.set.isCompleted
+                    ? const Color(0xFF2BD4BD)
+                    : Colors.transparent,
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: set.isCompleted ? const Color(0xFF2BD4BD) : const Color(0xFFD8D8D8),
+                  color: widget.set.isCompleted
+                      ? const Color(0xFF2BD4BD)
+                      : const Color(0xFFD8D8D8),
                   width: 2,
                 ),
               ),
-              child: set.isCompleted
-                  ? const Icon(PhosphorIconsBold.check, color: Colors.white, size: 18)
-                  : Icon(PhosphorIconsRegular.check, color: Colors.grey[300], size: 18),
+              child: widget.set.isCompleted
+                  ? const Icon(PhosphorIconsBold.check,
+                      color: Colors.white, size: 18)
+                  : Icon(PhosphorIconsRegular.check,
+                      color: Colors.grey[300], size: 18),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  void _showWeightInput(BuildContext context, dynamic set, String exerciseId, int setIndex) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => _NumberInputSheet(
-        title: 'Weight',
-        currentValue: set.weight?.toString() ?? '10',
-        unit: 'lb',
-        onValueChanged: (value) {
-          final weight = int.tryParse(value) ?? 10;
-          context.read<WorkoutNotifier>().updateSet(exerciseId, setIndex, weight, set.reps);
-        },
-      ),
-    );
-  }
-
-  void _showRepsInput(BuildContext context, dynamic set, String exerciseId, int setIndex) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => _NumberInputSheet(
-        title: 'Reps',
-        currentValue: set.reps?.toString() ?? '10',
-        unit: '',
-        onValueChanged: (value) {
-          final reps = int.tryParse(value) ?? 10;
-          context.read<WorkoutNotifier>().updateSet(exerciseId, setIndex, set.weight, reps);
-        },
       ),
     );
   }
@@ -1324,7 +1512,8 @@ class _SetTypeBadge extends StatelessWidget {
         width: 40,
         height: 36,
         decoration: BoxDecoration(
-          color: isCompleted ? const Color(0xFF2BD4BD) : const Color(0xFFE8F5E9),
+          color:
+              isCompleted ? const Color(0xFF2BD4BD) : const Color(0xFFE8F5E9),
           borderRadius: BorderRadius.circular(18),
         ),
         child: Stack(
@@ -1559,7 +1748,7 @@ class _NumberInputSheetState extends State<_NumberInputSheet> {
                             ),
                             child: const Center(
                               child: Icon(
-                                PhosphorIconsRegular.backspace, 
+                                PhosphorIconsRegular.backspace,
                                 size: 24,
                                 color: Colors.black54,
                               ),
@@ -1661,43 +1850,6 @@ class _NumberInputSheetState extends State<_NumberInputSheet> {
   }
 }
 
-class _SetTypeButton extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _SetTypeButton({
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.grey[200] : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? Colors.grey[400]! : Colors.grey[300]!,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-            color: Colors.black87,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _RenameWorkoutDialog extends StatefulWidget {
   final String initialName;
   final Function(String) onSave;
@@ -1766,8 +1918,51 @@ class _RenameWorkoutDialogState extends State<_RenameWorkoutDialog> {
   }
 }
 
-void _showSuperSetOptions(BuildContext context, WorkoutNotifier notifier, String exerciseId) {
-  final exercise = notifier.currentWorkout?.exercises.firstWhere((e) => e.exerciseId == exerciseId);
+class _StatItem extends StatelessWidget {
+  final IconData icon;
+  final String value;
+  final String label;
+  final Color color;
+
+  const _StatItem({
+    required this.icon,
+    required this.value,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 22),
+        const SizedBox(height: 6),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: Colors.grey[600],
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+void _showSuperSetOptions(
+    BuildContext context, WorkoutNotifier notifier, String exerciseId) {
+  final exercise = notifier.currentWorkout?.exercises
+      .firstWhere((e) => e.exerciseId == exerciseId);
   if (exercise?.superSetId != null) {
     _showSuperSetManagement(context, notifier, exercise!.superSetId!);
   } else {
@@ -1775,32 +1970,35 @@ void _showSuperSetOptions(BuildContext context, WorkoutNotifier notifier, String
   }
 }
 
-void _showSuperSetCreation(BuildContext context, WorkoutNotifier notifier, String currentExerciseId) {
-    final availableExercises = notifier.getAvailableExercisesForSuperSet()
-        .where((e) => e.exerciseId != currentExerciseId)
-        .toList();
-    
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF1C1C1E),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => _SuperSetCreationSheet(
-        availableExercises: availableExercises,
+void _showSuperSetCreation(
+    BuildContext context, WorkoutNotifier notifier, String currentExerciseId) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => _SuperSetExercisePickerScreen(
         currentExerciseId: currentExerciseId,
-        onCreateSuperSet: (exerciseIds) {
-          notifier.createSuperSet([currentExerciseId, ...exerciseIds]);
-          Navigator.pop(context);
+        onExercisesSelected: (exercises) {
+          // Add selected exercises to workout first
+          for (final exercise in exercises) {
+            notifier.addExercise(exercise);
+          }
+          // Create the super set with current exercise + new exercises
+          final exerciseIds = [
+            currentExerciseId,
+            ...exercises.map((e) => e.id)
+          ];
+          notifier.createSuperSet(exerciseIds);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Super set created!')),
           );
         },
       ),
-    );
-  }
+    ),
+  );
+}
 
-void _showSuperSetManagement(BuildContext context, WorkoutNotifier notifier, String superSetId) {
+void _showSuperSetManagement(
+    BuildContext context, WorkoutNotifier notifier, String superSetId) {
   final superSet = notifier.getSuperSet(superSetId);
   if (superSet == null) return;
 
@@ -1823,123 +2021,672 @@ void _showSuperSetManagement(BuildContext context, WorkoutNotifier notifier, Str
   );
 }
 
-class _SuperSetCreationSheet extends StatefulWidget {
-  final List<WorkoutExerciseLog> availableExercises;
+/// Full-screen exercise picker for creating super sets
+class _SuperSetExercisePickerScreen extends StatefulWidget {
   final String currentExerciseId;
-  final Function(List<String>) onCreateSuperSet;
+  final Function(List<Exercise>) onExercisesSelected;
 
-  const _SuperSetCreationSheet({
-    required this.availableExercises,
+  const _SuperSetExercisePickerScreen({
     required this.currentExerciseId,
-    required this.onCreateSuperSet,
+    required this.onExercisesSelected,
   });
 
   @override
-  State<_SuperSetCreationSheet> createState() => _SuperSetCreationSheetState();
+  State<_SuperSetExercisePickerScreen> createState() =>
+      _SuperSetExercisePickerScreenState();
 }
 
-class _SuperSetCreationSheetState extends State<_SuperSetCreationSheet> {
-  final Set<String> _selectedExerciseIds = {};
+class _SuperSetExercisePickerScreenState
+    extends State<_SuperSetExercisePickerScreen> {
+  final List<Exercise> _selectedExercises = [];
+  String _searchQuery = '';
+  String _selectedMuscleGroup = 'All';
+  final TextEditingController _searchController = TextEditingController();
+  bool _showAllExercises = false;
+
+  // Muscle group mappings for antagonist pairs
+  static const Map<String, List<String>> _antagonistPairs = {
+    'Chest': ['Back', 'Lats'],
+    'Back': ['Chest'],
+    'Lats': ['Chest'],
+    'Biceps': ['Triceps'],
+    'Triceps': ['Biceps'],
+    'Quads': ['Hamstrings', 'Glutes'],
+    'Hamstrings': ['Quads'],
+    'Shoulders': ['Back', 'Lats'],
+    'Abs': ['Lower Back'],
+    'Lower Back': ['Abs'],
+  };
+
+  Exercise? get _currentExercise {
+    final exerciseData = EXERCISE_LIBRARY.firstWhere(
+      (e) => e['id'] == widget.currentExerciseId,
+      orElse: () => <String, dynamic>{},
+    );
+    if (exerciseData.isEmpty) return null;
+    return Exercise.fromJson(exerciseData);
+  }
+
+  String? get _currentMuscleGroup => _currentExercise?.muscleGroup;
+
+  List<String> get _muscleGroups {
+    final groups = EXERCISE_LIBRARY
+        .map((e) => e['muscleGroup'] as String)
+        .toSet()
+        .toList();
+    groups.sort();
+    return ['All', ...groups];
+  }
+
+  /// Get suggested exercises based on antagonist muscle pairs
+  List<Exercise> get _suggestedExercises {
+    if (_currentMuscleGroup == null) return [];
+
+    final antagonistGroups = _antagonistPairs[_currentMuscleGroup] ?? [];
+
+    return EXERCISE_LIBRARY
+        .where((e) {
+          if (e['id'] == widget.currentExerciseId) return false;
+          final muscleGroup = e['muscleGroup'] as String;
+          return antagonistGroups.contains(muscleGroup);
+        })
+        .take(6)
+        .map((e) => Exercise.fromJson(e))
+        .toList();
+  }
+
+  /// Get exercises from the same muscle group (compound sets)
+  List<Exercise> get _sameMuscleExercises {
+    if (_currentMuscleGroup == null) return [];
+
+    return EXERCISE_LIBRARY
+        .where((e) {
+          if (e['id'] == widget.currentExerciseId) return false;
+          final muscleGroup = e['muscleGroup'] as String;
+          return muscleGroup == _currentMuscleGroup;
+        })
+        .take(6)
+        .map((e) => Exercise.fromJson(e))
+        .toList();
+  }
+
+  List<Exercise> get _filteredExercises {
+    return EXERCISE_LIBRARY
+        .where((e) {
+          if (e['id'] == widget.currentExerciseId) return false;
+
+          final name = (e['name'] as String).toLowerCase();
+          final muscleGroup = e['muscleGroup'] as String;
+
+          final matchesSearch =
+              _searchQuery.isEmpty || name.contains(_searchQuery.toLowerCase());
+          final matchesMuscle = _selectedMuscleGroup == 'All' ||
+              muscleGroup == _selectedMuscleGroup;
+
+          return matchesSearch && matchesMuscle;
+        })
+        .map((e) => Exercise.fromJson(e))
+        .toList();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Widget _buildExerciseChip(Exercise exercise, {bool isCompact = false}) {
+    final isSelected = _selectedExercises.any((e) => e.id == exercise.id);
+
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          if (isSelected) {
+            _selectedExercises.removeWhere((e) => e.id == exercise.id);
+          } else {
+            _selectedExercises.add(exercise);
+          }
+        });
+      },
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: isCompact ? 10 : 12,
+          vertical: isCompact ? 8 : 10,
+        ),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF2BD4BD) : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color:
+                isSelected ? const Color(0xFF2BD4BD) : const Color(0xFFE0E0E0),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isSelected) ...[
+              const Icon(PhosphorIconsBold.check,
+                  size: 14, color: Colors.white),
+              const SizedBox(width: 6),
+            ],
+            Flexible(
+              child: Text(
+                exercise.name,
+                style: TextStyle(
+                  fontSize: isCompact ? 12 : 13,
+                  fontWeight: FontWeight.w500,
+                  color: isSelected ? Colors.white : Colors.black87,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExerciseRow(Exercise exercise) {
+    final isSelected = _selectedExercises.any((e) => e.id == exercise.id);
+
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          if (isSelected) {
+            _selectedExercises.removeWhere((e) => e.id == exercise.id);
+          } else {
+            _selectedExercises.add(exercise);
+          }
+        });
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFE8F5F3) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF2BD4BD) : Colors.transparent,
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? const Color(0xFF2BD4BD).withValues(alpha: 0.15)
+                    : const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                PhosphorIconsBold.barbell,
+                size: 20,
+                color: isSelected ? const Color(0xFF2BD4BD) : Colors.black54,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    exercise.name,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color:
+                          isSelected ? const Color(0xFF2BD4BD) : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${exercise.muscleGroup} • ${exercise.equipment}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.black45,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color:
+                    isSelected ? const Color(0xFF2BD4BD) : Colors.transparent,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isSelected ? const Color(0xFF2BD4BD) : Colors.black26,
+                  width: 2,
+                ),
+              ),
+              child: isSelected
+                  ? const Icon(PhosphorIconsBold.check,
+                      color: Colors.white, size: 14)
+                  : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            'Create Super Set',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
+    final hasSuggestions =
+        _suggestedExercises.isNotEmpty || _sameMuscleExercises.isNotEmpty;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F8F8),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFF8F8F8),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(PhosphorIconsRegular.x,
+              color: Colors.black87, size: 22),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'Create Super Set',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
           ),
-          const SizedBox(height: 8),
-          const Text(
-            'Select exercises to group together',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.white70,
-            ),
-          ),
-          const SizedBox(height: 20),
-          if (widget.availableExercises.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(40),
-              child: Text(
-                'No available exercises to add to super set',
-                style: TextStyle(color: Colors.white54),
-                textAlign: TextAlign.center,
-              ),
-            )
-          else
-            Flexible(
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: widget.availableExercises.length,
-                itemBuilder: (context, index) {
-                  final exercise = widget.availableExercises[index];
-                  final isSelected = _selectedExerciseIds.contains(exercise.exerciseId);
-                  
-                  return ListTile(
-                    title: Text(
-                      exercise.exerciseId,
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    trailing: Checkbox(
-                      value: isSelected,
-                      onChanged: (value) {
-                        setState(() {
-                          if (value == true) {
-                            _selectedExerciseIds.add(exercise.exerciseId);
-                          } else {
-                            _selectedExerciseIds.remove(exercise.exerciseId);
-                          }
-                        });
-                      },
-                      activeColor: const Color(0xFF2BD4BD),
-                    ),
-                    onTap: () {
-                      setState(() {
-                        if (isSelected) {
-                          _selectedExerciseIds.remove(exercise.exerciseId);
-                        } else {
-                          _selectedExerciseIds.add(exercise.exerciseId);
-                        }
-                      });
-                    },
-                  );
+        ),
+        centerTitle: true,
+        actions: [
+          if (_selectedExercises.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: TextButton(
+                onPressed: () {
+                  widget.onExercisesSelected(_selectedExercises);
+                  Navigator.pop(context);
                 },
+                style: TextButton.styleFrom(
+                  backgroundColor: const Color(0xFF2BD4BD),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+                child: Text(
+                  'Done (${_selectedExercises.length})',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
-                ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Selected exercises preview (compact)
+          if (_selectedExercises.isNotEmpty)
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F5F3),
+                borderRadius: BorderRadius.circular(12),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _selectedExerciseIds.isEmpty
-                      ? null
-                      : () => widget.onCreateSuperSet(_selectedExerciseIds.toList()),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2BD4BD),
-                    foregroundColor: Colors.white,
+              child: Row(
+                children: [
+                  const Icon(PhosphorIconsBold.arrowsClockwise,
+                      color: Color(0xFF2BD4BD), size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          // Current exercise
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2BD4BD)
+                                  .withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              _currentExercise?.name ?? 'Current',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF2BD4BD),
+                              ),
+                            ),
+                          ),
+                          ..._selectedExercises.map((exercise) {
+                            return Padding(
+                              padding: const EdgeInsets.only(left: 6),
+                              child: GestureDetector(
+                                onTap: () => setState(
+                                    () => _selectedExercises.remove(exercise)),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        exercise.name,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      const Icon(PhosphorIconsBold.x,
+                                          size: 12, color: Colors.black45),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
                   ),
-                  child: Text('Create Super Set (${_selectedExerciseIds.length + 1})'),
-                ),
+                ],
               ),
-            ],
+            ),
+
+          // Main content
+          Expanded(
+            child: _showAllExercises || !hasSuggestions
+                ? _buildAllExercisesView()
+                : _buildSuggestionsView(),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSuggestionsView() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Antagonist pair suggestions
+          if (_suggestedExercises.isNotEmpty) ...[
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE3F2FD),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(PhosphorIconsBold.lightningA,
+                      size: 16, color: Color(0xFF1976D2)),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Antagonist Pairs',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      Text(
+                        'Opposite muscle groups for balanced training',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.black45,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _suggestedExercises
+                  .map((e) => _buildExerciseChip(e))
+                  .toList(),
+            ),
+            const SizedBox(height: 24),
+          ],
+
+          // Same muscle group suggestions
+          if (_sameMuscleExercises.isNotEmpty) ...[
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF3E0),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(PhosphorIconsBold.fire,
+                      size: 16, color: Color(0xFFE65100)),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Compound Set',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      Text(
+                        'Same muscle (${_currentMuscleGroup}) for intensity',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.black45,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _sameMuscleExercises
+                  .map((e) => _buildExerciseChip(e))
+                  .toList(),
+            ),
+            const SizedBox(height: 24),
+          ],
+
+          // Browse all button
+          GestureDetector(
+            onTap: () => setState(() => _showAllExercises = true),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE0E0E0)),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(PhosphorIconsRegular.magnifyingGlass,
+                      size: 18, color: Colors.black54),
+                  SizedBox(width: 8),
+                  Text(
+                    'Browse All Exercises',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black54,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAllExercisesView() {
+    return Column(
+      children: [
+        // Back to suggestions button (if we have suggestions)
+        if (_suggestedExercises.isNotEmpty || _sameMuscleExercises.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: GestureDetector(
+              onTap: () => setState(() => _showAllExercises = false),
+              child: Row(
+                children: [
+                  const Icon(PhosphorIconsRegular.arrowLeft,
+                      size: 16, color: Color(0xFF2BD4BD)),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'Back to Suggestions',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF2BD4BD),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+        // Search bar
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (value) => setState(() => _searchQuery = value),
+              style: const TextStyle(fontSize: 15),
+              decoration: const InputDecoration(
+                hintText: 'Search exercises...',
+                hintStyle: TextStyle(color: Colors.black38, fontSize: 15),
+                prefixIcon: Icon(PhosphorIconsRegular.magnifyingGlass,
+                    color: Colors.black38, size: 20),
+                border: InputBorder.none,
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+            ),
+          ),
+        ),
+
+        // Muscle group filter chips
+        SizedBox(
+          height: 36,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: _muscleGroups.length,
+            itemBuilder: (context, index) {
+              final group = _muscleGroups[index];
+              final isSelected = _selectedMuscleGroup == group;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: () => setState(() => _selectedMuscleGroup = group),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color:
+                          isSelected ? const Color(0xFF2BD4BD) : Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: isSelected
+                            ? const Color(0xFF2BD4BD)
+                            : const Color(0xFFE0E0E0),
+                      ),
+                    ),
+                    child: Text(
+                      group,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: isSelected ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        // Exercise list
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: _filteredExercises.length,
+            itemBuilder: (context, index) {
+              final exercise = _filteredExercises[index];
+              return _buildExerciseRow(exercise);
+            },
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1956,7 +2703,8 @@ class _SuperSetManagementSheet extends StatefulWidget {
   });
 
   @override
-  State<_SuperSetManagementSheet> createState() => _SuperSetManagementSheetState();
+  State<_SuperSetManagementSheet> createState() =>
+      _SuperSetManagementSheetState();
 }
 
 class _SuperSetManagementSheetState extends State<_SuperSetManagementSheet> {
@@ -1966,6 +2714,15 @@ class _SuperSetManagementSheetState extends State<_SuperSetManagementSheet> {
   void initState() {
     super.initState();
     _exerciseOrder = List.from(widget.superSet.exerciseIds);
+  }
+
+  String _getExerciseNameById(BuildContext context, String exerciseId) {
+    final notifier = context.read<WorkoutNotifier>();
+    final exercise = notifier.currentWorkout?.exercises.firstWhere(
+      (e) => e.exerciseId == exerciseId,
+      orElse: () => WorkoutExerciseLog(exerciseId: exerciseId, sets: []),
+    );
+    return exercise?.exerciseName ?? exerciseId;
   }
 
   @override
@@ -2008,7 +2765,7 @@ class _SuperSetManagementSheetState extends State<_SuperSetManagementSheet> {
                     ),
                   ),
                   title: Text(
-                    exerciseId,
+                    _getExerciseNameById(context, exerciseId),
                     style: const TextStyle(color: Colors.white),
                   ),
                   trailing: IconButton(
@@ -2028,6 +2785,180 @@ class _SuperSetManagementSheetState extends State<_SuperSetManagementSheet> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Global rest timer overlay that appears at the bottom of the screen
+/// Visible regardless of scroll position
+class _GlobalRestTimerOverlay extends StatelessWidget {
+  final SettingsNotifier settings;
+  final VoidCallback onDismiss;
+
+  const _GlobalRestTimerOverlay({
+    required this.settings,
+    required this.onDismiss,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF2BD4BD).withValues(alpha: 0.95),
+            const Color(0xFF1FA89A).withValues(alpha: 0.95),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF2BD4BD).withValues(alpha: 0.3),
+            blurRadius: 12,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        bottom: false,
+        child: Row(
+          children: [
+            // Timer icon
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: const Icon(
+                PhosphorIconsBold.timer,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Timer display
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    settings.isPaused ? 'PAUSED' : 'REST TIMER',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white.withValues(alpha: 0.8),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    settings.formatRestTime(settings.currentRestSeconds),
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // -15s button
+            GestureDetector(
+              onTap: () => settings.adjustRestTime(-15),
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Center(
+                  child: Text(
+                    '-15',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // +15s button
+            GestureDetector(
+              onTap: () => settings.adjustRestTime(15),
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Center(
+                  child: Text(
+                    '+15',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Pause/Resume button
+            GestureDetector(
+              onTap: () {
+                if (settings.isPaused) {
+                  settings.resumeRestTimer();
+                } else {
+                  settings.pauseRestTimer();
+                }
+              },
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: Icon(
+                  settings.isPaused
+                      ? PhosphorIconsBold.play
+                      : PhosphorIconsBold.pause,
+                  color: const Color(0xFF2BD4BD),
+                  size: 20,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Stop/Dismiss button
+            GestureDetector(
+              onTap: onDismiss,
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Icon(
+                  PhosphorIconsBold.x,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

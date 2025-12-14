@@ -30,7 +30,7 @@ class WorkoutNotifier extends ChangeNotifier {
   final StorageService _storageService = StorageService();
   final SyncService _syncService;
   final PRService _prService = PRService();
-  
+
   List<WorkoutLog> _workoutHistory = [];
   List<WorkoutLog> get workoutHistory => _workoutHistory;
 
@@ -47,6 +47,12 @@ class WorkoutNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Load workout history from cloud (called on auth)
+  Future<void> loadWorkoutHistoryFromCloud(String userId) async {
+    _workoutHistory = await _syncService.getWorkouts(userId);
+    notifyListeners();
+  }
+
   Future<bool> hasDraftWorkout() async {
     return await _storageService.hasDraftWorkout();
   }
@@ -59,14 +65,29 @@ class WorkoutNotifier extends ChangeNotifier {
       'workoutNotes': _workoutNotes,
       'startTime': _startTime?.toIso8601String(),
       'elapsedSeconds': _elapsedSeconds,
-      'exercises': _currentWorkout!.exercises.map((e) => {
-        'exerciseId': e.exerciseId,
-        'sets': e.sets.map((s) => {
-          'weight': s.weight,
-          'reps': s.reps,
-          'isCompleted': s.isCompleted,
-        }).toList(),
-      }).toList(),
+      'exercises': _currentWorkout!.exercises
+          .map((e) => {
+                'exerciseId': e.exerciseId,
+                'exerciseName': e.exerciseName,
+                'muscleGroup': e.muscleGroup,
+                'equipment': e.equipment,
+                'superSetId': e.superSetId,
+                'orderInSuperSet': e.orderInSuperSet,
+                'sets': e.sets
+                    .map((s) => {
+                          'weight': s.weight,
+                          'reps': s.reps,
+                          'isCompleted': s.isCompleted,
+                        })
+                    .toList(),
+              })
+          .toList(),
+      'superSets': _currentWorkout!.superSets
+          .map((s) => {
+                'id': s.id,
+                'exerciseIds': s.exerciseIds,
+              })
+          .toList(),
     };
 
     await _storageService.saveDraftWorkout(draftData);
@@ -80,7 +101,7 @@ class WorkoutNotifier extends ChangeNotifier {
     _workoutName = draftData['workoutName'] as String? ?? 'My Workout 1';
     _workoutNotes = draftData['workoutNotes'] as String? ?? '';
     _elapsedSeconds = draftData['elapsedSeconds'] as int? ?? 0;
-    
+
     if (draftData['startTime'] != null) {
       try {
         _startTime = DateTime.parse(draftData['startTime'] as String);
@@ -90,25 +111,42 @@ class WorkoutNotifier extends ChangeNotifier {
     }
 
     final exercises = (draftData['exercises'] as List?)?.map((e) {
-      final sets = (e['sets'] as List?)?.map((s) {
-        return WorkoutSet(
-          weight: s['weight'] as int?,
-          reps: s['reps'] as int?,
-          isCompleted: s['isCompleted'] as bool? ?? false,
-        );
-      }).toList() ?? [];
+          final sets = (e['sets'] as List?)?.map((s) {
+                return WorkoutSet(
+                  weight: (s['weight'] as num?)?.toDouble(),
+                  reps: s['reps'] as int?,
+                  isCompleted: s['isCompleted'] as bool? ?? false,
+                );
+              }).toList() ??
+              [];
 
-      return WorkoutExerciseLog(
-        exerciseId: e['exerciseId'] as String,
-        sets: sets,
-      );
-    }).toList() ?? [];
+          return WorkoutExerciseLog(
+            exerciseId: e['exerciseId'] as String,
+            exerciseName: e['exerciseName'] as String?,
+            muscleGroup: e['muscleGroup'] as String?,
+            equipment: e['equipment'] as String?,
+            superSetId: e['superSetId'] as String?,
+            orderInSuperSet: e['orderInSuperSet'] as int?,
+            sets: sets,
+          );
+        }).toList() ??
+        [];
+
+    // Restore super sets
+    final superSets = (draftData['superSets'] as List?)?.map((s) {
+          return SuperSet(
+            id: s['id'] as String,
+            exerciseIds: List<String>.from(s['exerciseIds'] as List? ?? []),
+          );
+        }).toList() ??
+        [];
 
     _currentWorkout = WorkoutLog(
       workoutName: _workoutName,
       timestamp: _startTime ?? DateTime.now(),
       durationSeconds: 0,
       exercises: exercises,
+      superSets: superSets,
     );
 
     _isWorkoutActive = true;
@@ -195,7 +233,7 @@ class WorkoutNotifier extends ChangeNotifier {
         WorkoutSet(weight: null, reps: null),
         WorkoutSet(weight: null, reps: null),
         WorkoutSet(weight: null, reps: null),
-      ], 
+      ],
     ));
     notifyListeners();
   }
@@ -208,7 +246,7 @@ class WorkoutNotifier extends ChangeNotifier {
     double? targetWeight,
   }) {
     if (_currentWorkout == null) return;
-    
+
     // Try to find the exercise in the database, or create a custom one
     final exerciseData = EXERCISE_LIBRARY.firstWhere(
       (e) => (e['name'] as String).toLowerCase() == name.toLowerCase(),
@@ -224,7 +262,7 @@ class WorkoutNotifier extends ChangeNotifier {
     final sets = List.generate(
       targetSets,
       (_) => WorkoutSet(
-        weight: targetWeight?.toInt(),
+        weight: targetWeight,
         reps: targetReps,
       ),
     );
@@ -241,23 +279,26 @@ class WorkoutNotifier extends ChangeNotifier {
 
   void addSet(String exerciseId) {
     if (_currentWorkout == null) return;
-    final exerciseLog = _currentWorkout!.exercises.firstWhere((e) => e.exerciseId == exerciseId);
+    final exerciseLog = _currentWorkout!.exercises
+        .firstWhere((e) => e.exerciseId == exerciseId);
     exerciseLog.sets.add(WorkoutSet(weight: null, reps: null));
     notifyListeners();
   }
 
   void removeSet(String exerciseId, int setIndex) {
     if (_currentWorkout == null) return;
-    final exerciseLog = _currentWorkout!.exercises.firstWhere((e) => e.exerciseId == exerciseId);
+    final exerciseLog = _currentWorkout!.exercises
+        .firstWhere((e) => e.exerciseId == exerciseId);
     if (setIndex < exerciseLog.sets.length && exerciseLog.sets.length > 1) {
       exerciseLog.sets.removeAt(setIndex);
       notifyListeners();
     }
   }
 
-  void updateSet(String exerciseId, int setIndex, int? weight, int? reps) {
+  void updateSet(String exerciseId, int setIndex, double? weight, int? reps) {
     if (_currentWorkout == null) return;
-    final exerciseLog = _currentWorkout!.exercises.firstWhere((e) => e.exerciseId == exerciseId);
+    final exerciseLog = _currentWorkout!.exercises
+        .firstWhere((e) => e.exerciseId == exerciseId);
     if (setIndex < exerciseLog.sets.length) {
       exerciseLog.sets[setIndex].weight = weight;
       exerciseLog.sets[setIndex].reps = reps;
@@ -267,27 +308,29 @@ class WorkoutNotifier extends ChangeNotifier {
 
   void toggleSetCompletion(String exerciseId, int setIndex) {
     if (_currentWorkout == null) return;
-    final exerciseLog = _currentWorkout!.exercises.firstWhere((e) => e.exerciseId == exerciseId);
+    final exerciseLog = _currentWorkout!.exercises
+        .firstWhere((e) => e.exerciseId == exerciseId);
     if (setIndex < exerciseLog.sets.length) {
-      exerciseLog.sets[setIndex].isCompleted = !exerciseLog.sets[setIndex].isCompleted;
-      
+      exerciseLog.sets[setIndex].isCompleted =
+          !exerciseLog.sets[setIndex].isCompleted;
+
       // Start timer on first set completion
       if (exerciseLog.sets[setIndex].isCompleted && !_timerStarted) {
         _startTimer();
       }
-      
+
       notifyListeners();
     }
   }
 
   Future<void> finishWorkout(String? userId) async {
     if (_currentWorkout == null) return;
-    
+
     _elapsedSeconds = _calculateElapsedSeconds();
     _timer?.cancel();
     _timer = null;
     _stopAutoSave();
-    
+
     // Update duration
     final finishedWorkout = WorkoutLog(
       workoutName: _currentWorkout!.workoutName,
@@ -298,11 +341,12 @@ class WorkoutNotifier extends ChangeNotifier {
     );
 
     // Detect personal records BEFORE syncing
-    final newPRs = _prService.detectPersonalRecords(finishedWorkout, _workoutHistory);
-    
+    final newPRs =
+        _prService.detectPersonalRecords(finishedWorkout, _workoutHistory);
+
     // Sync to cloud (with local fallback)
     await _syncService.syncWorkout(userId, finishedWorkout);
-    
+
     // Reload history
     await _loadWorkoutHistory();
 
@@ -339,86 +383,90 @@ class WorkoutNotifier extends ChangeNotifier {
   /// Create a super set from selected exercises
   void createSuperSet(List<String> exerciseIds) {
     if (_currentWorkout == null || exerciseIds.length < 2) return;
-    
+
     final superSetId = 'superset_${DateTime.now().millisecondsSinceEpoch}';
     final superSet = SuperSet(
       id: superSetId,
       exerciseIds: exerciseIds,
     );
-    
+
     _currentWorkout!.superSets.add(superSet);
-    
+
     // Update exercise logs with super set info
     for (int i = 0; i < exerciseIds.length; i++) {
-      final exerciseIndex = _currentWorkout!.exercises.indexWhere(
-        (e) => e.exerciseId == exerciseIds[i]
-      );
+      final exerciseIndex = _currentWorkout!.exercises
+          .indexWhere((e) => e.exerciseId == exerciseIds[i]);
       if (exerciseIndex != -1) {
         final exercise = _currentWorkout!.exercises[exerciseIndex];
         _currentWorkout!.exercises[exerciseIndex] = WorkoutExerciseLog(
           exerciseId: exercise.exerciseId,
+          exerciseName: exercise.exerciseName,
+          muscleGroup: exercise.muscleGroup,
+          equipment: exercise.equipment,
           sets: exercise.sets,
           superSetId: superSetId,
           orderInSuperSet: i,
         );
       }
     }
-    
+
     notifyListeners();
   }
 
   /// Remove exercise from super set
   void removeFromSuperSet(String exerciseId) {
     if (_currentWorkout == null) return;
-    
-    final exerciseIndex = _currentWorkout!.exercises.indexWhere(
-      (e) => e.exerciseId == exerciseId
-    );
-    
+
+    final exerciseIndex = _currentWorkout!.exercises
+        .indexWhere((e) => e.exerciseId == exerciseId);
+
     if (exerciseIndex != -1) {
       final exercise = _currentWorkout!.exercises[exerciseIndex];
       if (exercise.superSetId != null) {
         // Find the super set and remove exercise
-        final superSetIndex = _currentWorkout!.superSets.indexWhere(
-          (s) => s.id == exercise.superSetId
-        );
-        
+        final superSetIndex = _currentWorkout!.superSets
+            .indexWhere((s) => s.id == exercise.superSetId);
+
         if (superSetIndex != -1) {
           final superSet = _currentWorkout!.superSets[superSetIndex];
-          final updatedExerciseIds = superSet.exerciseIds.where(
-            (id) => id != exerciseId
-          ).toList();
-          
+          final updatedExerciseIds =
+              superSet.exerciseIds.where((id) => id != exerciseId).toList();
+
           if (updatedExerciseIds.length < 2) {
             // Remove entire super set if less than 2 exercises
             _currentWorkout!.superSets.removeAt(superSetIndex);
             // Clear super set info from remaining exercises
             for (final remainingId in updatedExerciseIds) {
-              final remainingIndex = _currentWorkout!.exercises.indexWhere(
-                (e) => e.exerciseId == remainingId
-              );
+              final remainingIndex = _currentWorkout!.exercises
+                  .indexWhere((e) => e.exerciseId == remainingId);
               if (remainingIndex != -1) {
-                final remainingExercise = _currentWorkout!.exercises[remainingIndex];
+                final remainingExercise =
+                    _currentWorkout!.exercises[remainingIndex];
                 _currentWorkout!.exercises[remainingIndex] = WorkoutExerciseLog(
                   exerciseId: remainingExercise.exerciseId,
+                  exerciseName: remainingExercise.exerciseName,
+                  muscleGroup: remainingExercise.muscleGroup,
+                  equipment: remainingExercise.equipment,
                   sets: remainingExercise.sets,
                 );
               }
             }
           } else {
             // Update super set with remaining exercises
-            _currentWorkout!.superSets[superSetIndex] = superSet.copyWith(
-              exerciseIds: updatedExerciseIds
-            );
+            _currentWorkout!.superSets[superSetIndex] =
+                superSet.copyWith(exerciseIds: updatedExerciseIds);
             // Update order for remaining exercises
             for (int i = 0; i < updatedExerciseIds.length; i++) {
-              final remainingIndex = _currentWorkout!.exercises.indexWhere(
-                (e) => e.exerciseId == updatedExerciseIds[i]
-              );
+              final remainingIndex = _currentWorkout!.exercises
+                  .indexWhere((e) => e.exerciseId == updatedExerciseIds[i]);
               if (remainingIndex != -1) {
-                final remainingExercise = _currentWorkout!.exercises[remainingIndex];
+                final remainingExercise =
+                    _currentWorkout!.exercises[remainingIndex];
                 _currentWorkout!.exercises[remainingIndex] = WorkoutExerciseLog(
                   exerciseId: remainingExercise.exerciseId,
+                  exerciseName: remainingExercise.exerciseName,
+                  muscleGroup: remainingExercise.muscleGroup,
+                  equipment: remainingExercise.equipment,
                   sets: remainingExercise.sets,
                   superSetId: exercise.superSetId,
                   orderInSuperSet: i,
@@ -427,48 +475,51 @@ class WorkoutNotifier extends ChangeNotifier {
             }
           }
         }
-        
+
         // Clear super set info from removed exercise
         _currentWorkout!.exercises[exerciseIndex] = WorkoutExerciseLog(
           exerciseId: exercise.exerciseId,
+          exerciseName: exercise.exerciseName,
+          muscleGroup: exercise.muscleGroup,
+          equipment: exercise.equipment,
           sets: exercise.sets,
         );
       }
     }
-    
+
     notifyListeners();
   }
 
   /// Reorder exercises within a super set
   void reorderSuperSetExercises(String superSetId, List<String> newOrder) {
     if (_currentWorkout == null) return;
-    
-    final superSetIndex = _currentWorkout!.superSets.indexWhere(
-      (s) => s.id == superSetId
-    );
-    
+
+    final superSetIndex =
+        _currentWorkout!.superSets.indexWhere((s) => s.id == superSetId);
+
     if (superSetIndex != -1) {
-      _currentWorkout!.superSets[superSetIndex] = 
-          _currentWorkout!.superSets[superSetIndex].copyWith(
-        exerciseIds: newOrder
-      );
-      
+      _currentWorkout!.superSets[superSetIndex] = _currentWorkout!
+          .superSets[superSetIndex]
+          .copyWith(exerciseIds: newOrder);
+
       // Update order in exercise logs
       for (int i = 0; i < newOrder.length; i++) {
-        final exerciseIndex = _currentWorkout!.exercises.indexWhere(
-          (e) => e.exerciseId == newOrder[i]
-        );
+        final exerciseIndex = _currentWorkout!.exercises
+            .indexWhere((e) => e.exerciseId == newOrder[i]);
         if (exerciseIndex != -1) {
           final exercise = _currentWorkout!.exercises[exerciseIndex];
           _currentWorkout!.exercises[exerciseIndex] = WorkoutExerciseLog(
             exerciseId: exercise.exerciseId,
+            exerciseName: exercise.exerciseName,
+            muscleGroup: exercise.muscleGroup,
+            equipment: exercise.equipment,
             sets: exercise.sets,
             superSetId: superSetId,
             orderInSuperSet: i,
           );
         }
       }
-      
+
       notifyListeners();
     }
   }
@@ -476,7 +527,9 @@ class WorkoutNotifier extends ChangeNotifier {
   /// Get exercises that are not in any super set
   List<WorkoutExerciseLog> getAvailableExercisesForSuperSet() {
     if (_currentWorkout == null) return [];
-    return _currentWorkout!.exercises.where((e) => e.superSetId == null).toList();
+    return _currentWorkout!.exercises
+        .where((e) => e.superSetId == null)
+        .toList();
   }
 
   /// Get super set by ID
@@ -492,23 +545,25 @@ class WorkoutNotifier extends ChangeNotifier {
   /// Delete a workout from history
   Future<void> deleteWorkout(WorkoutLog workout) async {
     _workoutHistory.removeWhere((w) => w.timestamp == workout.timestamp);
-    
+
     // Update local storage
     await _storageService.clearWorkouts();
     for (var w in _workoutHistory) {
       await _storageService.saveWorkout(w);
     }
-    
+
     // Sync to cloud if user is authenticated
     await _syncService.deleteWorkout(workout);
-    
+
     notifyListeners();
   }
 
   /// Update workout notes for an existing workout
-  Future<void> updateWorkoutHistoryNotes(WorkoutLog workout, String notes) async {
+  Future<void> updateWorkoutHistoryNotes(
+      WorkoutLog workout, String notes) async {
     // Find the workout in history and update it
-    final index = _workoutHistory.indexWhere((w) => w.timestamp == workout.timestamp);
+    final index =
+        _workoutHistory.indexWhere((w) => w.timestamp == workout.timestamp);
     if (index != -1) {
       _workoutHistory[index] = WorkoutLog(
         workoutName: workout.workoutName,
@@ -517,16 +572,16 @@ class WorkoutNotifier extends ChangeNotifier {
         durationSeconds: workout.durationSeconds,
         notes: notes.trim().isEmpty ? null : notes.trim(),
       );
-      
+
       // Update local storage
       await _storageService.clearWorkouts();
       for (var w in _workoutHistory) {
         await _storageService.saveWorkout(w);
       }
-      
+
       // Sync to cloud
       await _syncService.syncWorkout(null, _workoutHistory[index]);
-      
+
       notifyListeners();
     }
   }
@@ -535,17 +590,17 @@ class WorkoutNotifier extends ChangeNotifier {
   Future<void> repeatWorkout(WorkoutLog workout) async {
     // Reset current workout state
     resetWorkout();
-    
+
     // Start new workout with same name and exercises
     startWorkout(workoutName: '${workout.workoutName} (Copy)');
-    
+
     // Add all exercises from the previous workout
     for (var exerciseLog in workout.exercises) {
       // Find the exercise data
       final exerciseData = await _getExerciseById(exerciseLog.exerciseId);
       if (exerciseData != null) {
         addExercise(exerciseData);
-        
+
         // Add the same number of sets (but not completed)
         for (int i = 1; i < exerciseLog.sets.length; i++) {
           addSet(exerciseLog.exerciseId);
@@ -564,11 +619,12 @@ class WorkoutNotifier extends ChangeNotifier {
           return exercise;
         }
       }
-      
-      // Check built-in exercises  
-      final exerciseData = EXERCISE_LIBRARY
-          .firstWhere((e) => e['id'] == exerciseId, orElse: () => <String, dynamic>{});
-      
+
+      // Check built-in exercises
+      final exerciseData = EXERCISE_LIBRARY.firstWhere(
+          (e) => e['id'] == exerciseId,
+          orElse: () => <String, dynamic>{});
+
       if (exerciseData.isNotEmpty) {
         return Exercise.fromJson(exerciseData);
       }

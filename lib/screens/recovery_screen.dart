@@ -231,7 +231,7 @@ class _ToggleButton extends StatelessWidget {
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: AppColors.brandCoral.withOpacity(0.3),
+                    color: AppColors.brandTeal.withOpacity(0.3),
                     blurRadius: 8,
                     spreadRadius: 1,
                   ),
@@ -269,7 +269,7 @@ class _MuscleStatusRow extends StatelessWidget {
       case MuscleStatus.recovering:
         return const Color(0xFFFF8C70); // Lighter coral
       case MuscleStatus.fatigued:
-        return AppColors.brandCoral;
+        return AppColors.brandTeal;
     }
   }
 
@@ -306,13 +306,13 @@ class _MuscleStatusRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: isFatigued
-              ? AppColors.brandCoral.withOpacity(0.3)
+              ? AppColors.brandTeal.withOpacity(0.3)
               : Colors.grey.shade200,
         ),
         boxShadow: isFatigued
             ? [
                 BoxShadow(
-                  color: AppColors.brandCoral.withOpacity(0.1),
+                  color: AppColors.brandTeal.withOpacity(0.1),
                   blurRadius: 8,
                   spreadRadius: 1,
                 ),

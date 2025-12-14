@@ -28,6 +28,10 @@ class NotificationService {
   static const String _workoutChannelId = 'sweatmark_workouts';
   static const String _reminderChannelId = 'sweatmark_reminders';
   static const String _generalChannelId = 'sweatmark_general';
+  static const String _restTimerChannelId = 'sweatmark_rest_timer';
+  
+  // Rest timer notification ID
+  static const int _restTimerNotificationId = 999;
 
   /// Initialize the notification service
   Future<void> initialize() async {
@@ -142,6 +146,19 @@ class NotificationService {
         importance: Importance.defaultImportance,
       ),
     );
+    
+    // Rest timer channel (silent but visible)
+    await androidPlugin.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _restTimerChannelId,
+        'Rest Timer',
+        description: 'Shows rest timer countdown during workouts',
+        importance: Importance.low,
+        playSound: false,
+        enableVibration: false,
+        showBadge: false,
+      ),
+    );
   }
 
   /// Set up Firebase Cloud Messaging handlers
@@ -238,7 +255,7 @@ class NotificationService {
           ? Priority.high
           : Priority.defaultPriority,
       icon: '@mipmap/ic_launcher',
-      color: const Color(0xFFFF6E5F), // brandCoral
+      color: const Color(0xFF5EDDC8), // brandTeal
     );
 
     const iosDetails = DarwinNotificationDetails(
@@ -276,7 +293,7 @@ class NotificationService {
       importance: Importance.high,
       priority: Priority.high,
       icon: '@mipmap/ic_launcher',
-      color: const Color(0xFFFF6E5F),
+      color: const Color(0xFF5EDDC8),
       styleInformation: BigTextStyleInformation(
         "Time to get moving! Your scheduled workout is ready.",
         contentTitle: "🏋️ $workoutName",
@@ -348,13 +365,13 @@ class NotificationService {
   }) async {
     final notificationId = '$workoutName-$weekday'.hashCode.abs();
 
-    final androidDetails = AndroidNotificationDetails(
+    const androidDetails = AndroidNotificationDetails(
       _reminderChannelId,
       'Workout Reminders',
       importance: Importance.high,
       priority: Priority.high,
       icon: '@mipmap/ic_launcher',
-      color: const Color(0xFFFF6E5F),
+      color: Color(0xFF5EDDC8),
     );
 
     const iosDetails = DarwinNotificationDetails(
@@ -363,7 +380,7 @@ class NotificationService {
       presentSound: true,
     );
 
-    final details = NotificationDetails(
+    const details = NotificationDetails(
       android: androidDetails,
       iOS: iosDetails,
     );
@@ -455,6 +472,96 @@ class NotificationService {
       body: 'You hit a new PR on $exerciseName: $newRecord',
       channelId: _workoutChannelId,
     );
+  }
+  
+  // ============================================
+  // REST TIMER NOTIFICATIONS
+  // ============================================
+  
+  /// Show/update the rest timer notification (Android only - silent, ongoing)
+  Future<void> showRestTimerNotification(int remainingSeconds) async {
+    if (!Platform.isAndroid) return;
+    
+    final minutes = remainingSeconds ~/ 60;
+    final seconds = remainingSeconds % 60;
+    final timeString = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    
+    await _localNotifications.show(
+      _restTimerNotificationId,
+      'Rest Timer',
+      'Time remaining: $timeString',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          _restTimerChannelId,
+          'Rest Timer',
+          channelDescription: 'Shows rest timer countdown during workouts',
+          importance: Importance.low,
+          priority: Priority.low,
+          ongoing: true,
+          autoCancel: false,
+          playSound: false,
+          enableVibration: false,
+          showWhen: false,
+          icon: '@mipmap/ic_launcher',
+          color: Color(0xFF2BD4BD),
+        ),
+      ),
+    );
+  }
+  
+  /// Cancel the rest timer notification
+  Future<void> cancelRestTimerNotification() async {
+    await _localNotifications.cancel(_restTimerNotificationId);
+  }
+  
+  /// Schedule a rest timer complete notification (for iOS background)
+  Future<void> scheduleRestTimerCompleteNotification(int secondsFromNow) async {
+    final scheduledTime = tz.TZDateTime.now(tz.local).add(Duration(seconds: secondsFromNow));
+    
+    await _localNotifications.zonedSchedule(
+      _restTimerNotificationId + 1,
+      '⏱️ Rest Complete!',
+      'Time to start your next set',
+      scheduledTime,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          _restTimerChannelId,
+          'Rest Timer',
+          importance: Importance.high,
+          priority: Priority.high,
+          playSound: false,
+          enableVibration: true,
+          icon: '@mipmap/ic_launcher',
+          color: Color(0xFF2BD4BD),
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: false,
+          presentSound: false,
+        ),
+      ),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+    );
+    
+    debugPrint('📅 Scheduled rest timer complete: $scheduledTime');
+  }
+  
+  /// Cancel the scheduled rest timer complete notification
+  Future<void> cancelScheduledRestTimerNotification() async {
+    await _localNotifications.cancel(_restTimerNotificationId + 1);
+  }
+  
+  /// Show rest timer complete notification (immediate)
+  Future<void> showRestTimerCompleteNotification() async {
+    await showNotification(
+      title: '⏱️ Rest Complete!',
+      body: 'Time to start your next set',
+      channelId: _restTimerChannelId,
+    );
+    
+    // Cancel the ongoing timer notification
+    await cancelRestTimerNotification();
   }
 
   /// Subscribe to a topic for targeted notifications

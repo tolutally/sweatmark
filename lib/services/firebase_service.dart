@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'dart:async';
@@ -11,6 +13,7 @@ import '../models/workout_model.dart';
 class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   // Real-time listener
   StreamSubscription<QuerySnapshot>? _workoutsSubscription;
@@ -287,6 +290,53 @@ class FirebaseService {
     } catch (e) {
       print('Error getting user profile: $e');
       return null;
+    }
+  }
+
+  // ============================================
+  // PROFILE IMAGE UPLOAD
+  // ============================================
+
+  /// Upload profile image to Firebase Storage and return the download URL
+  Future<String?> uploadProfileImage(String userId, File imageFile) async {
+    try {
+      // Create a unique filename with timestamp
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final extension = imageFile.path.split('.').last;
+      final fileName = 'profile_$timestamp.$extension';
+      
+      // Reference to the storage location
+      final ref = _storage.ref().child('users/$userId/profile/$fileName');
+      
+      // Upload the file
+      final uploadTask = ref.putFile(
+        imageFile,
+        SettableMetadata(contentType: 'image/$extension'),
+      );
+      
+      // Wait for upload to complete
+      final snapshot = await uploadTask;
+      
+      // Get download URL
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+      
+      print('✅ Profile image uploaded: $downloadUrl');
+      return downloadUrl;
+    } catch (e) {
+      print('❌ Error uploading profile image: $e');
+      return null;
+    }
+  }
+
+  /// Delete old profile image from Firebase Storage
+  Future<void> deleteProfileImage(String imageUrl) async {
+    try {
+      final ref = _storage.refFromURL(imageUrl);
+      await ref.delete();
+      print('✅ Old profile image deleted');
+    } catch (e) {
+      print('❌ Error deleting profile image: $e');
+      // Don't rethrow - old image deletion is not critical
     }
   }
 

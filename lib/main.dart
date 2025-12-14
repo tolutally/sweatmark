@@ -126,6 +126,9 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
         // Initialize template notifier for the user
         templateNotifier.initialize(authNotifier.user!.uid);
 
+        // Load workout history from cloud
+        workoutNotifier.loadWorkoutHistoryFromCloud(authNotifier.user!.uid);
+
         // Set up PR notification callback
         workoutNotifier.onPersonalRecords = (newPRs) {
           if (mounted) {

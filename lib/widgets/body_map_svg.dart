@@ -65,9 +65,9 @@ class _BodyMapSvgState extends State<BodyMapSvg>
       case MuscleStatus.recovered:
         return '#3b82f6'; // Blue
       case MuscleStatus.recovering:
-        return '#FF8C70'; // Lighter coral
+        return '#7EECD8'; // Lighter teal
       case MuscleStatus.fatigued:
-        return '#FF6E5F'; // AppColors.brandCoral
+        return '#5EDDC8'; // AppColors.brandTeal
     }
   }
 
@@ -101,7 +101,7 @@ class _BodyMapSvgState extends State<BodyMapSvg>
             decoration: BoxDecoration(
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.brandCoral.withOpacity(_pulseAnimation.value),
+                  color: AppColors.brandTeal.withOpacity(_pulseAnimation.value),
                   blurRadius: 24,
                   spreadRadius: 4,
                 ),

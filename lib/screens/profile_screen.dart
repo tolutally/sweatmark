@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import '../state/auth_notifier.dart';
@@ -117,23 +119,88 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                           const SizedBox(height: 12),
 
-                          // Avatar
-                          Container(
-                            width: 76,
-                            height: 76,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: AppColors.neutral100,
-                              border: Border.all(
-                                color: AppColors.neutral200,
-                              ),
-                            ),
-                            child: const Center(
-                              child: Icon(
-                                PhosphorIconsBold.barbell,
-                                size: 30,
-                                color: AppColors.brandCoral,
-                              ),
+                          // Avatar with edit capability
+                          GestureDetector(
+                            onTap: userId == null
+                                ? null
+                                : () => _showAvatarOptions(context, userId, profile),
+                            child: Stack(
+                              children: [
+                                Container(
+                                  width: 76,
+                                  height: 76,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: AppColors.neutral100,
+                                    border: Border.all(
+                                      color: AppColors.neutral200,
+                                    ),
+                                    image: profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty
+                                        ? DecorationImage(
+                                            image: NetworkImage(profile.avatarUrl!),
+                                            fit: BoxFit.cover,
+                                          )
+                                        : null,
+                                  ),
+                                  child: profile.avatarUrl == null || profile.avatarUrl!.isEmpty
+                                      ? Center(
+                                          child: profileNotifier.isUploadingImage
+                                              ? const SizedBox(
+                                                  width: 24,
+                                                  height: 24,
+                                                  child: CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                    color: AppColors.brandTeal,
+                                                  ),
+                                                )
+                                              : const Icon(
+                                                  PhosphorIconsBold.barbell,
+                                                  size: 30,
+                                                  color: AppColors.brandTeal,
+                                                ),
+                                        )
+                                      : profileNotifier.isUploadingImage
+                                          ? Container(
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                color: Colors.black.withOpacity(0.4),
+                                              ),
+                                              child: const Center(
+                                                child: SizedBox(
+                                                  width: 24,
+                                                  height: 24,
+                                                  child: CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              ),
+                                            )
+                                          : null,
+                                ),
+                                // Edit badge
+                                Positioned(
+                                  bottom: 0,
+                                  right: 0,
+                                  child: Container(
+                                    width: 24,
+                                    height: 24,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.brandTeal,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 2,
+                                      ),
+                                    ),
+                                    child: const Icon(
+                                      PhosphorIconsBold.camera,
+                                      size: 12,
+                                      color: AppColors.brandNavy,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
 
@@ -444,7 +511,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Center(
                         child: Column(
                           children: [
-                            Text(
+                            const Text(
                               'No Posts',
                               style: TextStyle(
                                 fontSize: 14,
@@ -513,6 +580,227 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       ),
     );
+  }
+
+  // Avatar editing methods
+  Future<void> _showAvatarOptions(
+    BuildContext context,
+    String userId,
+    ProfileModel profile,
+  ) async {
+    final hasExistingAvatar = profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty;
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.neutral200,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Profile Photo',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.neutral900,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.brandTeal.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    PhosphorIconsBold.camera,
+                    color: AppColors.brandTeal,
+                    size: 22,
+                  ),
+                ),
+                title: const Text(
+                  'Take Photo',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.neutral900,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickAndUploadImage(userId, ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.brandTeal.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    PhosphorIconsBold.image,
+                    color: AppColors.brandTeal,
+                    size: 22,
+                  ),
+                ),
+                title: const Text(
+                  'Choose from Library',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.neutral900,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickAndUploadImage(userId, ImageSource.gallery);
+                },
+              ),
+              if (hasExistingAvatar) ...[
+                const Divider(height: 24),
+                ListTile(
+                  leading: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      PhosphorIconsBold.trash,
+                      color: AppColors.error,
+                      size: 22,
+                    ),
+                  ),
+                  title: const Text(
+                    'Remove Photo',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.error,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _removeProfileImage(userId);
+                  },
+                ),
+              ],
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickAndUploadImage(String userId, ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(
+        source: source,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 85,
+      );
+
+      if (pickedFile == null) return;
+
+      final imageFile = File(pickedFile.path);
+      
+      final success = await context.read<ProfileNotifier>().updateProfileImage(
+        userId,
+        imageFile,
+      );
+
+      if (mounted) {
+        if (success) {
+          _showSnack('Profile photo updated');
+        } else {
+          _showSnack('Failed to update photo', backgroundColor: AppColors.error);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _showSnack('Failed to pick image', backgroundColor: AppColors.error);
+      }
+    }
+  }
+
+  Future<void> _removeProfileImage(String userId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text(
+          'Remove Photo?',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: AppColors.neutral900,
+          ),
+        ),
+        content: const Text(
+          'Are you sure you want to remove your profile photo?',
+          style: TextStyle(color: AppColors.neutral600),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(
+                color: AppColors.neutral600,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text(
+              'Remove',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final success = await context.read<ProfileNotifier>().removeProfileImage(userId);
+
+    if (mounted) {
+      if (success) {
+        _showSnack('Profile photo removed');
+      } else {
+        _showSnack('Failed to remove photo', backgroundColor: AppColors.error);
+      }
+    }
   }
 
   // Handler methods for profile editing
@@ -696,7 +984,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: const Icon(PhosphorIconsRegular.house),
                     label: const Text('Go Home'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.brandCoral,
+                      backgroundColor: AppColors.brandTeal,
                       foregroundColor: Colors.black,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
@@ -730,7 +1018,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showSnack(String message,
-      {Color backgroundColor = AppColors.brandCoral}) {
+      {Color backgroundColor = AppColors.brandTeal}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -769,7 +1057,7 @@ class _ActionButton extends StatelessWidget {
         boxShadow: isPrimary
             ? [
                 BoxShadow(
-                  color: AppColors.brandCoral.withOpacity(0.35),
+                  color: AppColors.brandTeal.withOpacity(0.35),
                   blurRadius: 12,
                   offset: const Offset(0, 5),
                 ),
@@ -893,7 +1181,7 @@ class _InfoRow extends StatelessWidget {
                         ? null
                         : [
                             BoxShadow(
-                              color: AppColors.brandCoral.withOpacity(0.3),
+                              color: AppColors.brandTeal.withOpacity(0.3),
                               blurRadius: 8,
                               spreadRadius: 1,
                             ),
@@ -1054,7 +1342,7 @@ Future<void> _showEditNameHandleDialog(
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: const BorderSide(
-                        color: AppColors.brandCoral, width: 1.4),
+                        color: AppColors.brandTeal, width: 1.4),
                   ),
                 ),
               ),
@@ -1084,7 +1372,7 @@ Future<void> _showEditNameHandleDialog(
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: const BorderSide(
-                        color: AppColors.brandCoral, width: 1.4),
+                        color: AppColors.brandTeal, width: 1.4),
                   ),
                 ),
               ),
@@ -1106,7 +1394,7 @@ Future<void> _showEditNameHandleDialog(
                       await onSave(nameController.text, handleController.text);
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.brandCoral,
+                      backgroundColor: AppColors.brandTeal,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -1191,7 +1479,7 @@ Future<void> _showEditLocationDialog(
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: const BorderSide(
-                      color: AppColors.brandCoral,
+                      color: AppColors.brandTeal,
                       width: 1.4,
                     ),
                   ),
@@ -1215,7 +1503,7 @@ Future<void> _showEditLocationDialog(
                       await onSave(controller.text);
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.brandCoral,
+                      backgroundColor: AppColors.brandTeal,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -1299,7 +1587,7 @@ Future<void> _showEditBioDialog(
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: const BorderSide(
-                      color: AppColors.brandCoral,
+                      color: AppColors.brandTeal,
                       width: 1.4,
                     ),
                   ),
@@ -1323,7 +1611,7 @@ Future<void> _showEditBioDialog(
                       await onSave(controller.text);
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.brandCoral,
+                      backgroundColor: AppColors.brandTeal,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -1408,7 +1696,7 @@ Future<void> _showEditInstagramDialog(
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: const BorderSide(
-                      color: AppColors.brandCoral,
+                      color: AppColors.brandTeal,
                       width: 1.4,
                     ),
                   ),
@@ -1432,7 +1720,7 @@ Future<void> _showEditInstagramDialog(
                       await onSave(controller.text);
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.brandCoral,
+                      backgroundColor: AppColors.brandTeal,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -1481,7 +1769,7 @@ void _showRestTimerSettings(BuildContext context) {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'Rest Timer Duration',
+              'Rest Timer Settings',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -1489,20 +1777,21 @@ void _showRestTimerSettings(BuildContext context) {
               ),
             ),
             const SizedBox(height: 22),
+            // Duration display
             Text(
               _formatDuration(settings.restTimerDuration),
               style: const TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
-                color: AppColors.brandCoral,
+                color: AppColors.brandTeal,
               ),
             ),
             const SizedBox(height: 16),
             SliderTheme(
               data: SliderTheme.of(context).copyWith(
-                activeTrackColor: AppColors.brandCoral,
-                thumbColor: AppColors.brandCoral,
-                overlayColor: AppColors.brandCoral.withOpacity(0.2),
+                activeTrackColor: AppColors.brandTeal,
+                thumbColor: AppColors.brandTeal,
+                overlayColor: AppColors.brandTeal.withOpacity(0.2),
                 inactiveTrackColor: Colors.white24,
               ),
               child: Slider(
@@ -1524,6 +1813,57 @@ void _showRestTimerSettings(BuildContext context) {
                       style: TextStyle(color: Colors.white54, fontSize: 11)),
                   Text('5m',
                       style: TextStyle(color: Colors.white54, fontSize: 11)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Haptic Feedback Toggle
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    PhosphorIconsBold.vibrate,
+                    color: settings.hapticFeedbackEnabled 
+                        ? AppColors.brandTeal 
+                        : Colors.white54,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Haptic Feedback',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          'Vibrate on timer start & end',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white.withOpacity(0.6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: settings.hapticFeedbackEnabled,
+                    onChanged: (value) {
+                      settings.setHapticFeedbackEnabled(value);
+                    },
+                    activeThumbColor: AppColors.brandTeal,
+                    activeTrackColor: AppColors.brandTeal.withOpacity(0.3),
+                  ),
                 ],
               ),
             ),

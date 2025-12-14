@@ -6,6 +6,7 @@ import '../state/workout_notifier.dart';
 import '../models/workout_model.dart';
 import '../data/exercise_data.dart';
 import 'active_workout_screen.dart';
+import 'workout_history_screen.dart';
 import '../theme/app_theme.dart';
 
 class WorkoutScreen extends StatelessWidget {
@@ -76,30 +77,33 @@ class WorkoutScreen extends StatelessWidget {
               sliver: SliverToBoxAdapter(
                 child: Column(
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _StatCard(
-                            label: 'Streak',
-                            value: '$streak days',
-                            icon: PhosphorIconsBold.fire,
-                            iconColor: AppColors.error,
-                            iconBgColor: const Color(0xFFFFE5E5),
-                            hasWarning: streak == 0,
-                            warningText: 'Below Average',
+                    IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            child: _StatCard(
+                              label: 'Streak',
+                              value: '$streak days',
+                              icon: PhosphorIconsBold.fire,
+                              iconColor: AppColors.error,
+                              iconBgColor: const Color(0xFFFFE5E5),
+                              hasWarning: streak == 0,
+                              warningText: 'Below Average',
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _StatCard(
-                            label: 'Total Time',
-                            value: '$totalTime min',
-                            icon: PhosphorIconsBold.clock,
-                            iconColor: AppColors.warning,
-                            iconBgColor: const Color(0xFFFFF3E0),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _StatCard(
+                              label: 'Total Time',
+                              value: '$totalTime min',
+                              icon: PhosphorIconsBold.clock,
+                              iconColor: AppColors.warning,
+                              iconBgColor: const Color(0xFFFFF3E0),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -140,6 +144,45 @@ class WorkoutScreen extends StatelessWidget {
                         ),
                       ],
                     ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Recent Workouts Header
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Recent Workouts',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                    if (history.length > 5)
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const WorkoutHistoryScreen(),
+                            ),
+                          );
+                        },
+                        child: const Text(
+                          'See All',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.brandTeal,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -187,7 +230,7 @@ class WorkoutScreen extends StatelessWidget {
                           final workout = history[index];
                           return _WorkoutHistoryCard(workout: workout);
                         },
-                        childCount: history.length,
+                        childCount: history.length > 5 ? 5 : history.length,
                       ),
                     ),
             ),
@@ -517,7 +560,7 @@ class _MuscleBreakdownSection extends StatelessWidget {
         return const Color(0xFF9F44D3);
       case 'abs':
       case 'core':
-        return AppColors.brandCoral;
+        return AppColors.brandTeal;
       default:
         return const Color(0xFF8E8E93);
     }

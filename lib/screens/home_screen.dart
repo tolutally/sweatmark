@@ -141,7 +141,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     runSpacing: 8,
                     children: List.generate(7, (index) {
                       final weekday = index + 1; // 1=Mon
-                      const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                      const labels = [
+                        'Mon',
+                        'Tue',
+                        'Wed',
+                        'Thu',
+                        'Fri',
+                        'Sat',
+                        'Sun'
+                      ];
                       final isSelected = tempWeekdays.contains(weekday);
                       return ChoiceChip(
                         label: Text(labels[index]),
@@ -155,10 +163,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             }
                           });
                         },
-                        selectedColor: AppColors.brandCoral.withOpacity(0.15),
+                        selectedColor: AppColors.brandTeal.withOpacity(0.15),
                         labelStyle: TextStyle(
-                          color:
-                              isSelected ? AppColors.brandCoral : AppColors.neutral900,
+                          color: isSelected
+                              ? AppColors.brandTeal
+                              : AppColors.neutral900,
                           fontWeight: FontWeight.w600,
                         ),
                         backgroundColor: AppColors.neutral100,
@@ -166,7 +175,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           borderRadius: BorderRadius.circular(10),
                           side: BorderSide(
                             color: isSelected
-                                ? AppColors.brandCoral
+                                ? AppColors.brandTeal
                                 : AppColors.neutral200,
                           ),
                         ),
@@ -185,22 +194,28 @@ class _HomeScreenState extends State<HomeScreen> {
                   DropdownButtonFormField<String>(
                     initialValue: tempFrequency,
                     decoration: InputDecoration(
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: AppColors.neutral200),
+                        borderSide:
+                            const BorderSide(color: AppColors.neutral200),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: AppColors.neutral200),
+                        borderSide:
+                            const BorderSide(color: AppColors.neutral200),
                       ),
                     ),
                     items: const [
-                      DropdownMenuItem(value: 'Daily', child: Text('Every day')),
-                      DropdownMenuItem(value: 'Every 2 days', child: Text('Every 2 days')),
-                      DropdownMenuItem(value: 'Every 3 days', child: Text('Every 3 days')),
-                      DropdownMenuItem(value: 'Weekly', child: Text('Weekly (by weekday)')),
+                      DropdownMenuItem(
+                          value: 'Daily', child: Text('Every day')),
+                      DropdownMenuItem(
+                          value: 'Every 2 days', child: Text('Every 2 days')),
+                      DropdownMenuItem(
+                          value: 'Every 3 days', child: Text('Every 3 days')),
+                      DropdownMenuItem(
+                          value: 'Weekly', child: Text('Weekly (by weekday)')),
                     ],
                     onChanged: (value) {
                       if (value != null) {
@@ -220,23 +235,31 @@ class _HomeScreenState extends State<HomeScreen> {
                   DropdownButtonFormField<String>(
                     initialValue: tempReminder,
                     decoration: InputDecoration(
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: AppColors.neutral200),
+                        borderSide:
+                            const BorderSide(color: AppColors.neutral200),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: AppColors.neutral200),
+                        borderSide:
+                            const BorderSide(color: AppColors.neutral200),
                       ),
                     ),
                     items: const [
                       DropdownMenuItem(value: 'None', child: Text('None')),
-                      DropdownMenuItem(value: '1 day before', child: Text('1 day before')),
-                      DropdownMenuItem(value: '12 hours before', child: Text('12 hours before')),
-                      DropdownMenuItem(value: '6 hours before', child: Text('6 hours before')),
-                      DropdownMenuItem(value: '1 hour before', child: Text('1 hour before')),
+                      DropdownMenuItem(
+                          value: '1 day before', child: Text('1 day before')),
+                      DropdownMenuItem(
+                          value: '12 hours before',
+                          child: Text('12 hours before')),
+                      DropdownMenuItem(
+                          value: '6 hours before',
+                          child: Text('6 hours before')),
+                      DropdownMenuItem(
+                          value: '1 hour before', child: Text('1 hour before')),
                     ],
                     onChanged: (value) {
                       if (value != null) {
@@ -257,7 +280,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         Navigator.pop(sheetContext);
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.brandCoral,
+                        backgroundColor: AppColors.brandTeal,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
@@ -290,801 +313,827 @@ class _HomeScreenState extends State<HomeScreen> {
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.dark, // Dark icons for Android
-        statusBarBrightness: Brightness.light, // Light status bar for iOS (means dark icons)
+        statusBarBrightness:
+            Brightness.light, // Light status bar for iOS (means dark icons)
       ),
       child: Scaffold(
         backgroundColor: const Color(0xFFF5F5F5),
         body: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header with date
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Header with date
-                    Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'November 24',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.black38,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Today',
-                        style: TextStyle(
-                          fontSize: 34,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          PhosphorIconsRegular.bell,
-                          color: AppColors.neutral800,
-                        ),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const NotificationsScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                      Positioned(
-                        right: 8,
-                        top: 8,
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: AppColors.error,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 24),
-
-              // Streak Cards
-              const Row(
-                children: [
-                  Expanded(
-                    child: _StreakCard(
-                      count: '0',
-                      label: 'Day Streak',
-                      icon: PhosphorIconsBold.fire,
-                    ),
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: _StreakCard(
-                      count: '1',
-                      label: 'Flame',
-                      icon: PhosphorIconsBold.flame,
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 24),
-
-              // Calendar Week View
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: TableCalendar(
-                  firstDay: DateTime.utc(2020, 1, 1),
-                  lastDay: DateTime.utc(2030, 12, 31),
-                  focusedDay: _focusedDay,
-                  selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-                  calendarFormat: _calendarFormat,
-                  onDaySelected: (selectedDay, focusedDay) {
-                    setState(() {
-                      _selectedDay = selectedDay;
-                      _focusedDay = focusedDay;
-                    });
-                  },
-                  onFormatChanged: (format) {
-                    setState(() {
-                      _calendarFormat = format;
-                    });
-                  },
-                  onPageChanged: (focusedDay) {
-                    _focusedDay = focusedDay;
-                  },
-                  headerStyle: HeaderStyle(
-                    formatButtonVisible: true,
-                    titleCentered: false,
-                    formatButtonShowsNext: false,
-                    formatButtonDecoration: BoxDecoration(
-                      color: const Color(0xFFF5F5F5),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    formatButtonTextStyle: const TextStyle(
-                      color: Colors.black87,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    titleTextStyle: const TextStyle(
-                      color: Colors.black87,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    leftChevronIcon: const Icon(
-                      PhosphorIconsRegular.caretLeft,
-                      color: Colors.black87,
-                      size: 20,
-                    ),
-                    rightChevronIcon: const Icon(
-                      PhosphorIconsRegular.caretRight,
-                      color: Colors.black87,
-                      size: 20,
-                    ),
-                  ),
-                  calendarStyle: const CalendarStyle(
-                    defaultTextStyle: TextStyle(color: Colors.black87),
-                    weekendTextStyle: TextStyle(color: Colors.black87),
-                    outsideDaysVisible: false,
-                    selectedDecoration: BoxDecoration(
-                      color: AppColors.brandCoral,
-                      shape: BoxShape.circle,
-                    ),
-                    todayDecoration: BoxDecoration(
-                      color: AppColors.brandCoralSoft,
-                      shape: BoxShape.circle,
-                    ),
-                    selectedTextStyle: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    todayTextStyle: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    markersAlignment: Alignment.bottomCenter,
-                  ),
-                  daysOfWeekStyle: const DaysOfWeekStyle(
-                    weekdayStyle: TextStyle(
-                      color: Colors.black54,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    weekendStyle: TextStyle(
-                      color: Colors.black54,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  eventLoader: (day) =>
-                      _scheduledWeekdays.contains(day.weekday) ? ['scheduled'] : [],
-                  calendarBuilders: CalendarBuilders(
-                    defaultBuilder: (context, day, focusedDay) {
-                      final isScheduled = _scheduledWeekdays.contains(day.weekday);
-                      return Center(
-                        child: Text(
-                          '${day.day}',
-                          style: TextStyle(
-                            color: Colors.black87,
-                            fontWeight:
-                                isScheduled ? FontWeight.w700 : FontWeight.w400,
-                          ),
-                        ),
-                      );
-                    },
-                    todayBuilder: (context, day, focusedDay) {
-                      final isScheduled = _scheduledWeekdays.contains(day.weekday);
-                      return Container(
-                        decoration: const BoxDecoration(
-                          color: AppColors.brandCoralSoft,
-                          shape: BoxShape.circle,
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          '${day.day}',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight:
-                                isScheduled ? FontWeight.w800 : FontWeight.w700,
-                          ),
-                        ),
-                      );
-                    },
-                    selectedBuilder: (context, day, focusedDay) {
-                      final isScheduled = _scheduledWeekdays.contains(day.weekday);
-                      return Container(
-                        decoration: const BoxDecoration(
-                          color: AppColors.brandCoral,
-                          shape: BoxShape.circle,
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          '${day.day}',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight:
-                                isScheduled ? FontWeight.w800 : FontWeight.w700,
-                          ),
-                        ),
-                      );
-                    },
-                    markerBuilder: (context, day, events) {
-                      if (events.isEmpty) return const SizedBox.shrink();
-                      return Positioned(
-                        bottom: 6,
-                        child: Container(
-                          width: 6,
-                          height: 6,
-                          decoration: const BoxDecoration(
-                            color: AppColors.brandCoral,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _showScheduleModal,
-                  icon: const Icon(PhosphorIconsRegular.calendarPlus,
-                      color: AppColors.brandCoral),
-                  label: const Text(
-                    'Schedule workouts',
-                    style: TextStyle(color: AppColors.brandCoral),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.brandCoral),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Search Bar
-              GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const LibraryScreen(isPicker: false),
-                    ),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(PhosphorIconsRegular.magnifyingGlass, color: Colors.black38),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Search exercises, workouts...',
-                          style: TextStyle(color: Colors.black38, fontSize: 15),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Resume Draft Workout Banner (if exists)
-              FutureBuilder<bool>(
-                future: workoutNotifier.hasDraftWorkout(),
-                builder: (context, snapshot) {
-                  if (snapshot.data == true) {
-                    return Column(
+                    const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        GestureDetector(
-                          onTap: () async {
-                            await workoutNotifier.loadDraftWorkout();
-                            if (!context.mounted) return;
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => const ActiveWorkoutScreen()),
-                            );
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFF8E1),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: AppColors.warning.withValues(alpha: 0.3),
-                                width: 2,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 48,
-                                  height: 48,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.warning.withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Icon(
-                                    PhosphorIconsBold.clockCounterClockwise,
-                                    color: AppColors.warning,
-                                    size: 24,
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                const Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Resume Workout',
-                                        style: TextStyle(
-                                          fontSize: 17,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black87,
-                                        ),
-                                      ),
-                                      SizedBox(height: 4),
-                                      Text(
-                                        'Continue your saved workout',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.black54,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const Icon(
-                                  PhosphorIconsRegular.caretRight,
-                                  color: AppColors.warning,
-                                  size: 24,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                    );
-                  }
-                  return const SizedBox.shrink();
-                },
-              ),
-
-              // Start Workout Card
-              GestureDetector(
-                onTap: () {
-                  workoutNotifier.startWorkout();
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ActiveWorkoutScreen()),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AppColors.brandCoral, AppColors.info],
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.brandCoral.withValues(alpha: 0.3),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          PhosphorIconsBold.play,
-                          color: Colors.white,
-                          size: 32,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Start Workout',
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Begin your training session',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.white70,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(
-                        PhosphorIconsRegular.arrowRight,
-                        color: Colors.white,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Build For Me Button
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.brandCoral.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.brandCoral.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        PhosphorIconsBold.sparkle,
-                        color: AppColors.brandCoral,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    const Expanded(
-                      child: Text(
-                        'Build For Me',
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black,
-                        ),
-                      ),
-                    ),
-                    const Icon(
-                      PhosphorIconsRegular.arrowRight,
-                      color: Colors.black38,
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Recovery Status
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      AppColors.error.withValues(alpha: 0.1),
-                      AppColors.warning.withValues(alpha: 0.1),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(
-                          PhosphorIconsBold.heartbeat,
-                          color: AppColors.error,
-                          size: 24,
-                        ),
-                        SizedBox(width: 8),
                         Text(
-                          'Recovery Status',
+                          'November 24',
                           style: TextStyle(
-                            fontSize: 18,
+                            fontSize: 13,
+                            color: Colors.black38,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Today',
+                          style: TextStyle(
+                            fontSize: 34,
                             fontWeight: FontWeight.bold,
                             color: Colors.black,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      recoveryNotifier.muscleStatus.isEmpty
-                          ? 'All muscles recovered'
-                          : 'Some muscles recovering',
-                      style: const TextStyle(
-                        fontSize: 15,
-                        color: Colors.black54,
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            PhosphorIconsRegular.bell,
+                            color: AppColors.neutral800,
+                          ),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const NotificationsScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                        Positioned(
+                          right: 8,
+                          top: 8,
+                          child: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: AppColors.error,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+
+                // Streak Cards
+                const Row(
+                  children: [
+                    Expanded(
+                      child: _StreakCard(
+                        count: '0',
+                        label: 'Day Streak',
+                        icon: PhosphorIconsBold.fire,
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: _StreakCard(
+                        count: '1',
+                        label: 'Flame',
+                        icon: PhosphorIconsBold.flame,
                       ),
                     ),
                   ],
                 ),
-              ),
 
-              const SizedBox(height: 24),
+                const SizedBox(height: 24),
 
-              // My Collection
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'My Collections',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
+                // Calendar Week View
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const WorkoutHistoryScreen(),
-                        ),
-                      );
+                  child: TableCalendar(
+                    firstDay: DateTime.utc(2020, 1, 1),
+                    lastDay: DateTime.utc(2030, 12, 31),
+                    focusedDay: _focusedDay,
+                    selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+                    calendarFormat: _calendarFormat,
+                    onDaySelected: (selectedDay, focusedDay) {
+                      setState(() {
+                        _selectedDay = selectedDay;
+                        _focusedDay = focusedDay;
+                      });
                     },
-                    child: const Text(
-                      'See All',
-                      style: TextStyle(color: AppColors.brandCoral),
+                    onFormatChanged: (format) {
+                      setState(() {
+                        _calendarFormat = format;
+                      });
+                    },
+                    onPageChanged: (focusedDay) {
+                      _focusedDay = focusedDay;
+                    },
+                    headerStyle: HeaderStyle(
+                      formatButtonVisible: true,
+                      titleCentered: false,
+                      formatButtonShowsNext: false,
+                      formatButtonDecoration: BoxDecoration(
+                        color: const Color(0xFFF5F5F5),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      formatButtonTextStyle: const TextStyle(
+                        color: Colors.black87,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      titleTextStyle: const TextStyle(
+                        color: Colors.black87,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      leftChevronIcon: const Icon(
+                        PhosphorIconsRegular.caretLeft,
+                        color: Colors.black87,
+                        size: 20,
+                      ),
+                      rightChevronIcon: const Icon(
+                        PhosphorIconsRegular.caretRight,
+                        color: Colors.black87,
+                        size: 20,
+                      ),
+                    ),
+                    calendarStyle: const CalendarStyle(
+                      defaultTextStyle: TextStyle(color: Colors.black87),
+                      weekendTextStyle: TextStyle(color: Colors.black87),
+                      outsideDaysVisible: false,
+                      selectedDecoration: BoxDecoration(
+                        color: AppColors.brandTeal,
+                        shape: BoxShape.circle,
+                      ),
+                      todayDecoration: BoxDecoration(
+                        color: AppColors.brandTealSoft,
+                        shape: BoxShape.circle,
+                      ),
+                      selectedTextStyle: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      todayTextStyle: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      markersAlignment: Alignment.bottomCenter,
+                    ),
+                    daysOfWeekStyle: const DaysOfWeekStyle(
+                      weekdayStyle: TextStyle(
+                        color: Colors.black54,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      weekendStyle: TextStyle(
+                        color: Colors.black54,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    eventLoader: (day) =>
+                        _scheduledWeekdays.contains(day.weekday)
+                            ? ['scheduled']
+                            : [],
+                    calendarBuilders: CalendarBuilders(
+                      defaultBuilder: (context, day, focusedDay) {
+                        final isScheduled =
+                            _scheduledWeekdays.contains(day.weekday);
+                        return Center(
+                          child: Text(
+                            '${day.day}',
+                            style: TextStyle(
+                              color: Colors.black87,
+                              fontWeight: isScheduled
+                                  ? FontWeight.w700
+                                  : FontWeight.w400,
+                            ),
+                          ),
+                        );
+                      },
+                      todayBuilder: (context, day, focusedDay) {
+                        final isScheduled =
+                            _scheduledWeekdays.contains(day.weekday);
+                        return Container(
+                          decoration: const BoxDecoration(
+                            color: AppColors.brandTealSoft,
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            '${day.day}',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: isScheduled
+                                  ? FontWeight.w800
+                                  : FontWeight.w700,
+                            ),
+                          ),
+                        );
+                      },
+                      selectedBuilder: (context, day, focusedDay) {
+                        final isScheduled =
+                            _scheduledWeekdays.contains(day.weekday);
+                        return Container(
+                          decoration: const BoxDecoration(
+                            color: AppColors.brandTeal,
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            '${day.day}',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: isScheduled
+                                  ? FontWeight.w800
+                                  : FontWeight.w700,
+                            ),
+                          ),
+                        );
+                      },
+                      markerBuilder: (context, day, events) {
+                        if (events.isEmpty) return const SizedBox.shrink();
+                        return Positioned(
+                          bottom: 6,
+                          child: Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                              color: AppColors.brandTeal,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
-                ],
-              ),
+                ),
 
-              const SizedBox(height: 12),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _showScheduleModal,
+                    icon: const Icon(PhosphorIconsRegular.calendarPlus,
+                        color: AppColors.brandTeal),
+                    label: const Text(
+                      'Schedule workouts',
+                      style: TextStyle(color: AppColors.brandTeal),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.brandTeal),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
 
-              // Template Collections Grid
-              Consumer<TemplateNotifier>(
-                builder: (context, templateNotifier, _) {
-                  final collections = templateNotifier.collections;
-                  final uncategorizedTemplates = templateNotifier.uncategorizedTemplates;
+                const SizedBox(height: 24),
 
-                  if (collections.isEmpty && uncategorizedTemplates.isEmpty) {
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(32),
-                        child: Column(
-                          children: [
-                            Icon(
-                              PhosphorIconsRegular.folder,
-                              size: 64,
-                              color: Colors.black26,
-                            ),
-                            SizedBox(height: 16),
-                            Text(
-                              'No saved templates',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.black38,
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              'Save workouts as templates to see them here',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.black26,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
+                // Search Bar
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const LibraryScreen(isPicker: false),
                       ),
                     );
-                  }
-
-                  return GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      childAspectRatio: 1.3,
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    itemCount: collections.length + (uncategorizedTemplates.isNotEmpty ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      // Uncategorized templates folder
-                      if (index == 0 && uncategorizedTemplates.isNotEmpty) {
-                        return _CollectionCard(
-                          name: 'Uncategorized',
-                          templateCount: uncategorizedTemplates.length,
-                          icon: TemplateIcon.dumbbell,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const CollectionScreen(
-                                  collectionId: null,
-                                  collectionName: 'Uncategorized',
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      }
-
-                      final adjustedIndex = uncategorizedTemplates.isNotEmpty ? index - 1 : index;
-                      final collection = collections[adjustedIndex];
-
-                      return _CollectionCard(
-                        name: collection.name,
-                        templateCount: collection.templateCount,
-                        icon: collection.icon,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => CollectionScreen(
-                                collectionId: collection.id,
-                                collectionName: collection.name,
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  );
-                },
-              ),
-
-              const SizedBox(height: 24),
-
-              // Recent Workouts History
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Recent Workouts',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const WorkoutHistoryScreen(),
-                        ),
-                      );
-                    },
-                    child: const Text(
-                      'See All',
-                      style: TextStyle(color: AppColors.brandCoral),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 12),
-
-              // Collection Items
-              if (workoutNotifier.workoutHistory.isEmpty)
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(32),
-                    child: Column(
+                    child: const Row(
                       children: [
-                        Icon(
-                          PhosphorIconsRegular.clockCounterClockwise,
-                          size: 48,
-                          color: Colors.black26,
-                        ),
-                        SizedBox(height: 12),
-                        Text(
-                          'No workout history yet',
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: Colors.black38,
+                        Icon(PhosphorIconsRegular.magnifyingGlass,
+                            color: Colors.black38),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Search exercises, workouts...',
+                            style:
+                                TextStyle(color: Colors.black38, fontSize: 15),
                           ),
                         ),
                       ],
                     ),
                   ),
-                )
-              else
-                ...workoutNotifier.workoutHistory.take(3).map<Widget>((workout) {
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(16),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Resume Draft Workout Banner (if exists)
+                FutureBuilder<bool>(
+                  future: workoutNotifier.hasDraftWorkout(),
+                  builder: (context, snapshot) {
+                    if (snapshot.data == true) {
+                      return Column(
+                        children: [
+                          GestureDetector(
+                            onTap: () async {
+                              await workoutNotifier.loadDraftWorkout();
+                              if (!context.mounted) return;
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        const ActiveWorkoutScreen()),
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFF8E1),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color:
+                                      AppColors.warning.withValues(alpha: 0.3),
+                                  width: 2,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 48,
+                                    height: 48,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.warning
+                                          .withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(
+                                      PhosphorIconsBold.clockCounterClockwise,
+                                      color: AppColors.warning,
+                                      size: 24,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  const Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Resume Workout',
+                                          style: TextStyle(
+                                            fontSize: 17,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                        SizedBox(height: 4),
+                                        Text(
+                                          'Continue your saved workout',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.black54,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const Icon(
+                                    PhosphorIconsRegular.caretRight,
+                                    color: AppColors.warning,
+                                    size: 24,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+
+                // Start Workout Card
+                GestureDetector(
+                  onTap: () {
+                    workoutNotifier.startWorkout();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ActiveWorkoutScreen()),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
+                      gradient: const LinearGradient(
+                        colors: [AppColors.brandTeal, AppColors.info],
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.brandTeal.withValues(alpha: 0.3),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
                     ),
                     child: Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF5F5F5),
+                            color: Colors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Icon(
-                            PhosphorIconsBold.barbell,
-                            size: 24,
-                            color: AppColors.brandCoral,
+                            PhosphorIconsBold.play,
+                            color: Colors.white,
+                            size: 32,
                           ),
                         ),
                         const SizedBox(width: 16),
-                        Expanded(
+                        const Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Workout',
+                              Text(
+                                'Start Workout',
                                 style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.black,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
                                 ),
                               ),
+                              SizedBox(height: 4),
                               Text(
-                                '${workout.exercises.length} exercises • ${workout.durationSeconds ~/ 60}m',
-                                style: const TextStyle(
+                                'Begin your training session',
+                                style: TextStyle(
                                   fontSize: 14,
-                                  color: Colors.black54,
+                                  color: Colors.white70,
                                 ),
                               ),
                             ],
                           ),
                         ),
                         const Icon(
-                          PhosphorIconsRegular.dotsThreeVertical,
-                          color: Colors.black38,
+                          PhosphorIconsRegular.arrowRight,
+                          color: Colors.white,
                         ),
                       ],
                     ),
-                  );
-                }),
-            ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Build For Me Button
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                        color: AppColors.brandTeal.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.brandTeal.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          PhosphorIconsBold.sparkle,
+                          color: AppColors.brandTeal,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const Expanded(
+                        child: Text(
+                          'Build For Me',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ),
+                      const Icon(
+                        PhosphorIconsRegular.arrowRight,
+                        color: Colors.black38,
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Recovery Status
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.error.withValues(alpha: 0.1),
+                        AppColors.warning.withValues(alpha: 0.1),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(
+                            PhosphorIconsBold.heartbeat,
+                            color: AppColors.error,
+                            size: 24,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Recovery Status',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        recoveryNotifier.muscleStatus.isEmpty
+                            ? 'All muscles recovered'
+                            : 'Some muscles recovering',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // My Collection
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'My Collections',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const WorkoutHistoryScreen(),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        'See All',
+                        style: TextStyle(color: AppColors.brandTeal),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 12),
+
+                // Template Collections Grid
+                Consumer<TemplateNotifier>(
+                  builder: (context, templateNotifier, _) {
+                    final collections = templateNotifier.collections;
+                    final uncategorizedTemplates =
+                        templateNotifier.uncategorizedTemplates;
+
+                    if (collections.isEmpty && uncategorizedTemplates.isEmpty) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(32),
+                          child: Column(
+                            children: [
+                              Icon(
+                                PhosphorIconsRegular.folder,
+                                size: 64,
+                                color: Colors.black26,
+                              ),
+                              SizedBox(height: 16),
+                              Text(
+                                'No saved templates',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.black38,
+                                ),
+                              ),
+                              SizedBox(height: 8),
+                              Text(
+                                'Save workouts as templates to see them here',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.black26,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+
+                    return GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 12,
+                        childAspectRatio: 1.3,
+                      ),
+                      itemCount: collections.length +
+                          (uncategorizedTemplates.isNotEmpty ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        // Uncategorized templates folder
+                        if (index == 0 && uncategorizedTemplates.isNotEmpty) {
+                          return _CollectionCard(
+                            name: 'Uncategorized',
+                            templateCount: uncategorizedTemplates.length,
+                            icon: TemplateIcon.dumbbell,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const CollectionScreen(
+                                    collectionId: null,
+                                    collectionName: 'Uncategorized',
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        }
+
+                        final adjustedIndex = uncategorizedTemplates.isNotEmpty
+                            ? index - 1
+                            : index;
+                        final collection = collections[adjustedIndex];
+
+                        return _CollectionCard(
+                          name: collection.name,
+                          templateCount: collection.templateCount,
+                          icon: collection.icon,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => CollectionScreen(
+                                  collectionId: collection.id,
+                                  collectionName: collection.name,
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 24),
+
+                // Recent Workouts History
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Recent Workouts',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const WorkoutHistoryScreen(),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        'See All',
+                        style: TextStyle(color: AppColors.brandTeal),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 12),
+
+                // Collection Items
+                if (workoutNotifier.workoutHistory.isEmpty)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(32),
+                      child: Column(
+                        children: [
+                          Icon(
+                            PhosphorIconsRegular.clockCounterClockwise,
+                            size: 48,
+                            color: Colors.black26,
+                          ),
+                          SizedBox(height: 12),
+                          Text(
+                            'No workout history yet',
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: Colors.black38,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  ...workoutNotifier.workoutHistory
+                      .take(3)
+                      .map<Widget>((workout) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF5F5F5),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              PhosphorIconsBold.barbell,
+                              size: 24,
+                              color: AppColors.brandTeal,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  workout.workoutName,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                                Text(
+                                  '${workout.exercises.length} exercises • ${workout.durationSeconds ~/ 60}m',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(
+                            PhosphorIconsRegular.dotsThreeVertical,
+                            color: Colors.black38,
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+              ],
+            ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -1152,12 +1201,12 @@ class _CollectionCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.brandCoral.withOpacity(0.1),
+                color: AppColors.brandTeal.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
                 _getPhosphorIcon(icon),
-                color: AppColors.brandCoral,
+                color: AppColors.brandTeal,
                 size: 22,
               ),
             ),
