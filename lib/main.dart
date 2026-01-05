@@ -2,18 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
 import 'state/workout_notifier.dart';
-import 'state/recovery_notifier.dart';
 import 'state/auth_notifier.dart';
 import 'state/settings_notifier.dart';
 import 'state/profile/profile_notifier.dart';
 import 'state/navigation/tab_navigation_notifier.dart';
 import 'state/template_notifier.dart';
+import 'state/exercise_db_notifier.dart';
+import 'state/streak_notifier.dart';
+import 'state/flame_notifier.dart';
+import 'state/analytics_notifier.dart';
 import 'services/firebase_service.dart';
+import 'services/flame_service.dart';
+import 'services/analytics_service.dart';
 import 'services/storage_service.dart';
 import 'services/sync_service.dart';
 import 'services/notification_service.dart';
+import 'services/streak_service.dart';
+import 'data/exercise_db_repository.dart';
 import 'widgets/app_shell.dart';
 import 'screens/auth_screen.dart';
 import 'theme/app_theme.dart';
@@ -33,6 +41,13 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    
+    // Enable Firestore offline persistence
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+    
     print('Firebase initialized successfully');
   } catch (e) {
     print('Firebase initialization error: $e');
@@ -60,20 +75,72 @@ class SweatMarkApp extends StatelessWidget {
     final storageService = StorageService();
     final syncService = SyncService(firebaseService, storageService);
     final notificationService = NotificationService();
+    final exerciseDbRepository = ExerciseDbRepository();
+    final streakService = StreakService();
+    final flameService = FlameService();
+    final analyticsService = AnalyticsService();
 
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthNotifier(firebaseService)),
         ChangeNotifierProvider(create: (_) => WorkoutNotifier(syncService)),
-        ChangeNotifierProvider(create: (_) => RecoveryNotifier()),
         ChangeNotifierProvider(create: (_) => SettingsNotifier()),
         ChangeNotifierProvider(create: (_) => ProfileNotifier(firebaseService)),
         ChangeNotifierProvider(create: (_) => TabNavigationNotifier()),
         ChangeNotifierProvider(create: (_) => TemplateNotifier()),
+        ChangeNotifierProvider(
+          create: (_) => ExerciseDbNotifier(exerciseDbRepository),
+        ),
+        ChangeNotifierProxyProvider<AuthNotifier, StreakNotifier?>(
+          create: (_) => null,
+          update: (_, auth, previous) {
+            if (auth.user == null) return null;
+            // Reuse existing notifier if user hasn't changed
+            if (previous != null && previous.userId == auth.user!.uid) {
+              return previous;
+            }
+            return StreakNotifier(
+              streakService: streakService,
+              userId: auth.user!.uid,
+            );
+          },
+        ),
+        ChangeNotifierProxyProvider<AuthNotifier, FlameNotifier?>(
+          create: (_) => null,
+          update: (_, auth, previous) {
+            if (auth.user == null) return null;
+            // Reuse existing notifier if user hasn't changed
+            if (previous != null && previous.userId == auth.user!.uid) {
+              return previous;
+            }
+            return FlameNotifier(
+              flameService: flameService,
+              userId: auth.user!.uid,
+            );
+          },
+        ),
+        ChangeNotifierProxyProvider<AuthNotifier, AnalyticsNotifier?>(
+          create: (_) => null,
+          update: (_, auth, previous) {
+            if (auth.user == null) return null;
+            // Reuse existing notifier if user hasn't changed
+            if (previous != null && previous.userId == auth.user!.uid) {
+              return previous;
+            }
+            return AnalyticsNotifier(
+              analyticsService: analyticsService,
+              userId: auth.user!.uid,
+            );
+          },
+        ),
         Provider.value(value: firebaseService),
         Provider.value(value: storageService),
         Provider.value(value: syncService),
         Provider.value(value: notificationService),
+        Provider.value(value: exerciseDbRepository),
+        Provider.value(value: streakService),
+        Provider.value(value: flameService),
+        Provider.value(value: analyticsService),
       ],
       child: MaterialApp(
         title: 'SweatMark',
@@ -96,17 +163,26 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
+  FirebaseService? _firebaseService;
+  WorkoutNotifier? _workoutNotifier;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _setupListeners();
+    
+    // Defer setup to avoid accessing context before widget is fully mounted
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _setupListeners();
+      }
+    });
   }
 
   void _setupListeners() {
     final authNotifier = context.read<AuthNotifier>();
-    final firebaseService = context.read<FirebaseService>();
-    final workoutNotifier = context.read<WorkoutNotifier>();
+    _firebaseService = context.read<FirebaseService>();
+    _workoutNotifier = context.read<WorkoutNotifier>();
     final profileNotifier = context.read<ProfileNotifier>();
     final templateNotifier = context.read<TemplateNotifier>();
 
@@ -114,7 +190,7 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
     authNotifier.addListener(() {
       if (authNotifier.isAuthenticated && authNotifier.user != null) {
         // Start real-time listeners when authenticated
-        firebaseService.startWorkoutsListener(
+        _firebaseService?.startWorkoutsListener(
           authNotifier.user!.uid,
           (workouts) {
             // Update workout history in local storage when cloud changes
@@ -127,10 +203,11 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
         templateNotifier.initialize(authNotifier.user!.uid);
 
         // Load workout history from cloud
-        workoutNotifier.loadWorkoutHistoryFromCloud(authNotifier.user!.uid);
+        _workoutNotifier?.loadWorkoutHistoryFromCloud(authNotifier.user!.uid);
 
         // Set up PR notification callback
-        workoutNotifier.onPersonalRecords = (newPRs) {
+        if (_workoutNotifier != null) {
+          _workoutNotifier!.onPersonalRecords = (newPRs) {
           if (mounted) {
             final message = newPRs.length == 1
                 ? '🎉 New PR: ${newPRs.first}!'
@@ -139,19 +216,22 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(message),
-                backgroundColor: const Color(0xFF2BD4BD),
+                backgroundColor: AppColors.brandTeal,
                 duration: const Duration(seconds: 4),
                 behavior: SnackBarBehavior.floating,
               ),
             );
           }
-        };
+          };
+        }
 
         profileNotifier.loadProfile(authNotifier.user!.uid, forceRefresh: true);
       } else {
         // Stop listeners when signed out
-        firebaseService.stopWorkoutsListener();
-        workoutNotifier.onPersonalRecords = null;
+        _firebaseService?.stopWorkoutsListener();
+        if (_workoutNotifier != null) {
+          _workoutNotifier!.onPersonalRecords = null;
+        }
         profileNotifier.clear();
       }
     });
@@ -160,20 +240,17 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    final firebaseService = context.read<FirebaseService>();
-    firebaseService.stopWorkoutsListener();
+    _firebaseService?.stopWorkoutsListener();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final workoutNotifier = context.read<WorkoutNotifier>();
-
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
-      workoutNotifier.onAppPaused();
+      _workoutNotifier?.onAppPaused();
     } else if (state == AppLifecycleState.resumed) {
-      workoutNotifier.onAppResumed();
+      _workoutNotifier?.onAppResumed();
     }
   }
 

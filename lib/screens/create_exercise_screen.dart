@@ -85,6 +85,7 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
           : 'No instructions provided',
       videoUrl: '',
       difficulty: 'Intermediate',
+      source: 'custom',
     );
 
     Navigator.pop(context, exercise);

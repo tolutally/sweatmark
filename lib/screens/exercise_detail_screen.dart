@@ -5,6 +5,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../models/exercise_model.dart';
 import '../state/workout_notifier.dart';
 import '../state/settings_notifier.dart';
+import '../theme/app_theme.dart';
 
 class ExerciseDetailScreen extends StatefulWidget {
   final Exercise exercise;
@@ -49,10 +50,6 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
     context.read<SettingsNotifier>().startRestTimer();
   }
 
-  void _stopRestTimer() {
-    context.read<SettingsNotifier>().stopRestTimer();
-  }
-
   @override
   Widget build(BuildContext context) {
     final notifier = context.watch<WorkoutNotifier>();
@@ -61,11 +58,11 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light, // Light icons on dark bg
-        statusBarBrightness: Brightness.dark, // iOS: light icons on dark bg
+        statusBarIconBrightness: Brightness.dark, // Dark icons on light bg
+        statusBarBrightness: Brightness.light, // iOS: dark icons on light bg
       ),
       child: Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: Colors.white,
         body: SafeArea(
           child: Column(
             children: [
@@ -76,7 +73,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                   children: [
                     IconButton(
                       icon: const Icon(PhosphorIconsRegular.x,
-                          color: Colors.white),
+                          color: Colors.black87),
                       onPressed: () => Navigator.pop(context),
                     ),
                     const Spacer(),
@@ -84,7 +81,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                       'Set ${currentSetIndex + 1}/$totalSets',
                       style: const TextStyle(
                         fontSize: 17,
-                        color: Colors.white70,
+                        color: Colors.black54,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -103,7 +100,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                   style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: Colors.black87,
                   ),
                 ),
               ),
@@ -114,7 +111,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
               Expanded(
                 child: Container(
                   decoration: const BoxDecoration(
-                    color: Color(0xFFF5F5F5),
+                    color: Colors.white,
                     borderRadius: BorderRadius.only(
                       topLeft: Radius.circular(30),
                       topRight: Radius.circular(30),
@@ -133,7 +130,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
+                              color: Colors.black.withValues(alpha: 0.1),
                               blurRadius: 30,
                               offset: const Offset(0, 10),
                             ),
@@ -142,7 +139,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                         child: const Icon(
                           PhosphorIconsBold.barbell,
                           size: 80,
-                          color: Color(0xFF2BD4BD),
+                          color: AppColors.brandTeal,
                         ),
                       ),
 
@@ -189,7 +186,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                                             boxShadow: [
                                               BoxShadow(
                                                 color: Colors.black
-                                                    .withOpacity(0.1),
+                                                    .withValues(alpha: 0.1),
                                                 blurRadius: 10,
                                               ),
                                             ],
@@ -213,7 +210,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                                             borderRadius:
                                                 BorderRadius.circular(12),
                                             border: Border.all(
-                                              color: const Color(0xFF2BD4BD),
+                                              color: AppColors.brandTeal,
                                               width: 2,
                                             ),
                                           ),
@@ -243,12 +240,12 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                                           width: 40,
                                           height: 40,
                                           decoration: BoxDecoration(
-                                            color: const Color(0xFF2BD4BD),
+                                            color: AppColors.brandTeal,
                                             shape: BoxShape.circle,
                                             boxShadow: [
                                               BoxShadow(
-                                                color: const Color(0xFF2BD4BD)
-                                                    .withOpacity(0.3),
+                                                color: AppColors.brandTeal
+                                                    .withValues(alpha: 0.3),
                                                 blurRadius: 10,
                                               ),
                                             ],
@@ -300,7 +297,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                                             boxShadow: [
                                               BoxShadow(
                                                 color: Colors.black
-                                                    .withOpacity(0.1),
+                                                    .withValues(alpha: 0.1),
                                                 blurRadius: 10,
                                               ),
                                             ],
@@ -324,7 +321,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                                             borderRadius:
                                                 BorderRadius.circular(12),
                                             border: Border.all(
-                                              color: const Color(0xFF2BD4BD),
+                                              color: AppColors.brandTeal,
                                               width: 2,
                                             ),
                                           ),
@@ -348,12 +345,12 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                                           width: 40,
                                           height: 40,
                                           decoration: BoxDecoration(
-                                            color: const Color(0xFF2BD4BD),
+                                            color: AppColors.brandTeal,
                                             shape: BoxShape.circle,
                                             boxShadow: [
                                               BoxShadow(
-                                                color: const Color(0xFF2BD4BD)
-                                                    .withOpacity(0.3),
+                                                color: AppColors.brandTeal
+                                                    .withValues(alpha: 0.3),
                                                 blurRadius: 10,
                                               ),
                                             ],
@@ -379,15 +376,16 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                       // Rest Timer (if active)
                       Consumer<SettingsNotifier>(
                         builder: (context, settings, child) {
-                          if (!settings.isResting)
+                          if (!settings.isResting) {
                             return const SizedBox.shrink();
+                          }
 
                           return Container(
                             margin: const EdgeInsets.symmetric(horizontal: 20),
                             padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(
-                                colors: [Color(0xFF2BD4BD), Color(0xFF8EC5FC)],
+                                colors: [AppColors.brandTeal, AppColors.info],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ),
@@ -423,7 +421,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                                           settings.adjustRestTime(-30),
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor:
-                                            Colors.white.withOpacity(0.2),
+                                            Colors.white.withValues(alpha: 0.2),
                                         foregroundColor: Colors.white,
                                         shape: const CircleBorder(),
                                         padding: const EdgeInsets.all(12),
@@ -447,7 +445,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                                           settings.adjustRestTime(30),
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor:
-                                            Colors.white.withOpacity(0.2),
+                                            Colors.white.withValues(alpha: 0.2),
                                         foregroundColor: Colors.white,
                                         shape: const CircleBorder(),
                                         padding: const EdgeInsets.all(12),
@@ -479,8 +477,8 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                                   notifier.updateSet(
                                     widget.exercise.id,
                                     currentSetIndex,
-                                    weight,
-                                    reps,
+                                    weight: weight,
+                                    reps: reps,
                                   );
                                   notifier.toggleSetCompletion(
                                     widget.exercise.id,
@@ -508,7 +506,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                                   }
                                 },
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF2BD4BD),
+                                  backgroundColor: AppColors.brandTeal,
                                   foregroundColor: Colors.white,
                                   padding:
                                       const EdgeInsets.symmetric(vertical: 18),
@@ -603,7 +601,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                             ? FontWeight.bold
                             : FontWeight.normal,
                         color: weight == value.toDouble()
-                            ? const Color(0xFF2BD4BD)
+                            ? AppColors.brandTeal
                             : Colors.black,
                       ),
                     ),
@@ -656,7 +654,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                         fontWeight:
                             reps == value ? FontWeight.bold : FontWeight.normal,
                         color: reps == value
-                            ? const Color(0xFF2BD4BD)
+                            ? AppColors.brandTeal
                             : Colors.black,
                       ),
                     ),

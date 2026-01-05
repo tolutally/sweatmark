@@ -1,15 +1,27 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:image_gallery_saver/image_gallery_saver.dart';
 import '../state/workout_notifier.dart';
-import '../state/recovery_notifier.dart';
 import '../state/auth_notifier.dart';
-import '../data/exercise_data.dart';
+import '../models/workout_model.dart';
+import '../services/pr_service.dart';
 import '../theme/app_theme.dart';
 
 class WorkoutSummaryScreen extends StatefulWidget {
-  const WorkoutSummaryScreen({super.key});
+  final WorkoutLog? completedWorkout;
+  final int? elapsedSeconds;
+  final String? workoutName;
+  
+  const WorkoutSummaryScreen({
+    super.key,
+    this.completedWorkout,
+    this.elapsedSeconds,
+    this.workoutName,
+  });
 
   @override
   State<WorkoutSummaryScreen> createState() => _WorkoutSummaryScreenState();
@@ -17,12 +29,49 @@ class WorkoutSummaryScreen extends StatefulWidget {
 
 class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
   final TextEditingController _notesController = TextEditingController();
-  bool _showEnergyBanner = true;
+  final bool _showEnergyBanner = true;
+  final GlobalKey _shareKey = GlobalKey();
+  
+  // Store workout data locally to prevent crashes if notifier state changes
+  WorkoutLog? _workout;
+  int _duration = 0;
+  String _workoutName = 'My Workout';
+  List<String> _prExercises = []; // Track which exercises achieved PRs
+
+  @override
+  void initState() {
+    super.initState();
+    // Capture workout data immediately before any async operations can reset it
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeWorkoutData();
+    });
+  }
+  
+  void _initializeWorkoutData() {
+    final notifier = context.read<WorkoutNotifier>();
+    setState(() {
+      _workout = widget.completedWorkout ?? notifier.currentWorkout;
+      _duration = widget.elapsedSeconds ?? notifier.elapsedSeconds;
+      _workoutName = widget.workoutName ?? notifier.workoutName;
+      
+      // Calculate PRs for this workout
+      if (_workout != null) {
+        final prService = PRService();
+        _prExercises = prService.detectPersonalRecords(_workout!, notifier.workoutHistory);
+      }
+    });
+  }
 
   @override
   void dispose() {
     _notesController.dispose();
     super.dispose();
+  }
+
+  void _updateWorkoutName(String newName) {
+    setState(() {
+      _workoutName = newName;
+    });
   }
 
   String _formatDuration(int seconds) {
@@ -34,8 +83,88 @@ class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
     return '${secs}s';
   }
 
-  void _showRenameDialog(BuildContext context, WorkoutNotifier notifier) {
-    final controller = TextEditingController(text: notifier.workoutName);
+  String _formatClockTime(DateTime time) {
+    final hour = time.hour % 12 == 0 ? 12 : time.hour % 12;
+    final minute = time.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
+  String _bestSetLabel(WorkoutExerciseLog log) {
+    // Pick the set with the highest weight*reps, fallback to first set
+    if (log.sets.isEmpty) return '';
+    final sets = [...log.sets];
+    sets.sort((a, b) {
+      final av = (a.weight ?? 0) * (a.reps ?? 1);
+      final bv = (b.weight ?? 0) * (b.reps ?? 1);
+      return bv.compareTo(av);
+    });
+    final set = sets.first;
+    if (set.weight != null && set.reps != null) {
+      return '${set.weight!.toStringAsFixed(0)} lb • ${set.reps} reps';
+    }
+    if (set.distance != null && set.speed != null) {
+      return '${set.distance} km • ${set.speed} km/h';
+    }
+    if (set.distance != null && set.durationSeconds != null) {
+      final mins = (set.durationSeconds! ~/ 60).toString().padLeft(1, '0');
+      final secs = (set.durationSeconds! % 60).toString().padLeft(2, '0');
+      return '$mins:$secs • ${set.distance} km';
+    }
+    if (set.reps != null) {
+      return '${set.reps} reps';
+    }
+    return '';
+  }
+
+  Future<void> _saveSummaryAsImage() async {
+    try {
+      final boundary = _shareKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return;
+
+      final pixelRatio = View.of(context).devicePixelRatio;
+      final image = await boundary.toImage(pixelRatio: pixelRatio);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+
+      final pngBytes = byteData.buffer.asUint8List();
+      final result = await ImageGallerySaver.saveImage(
+        pngBytes,
+        name: 'workout_summary_${DateTime.now().millisecondsSinceEpoch}',
+      );
+
+      final success = (result['isSuccess'] as bool?) ?? false;
+      if (!mounted) return;
+
+      // Clear any existing snackbars first to prevent stacking
+      ScaffoldMessenger.of(context).clearSnackBars();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success ? 'Saved to photos 🎉' : 'Unable to save image'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+          // Position it well above the bottom button to prevent blocking interaction
+          margin: const EdgeInsets.only(bottom: 140, left: 20, right: 20),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Save failed: $e'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+          margin: const EdgeInsets.only(bottom: 140, left: 20, right: 20),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    }
+  }
+
+  void _showRenameDialog(BuildContext context) {
+    final controller = TextEditingController(text: _workoutName);
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -53,7 +182,7 @@ class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
           TextButton(
             onPressed: () {
               if (controller.text.trim().isNotEmpty) {
-                notifier.updateWorkoutName(controller.text.trim());
+                _updateWorkoutName(controller.text.trim());
               }
               Navigator.pop(dialogContext);
             },
@@ -68,11 +197,18 @@ class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final notifier = context.watch<WorkoutNotifier>();
-    final workout = notifier.currentWorkout;
+    // Use local state instead of notifier to prevent crashes
+    final workout = _workout;
 
     if (workout == null) {
-      return const Scaffold(body: Center(child: Text('No workout data')));
+      return const Scaffold(
+        backgroundColor: Color(0xFFF5F5F5),
+        body: Center(
+          child: CircularProgressIndicator(
+            color: AppColors.brandTeal,
+          ),
+        ),
+      );
     }
 
     // Calculate stats
@@ -95,228 +231,260 @@ class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
         statusBarBrightness: Brightness.light,
       ),
       child: Scaffold(
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Color(0xFFFFD666),
-                Color(0xFFF5F5F5),
-              ],
-              stops: [0.0, 0.4],
-            ),
-          ),
-          child: SafeArea(
-            child: Column(
-              children: [
-                // Hero Image/Header
-                Expanded(
-                  flex: 2,
-                  child: Container(
-                    padding: const EdgeInsets.all(32),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text(
-                          'You left your mark!',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w300,
-                            color: Colors.black54,
-                            letterSpacing: 8,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          notifier.workoutName,
-                          style: const TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        TextButton.icon(
-                          onPressed: () => _showRenameDialog(context, notifier),
-                          icon: const Icon(PhosphorIconsRegular.pencilSimple,
-                              size: 16),
-                          label: const Text('Edit name'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.black54,
-                            textStyle: const TextStyle(fontSize: 14),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(PhosphorIconsRegular.clock,
-                                size: 16, color: Colors.black54),
-                            const SizedBox(width: 4),
-                            Text(
-                              _formatDuration(notifier.elapsedSeconds),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                color: Colors.black54,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+        body: RepaintBoundary(
+          key: _shareKey,
+          child: Stack(
+            children: [
+              // Background hero
+              Container(
+                decoration: BoxDecoration(
+                  image: DecorationImage(
+                    image: const AssetImage('assets/icon.png'),
+                    fit: BoxFit.cover,
+                    colorFilter: ColorFilter.mode(
+                      Colors.black.withValues(alpha: 0.25),
+                      BlendMode.darken,
                     ),
                   ),
                 ),
-
-                // Stats Cards & Content
-                Expanded(
-                  flex: 3,
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFF5F5F5),
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(30),
-                        topRight: Radius.circular(30),
-                      ),
-                    ),
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
+              ),
+              // Gradient overlay
+              Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0xAA000000),
+                      Color(0x00FFFFFF),
+                      Color(0x00FFFFFF),
+                    ],
+                    stops: [0.0, 0.35, 0.65],
+                  ),
+                ),
+              ),
+              SafeArea(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Top bar
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      child: Row(
                         children: [
-                          // Energy Banner
-                          if (_showEnergyBanner)
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(PhosphorIconsBold.fire,
-                                      color: AppColors.error, size: 24),
-                                  const SizedBox(width: 12),
-                                  const Expanded(
-                                    child: Text(
-                                      'Energy',
-                                      style: TextStyle(
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.error,
-                                      ),
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(PhosphorIconsRegular.x,
-                                        size: 20),
-                                    onPressed: () {
-                                      setState(() {
-                                        _showEnergyBanner = false;
-                                      });
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                          if (_showEnergyBanner) const SizedBox(height: 16),
-
-                          // Body Info Card
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
+                          Text(
+                            _formatClockTime(DateTime.now()),
+                            style: const TextStyle(
                               color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
                             ),
-                            child: Row(
+                          ),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Row(
                               children: [
-                                const Expanded(
-                                  child: Text(
-                                    'Update your body info to start tracking calories',
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                ),
-                                TextButton(
-                                  onPressed: () {},
-                                  child: const Text('Update'),
-                                ),
+                                Icon(PhosphorIconsBold.calendarCheck, color: Colors.white, size: 16),
+                                SizedBox(width: 4),
+                                Text('SWEATMARK', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
                               ],
                             ),
                           ),
-
-                          const SizedBox(height: 24),
-
-                          // Stats Grid
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _StatCard(
-                                  label: 'Points earned',
-                                  value: pointsEarned.toString(),
-                                  badge: '1',
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              const Expanded(
-                                child: _StatCard(
-                                  label: 'Streak',
-                                  value: '0 days',
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 16),
-
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _StatCard(
-                                  label: 'Energy',
-                                  value: '$caloriesBurned cal',
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: _StatCard(
-                                  label: 'Total Weight',
-                                  value: '${(totalWeight ~/ 2.205)} lb',
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 24),
-
-                          // Add Notes
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: TextField(
-                              controller: _notesController,
-                              maxLines: 3,
-                              decoration: const InputDecoration(
-                                hintText: 'Add notes about this workout...',
-                                border: InputBorder.none,
-                                hintStyle: TextStyle(color: Colors.black38),
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 80),
                         ],
                       ),
                     ),
-                  ),
+
+                    // Title block
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _workoutName,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 36,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () => _showRenameDialog(context),
+                                icon: const Icon(PhosphorIconsRegular.pencilSimple, color: Colors.white70, size: 18),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              const Icon(PhosphorIconsRegular.clock, color: Colors.white70, size: 16),
+                              const SizedBox(width: 6),
+                              Text(
+                                _formatDuration(_duration),
+                                style: const TextStyle(color: Colors.white70, fontSize: 15),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Cards
+                    Expanded(
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF7F8FC),
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                        ),
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _SummaryCard(
+                                      title: 'Points earned',
+                                      value: '$pointsEarned',
+                                      icon: PhosphorIconsBold.sealCheck,
+                                      iconColor: const Color(0xFF34C759),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  const Expanded(
+                                    child: _SummaryCard(
+                                      title: 'Streak',
+                                      value: '0 days',
+                                      icon: PhosphorIconsBold.trendUp,
+                                      iconColor: Color(0xFF1DD3C3),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _SummaryCard(
+                                      title: 'Energy',
+                                      value: '$caloriesBurned cal',
+                                      icon: PhosphorIconsBold.fire,
+                                      iconColor: AppColors.error,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _SummaryCard(
+                                      title: 'Total Weight',
+                                      value: '${totalWeight.toStringAsFixed(0)} lb',
+                                      icon: PhosphorIconsBold.barbell,
+                                      iconColor: const Color(0xFFFFA000),
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              const SizedBox(height: 16),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  '${workout.exercises.length} Exercises',
+                                  style: const TextStyle(
+                                    color: Color(0xFF1DA1F2),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              ...workout.exercises.map((e) {
+                                final name = e.exerciseName ?? 'Exercise';
+                                final best = _bestSetLabel(e);
+                                final isPR = _prExercises.contains(name);
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 10),
+                                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF1F4F8),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: const Icon(PhosphorIconsBold.mountains, size: 18, color: Colors.black54),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              name,
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.black,
+                                              ),
+                                            ),
+                                            if (best.isNotEmpty)
+                                              Text(
+                                                best,
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                  color: Colors.black54,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (isPR)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.warningSoft,
+                                            borderRadius: BorderRadius.circular(10),
+                                          ),
+                                          child: const Text(
+                                            'PR',
+                                            style: TextStyle(
+                                              color: AppColors.warning,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                              const SizedBox(height: 100),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
         bottomNavigationBar: Container(
@@ -334,27 +502,31 @@ class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
           child: SafeArea(
             child: ElevatedButton(
               onPressed: () async {
-                // Save notes
-                notifier.updateWorkoutNotes(_notesController.text);
-
-                // Calculate impacted muscles
-                final muscles = <String>{};
-                for (final log in workout.exercises) {
-                  final exerciseData = EXERCISE_LIBRARY.firstWhere(
-                    (e) => e['id'] == log.exerciseId,
-                    orElse: () => {},
-                  );
-                  if (exerciseData.isNotEmpty) {
-                    muscles.add(exerciseData['muscleGroup']);
-                  }
-                }
-
-                context
-                    .read<RecoveryNotifier>()
-                    .updateRecovery(muscles.toList());
-
+                final notifier = context.read<WorkoutNotifier>();
                 final userId = context.read<AuthNotifier>().user?.uid;
-                await notifier.finishWorkout(userId);
+                
+                // Use local workout data with updated name
+                if (_workout != null) {
+                  final workoutToSave = WorkoutLog(
+                    workoutName: _workoutName,
+                    timestamp: _workout!.timestamp,
+                    durationSeconds: _duration,
+                    exercises: _workout!.exercises,
+                    superSets: _workout!.superSets,
+                    notes: _notesController.text,
+                    isTestData: false,
+                  );
+                  await notifier.finishWorkoutWithData(
+                    workoutToSave, 
+                    _duration, 
+                    _notesController.text,
+                    userId,
+                  );
+                } else {
+                  // Fallback to old method
+                  notifier.updateWorkoutNotes(_notesController.text);
+                  await notifier.finishWorkout(userId);
+                }
 
                 if (context.mounted) {
                   Navigator.of(context).popUntil((route) => route.isFirst);
@@ -380,7 +552,7 @@ class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
         ),
         floatingActionButton: FloatingActionButton(
           backgroundColor: Colors.white,
-          onPressed: () {},
+          onPressed: _saveSummaryAsImage,
           child:
               const Icon(PhosphorIconsBold.shareNetwork, color: Colors.black),
         ),
@@ -389,54 +561,63 @@ class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
   }
 }
 
-class _StatCard extends StatelessWidget {
-  final String label;
+class _SummaryCard extends StatelessWidget {
+  final String title;
   final String value;
-  final String? badge;
+  final IconData icon;
+  final Color iconColor;
 
-  const _StatCard({
-    required this.label,
+  const _SummaryCard({
+    required this.title,
     required this.value,
-    this.badge,
+    required this.icon,
+    required this.iconColor,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: iconColor, size: 20),
+          ),
+          const SizedBox(height: 14),
           Text(
-            label,
+            value,
             style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.warning,
-              fontWeight: FontWeight.w600,
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: Colors.black,
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-              if (label == 'Points earned')
-                const Icon(
-                  PhosphorIconsBold.fire,
-                  size: 20,
-                  color: Color(0xFF34C759),
-                ),
-            ],
+          const SizedBox(height: 6),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.black54,
+            ),
           ),
         ],
       ),

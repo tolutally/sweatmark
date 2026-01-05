@@ -8,11 +8,14 @@ import '../state/auth_notifier.dart';
 import '../state/settings_notifier.dart';
 import '../state/profile/profile_notifier.dart';
 import '../state/navigation/tab_navigation_notifier.dart';
+import '../state/streak_notifier.dart';
+import '../services/streak_service.dart';
 import '../models/profile_model.dart';
 import '../theme/app_theme.dart';
 import 'workout_history_screen.dart';
 import 'recovery_screen.dart';
 import 'pr_history_screen.dart';
+import '../widgets/streak_settings_sheet.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -72,7 +75,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
+                        color: Colors.black.withValues(alpha: 0.04),
                         blurRadius: 12,
                         offset: const Offset(0, 6),
                       ),
@@ -99,17 +102,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
-                              color: AppColors.neutral100,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: AppColors.neutral200,
-                                width: 1,
+                              gradient: const LinearGradient(
+                                colors: [AppColors.brandTeal, AppColors.info],
                               ),
+                              borderRadius: BorderRadius.circular(14),
                             ),
                             child: const Text(
                               'SWEAT ELITE',
                               style: TextStyle(
-                                color: AppColors.neutral600,
+                                color: Colors.white,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 1.1,
@@ -131,10 +132,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   height: 76,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
-                                    color: AppColors.neutral100,
-                                    border: Border.all(
-                                      color: AppColors.neutral200,
-                                    ),
+                                    color: Colors.white,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.08),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
                                     image: profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty
                                         ? DecorationImage(
                                             image: NetworkImage(profile.avatarUrl!),
@@ -163,7 +168,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                           ? Container(
                                               decoration: BoxDecoration(
                                                 shape: BoxShape.circle,
-                                                color: Colors.black.withOpacity(0.4),
+                                                color: Colors.black.withValues(alpha: 0.4),
                                               ),
                                               child: const Center(
                                                 child: SizedBox(
@@ -269,11 +274,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 14, vertical: 8),
                             decoration: BoxDecoration(
-                              color: AppColors.neutral100,
+                              color: Colors.white,
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: AppColors.neutral200,
-                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.04),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -298,6 +307,97 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
 
                           const SizedBox(height: 18),
+
+                          // Achievements Section
+                          Consumer<StreakNotifier?>(
+                            builder: (context, streakNotifier, child) {
+                              if (streakNotifier == null) return const SizedBox.shrink();
+
+                              return FutureBuilder<List<Map<String, dynamic>>>(
+                                future: context.read<StreakService>().getStreakAchievements(userId!),
+                                builder: (context, snapshot) {
+                                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                                    return const SizedBox.shrink();
+                                  }
+
+                                  final achievements = snapshot.data!;
+                                  return Column(
+                                    children: [
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          const Text(
+                                            'Achievements',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppColors.neutral600,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          GestureDetector(
+                                            onTap: () {
+                                              showModalBottomSheet(
+                                                context: context,
+                                                isScrollControlled: true,
+                                                backgroundColor: Colors.transparent,
+                                                builder: (context) => const StreakSettingsSheet(),
+                                              );
+                                            },
+                                            child: const Icon(
+                                              PhosphorIconsRegular.gear,
+                                              size: 16,
+                                              color: AppColors.neutral500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Wrap(
+                                        spacing: 12,
+                                        runSpacing: 12,
+                                        alignment: WrapAlignment.center,
+                                        children: achievements.map((achievement) {
+                                          return Container(
+                                            padding: const EdgeInsets.all(12),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius: BorderRadius.circular(12),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black.withValues(alpha: 0.04),
+                                                  blurRadius: 4,
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ],
+                                            ),
+                                            child: Column(
+                                              children: [
+                                                Text(
+                                                  achievement['badge'],
+                                                  style: const TextStyle(fontSize: 32),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  '${achievement['milestone']} days',
+                                                  style: const TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: AppColors.neutral600,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }).toList(),
+                                      ),
+                                      const SizedBox(height: 18),
+                                    ],
+                                  );
+                                },
+                              );
+                            },
+                          ),
                         ],
                       ),
                     ),
@@ -368,11 +468,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const SizedBox(width: 12),
                           Container(
                             decoration: BoxDecoration(
-                              color: AppColors.neutral100,
+                              color: Colors.white,
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: AppColors.neutral200,
-                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.04),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
                             ),
                             child: IconButton(
                               icon: const Icon(PhosphorIconsRegular.dotsThree),
@@ -521,14 +625,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             const SizedBox(height: 16),
                             Container(
                               decoration: BoxDecoration(
-                                color: AppColors.neutral100,
+                                color: Colors.white,
                                 borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: AppColors.neutral200,
-                                ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.04),
+                                    color: Colors.black.withValues(alpha: 0.04),
                                     blurRadius: 8,
                                     offset: const Offset(0, 2),
                                   ),
@@ -625,7 +726,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: AppColors.brandTeal.withOpacity(0.12),
+                    color: AppColors.brandTeal.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
@@ -651,7 +752,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: AppColors.brandTeal.withOpacity(0.12),
+                    color: AppColors.brandTeal.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
@@ -679,7 +780,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: AppColors.error.withOpacity(0.12),
+                      color: AppColors.error.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(
@@ -712,6 +813,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _pickAndUploadImage(String userId, ImageSource source) async {
     try {
       final picker = ImagePicker();
+      final profileNotifier = context.read<ProfileNotifier>();
       final pickedFile = await picker.pickImage(
         source: source,
         maxWidth: 512,
@@ -723,26 +825,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       final imageFile = File(pickedFile.path);
       
-      final success = await context.read<ProfileNotifier>().updateProfileImage(
-        userId,
-        imageFile,
-      );
+      final success = await profileNotifier.updateProfileImage(userId, imageFile);
 
-      if (mounted) {
-        if (success) {
-          _showSnack('Profile photo updated');
-        } else {
-          _showSnack('Failed to update photo', backgroundColor: AppColors.error);
-        }
+      if (!mounted) return;
+
+      if (success) {
+        _showSnack('Profile photo updated');
+      } else {
+        _showSnack('Failed to update photo', backgroundColor: AppColors.error);
       }
     } catch (e) {
-      if (mounted) {
-        _showSnack('Failed to pick image', backgroundColor: AppColors.error);
-      }
+      if (!mounted) return;
+      _showSnack('Failed to pick image', backgroundColor: AppColors.error);
     }
   }
 
   Future<void> _removeProfileImage(String userId) async {
+    final profileNotifier = context.read<ProfileNotifier>();
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -792,14 +891,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (confirmed != true) return;
 
-    final success = await context.read<ProfileNotifier>().removeProfileImage(userId);
+    if (!mounted) return;
 
-    if (mounted) {
-      if (success) {
-        _showSnack('Profile photo removed');
-      } else {
-        _showSnack('Failed to remove photo', backgroundColor: AppColors.error);
-      }
+    final success = await profileNotifier.removeProfileImage(userId);
+
+    if (success) {
+      _showSnack('Profile photo removed');
+    } else {
+      _showSnack('Failed to remove photo', backgroundColor: AppColors.error);
     }
   }
 
@@ -932,13 +1031,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              AppColors.brandNavy.withOpacity(0.95),
-              AppColors.brandNavyDeep.withOpacity(0.98),
+              AppColors.brandNavy.withValues(alpha: 0.95),
+              AppColors.brandNavyDeep.withValues(alpha: 0.98),
             ],
           ),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           border: Border.all(
-            color: Colors.white.withOpacity(0.1),
+            color: Colors.white.withValues(alpha: 0.1),
           ),
         ),
         child: SafeArea(
@@ -951,7 +1050,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -970,7 +1069,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 13,
-                    color: Colors.white.withOpacity(0.6),
+                    color: Colors.white.withValues(alpha: 0.6),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -1000,7 +1099,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     onPressed: () => Navigator.pop(sheetContext),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
-                      side: BorderSide(color: Colors.white.withOpacity(0.3)),
+                      side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -1057,7 +1156,7 @@ class _ActionButton extends StatelessWidget {
         boxShadow: isPrimary
             ? [
                 BoxShadow(
-                  color: AppColors.brandTeal.withOpacity(0.35),
+                  color: AppColors.brandTeal.withValues(alpha: 0.35),
                   blurRadius: 12,
                   offset: const Offset(0, 5),
                 ),
@@ -1106,14 +1205,11 @@ class _AchievementSlot extends StatelessWidget {
       width: 60,
       height: 60,
       decoration: BoxDecoration(
-        color: AppColors.neutral100,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: AppColors.neutral200,
-        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 3,
             offset: const Offset(0, 1),
           ),
@@ -1122,7 +1218,7 @@ class _AchievementSlot extends StatelessWidget {
       child: const Center(
         child: Icon(
           PhosphorIconsRegular.plus,
-          color: AppColors.neutral400,
+          color: AppColors.brandTeal,
           size: 20,
         ),
       ),
@@ -1148,14 +1244,11 @@ class _InfoRow extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.neutral100,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: AppColors.neutral200,
-        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -1181,7 +1274,7 @@ class _InfoRow extends StatelessWidget {
                         ? null
                         : [
                             BoxShadow(
-                              color: AppColors.brandTeal.withOpacity(0.3),
+                              color: AppColors.brandTeal.withValues(alpha: 0.3),
                               blurRadius: 8,
                               spreadRadius: 1,
                             ),
@@ -1235,13 +1328,13 @@ void _showSettingsDialog(BuildContext context) {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            AppColors.brandNavy.withOpacity(0.95),
-            AppColors.brandNavyDeep.withOpacity(0.98),
+            AppColors.brandNavy.withValues(alpha: 0.95),
+            AppColors.brandNavyDeep.withValues(alpha: 0.98),
           ],
         ),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         border: Border.all(
-          color: Colors.white.withOpacity(0.1),
+          color: Colors.white.withValues(alpha: 0.1),
         ),
       ),
       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -1292,13 +1385,13 @@ Future<void> _showEditNameHandleDialog(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              AppColors.brandNavy.withOpacity(0.9),
-              AppColors.brandNavyDeep.withOpacity(0.95),
+              AppColors.brandNavy.withValues(alpha: 0.9),
+              AppColors.brandNavyDeep.withValues(alpha: 0.95),
             ],
           ),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: Colors.white.withOpacity(0.15),
+            color: Colors.white.withValues(alpha: 0.15),
           ),
         ),
         padding: const EdgeInsets.all(20),
@@ -1324,20 +1417,20 @@ Future<void> _showEditNameHandleDialog(
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   labelText: 'Display Name',
-                  labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                  labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
                   hintText: 'Enter your display name',
-                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
                   filled: true,
-                  fillColor: Colors.white.withOpacity(0.1),
+                  fillColor: Colors.white.withValues(alpha: 0.1),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide:
-                        BorderSide(color: Colors.white.withOpacity(0.2)),
+                        BorderSide(color: Colors.white.withValues(alpha: 0.2)),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide:
-                        BorderSide(color: Colors.white.withOpacity(0.2)),
+                        BorderSide(color: Colors.white.withValues(alpha: 0.2)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
@@ -1352,22 +1445,22 @@ Future<void> _showEditNameHandleDialog(
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   labelText: 'Handle',
-                  labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                  labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
                   hintText: '@username',
-                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
                   prefixText: '@',
                   prefixStyle: const TextStyle(color: Colors.white),
                   filled: true,
-                  fillColor: Colors.white.withOpacity(0.1),
+                  fillColor: Colors.white.withValues(alpha: 0.1),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide:
-                        BorderSide(color: Colors.white.withOpacity(0.2)),
+                        BorderSide(color: Colors.white.withValues(alpha: 0.2)),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide:
-                        BorderSide(color: Colors.white.withOpacity(0.2)),
+                        BorderSide(color: Colors.white.withValues(alpha: 0.2)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
@@ -1383,7 +1476,7 @@ Future<void> _showEditNameHandleDialog(
                   TextButton(
                     onPressed: () => Navigator.pop(dialogContext),
                     style: TextButton.styleFrom(
-                      foregroundColor: Colors.white.withOpacity(0.7),
+                      foregroundColor: Colors.white.withValues(alpha: 0.7),
                     ),
                     child: const Text('Cancel'),
                   ),
@@ -1429,13 +1522,13 @@ Future<void> _showEditLocationDialog(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              AppColors.brandNavy.withOpacity(0.9),
-              AppColors.brandNavyDeep.withOpacity(0.95),
+              AppColors.brandNavy.withValues(alpha: 0.9),
+              AppColors.brandNavyDeep.withValues(alpha: 0.95),
             ],
           ),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: Colors.white.withOpacity(0.15),
+            color: Colors.white.withValues(alpha: 0.15),
           ),
         ),
         padding: const EdgeInsets.all(20),
@@ -1461,19 +1554,19 @@ Future<void> _showEditLocationDialog(
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   hintText: 'Enter your location',
-                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
                   filled: true,
-                  fillColor: Colors.white.withOpacity(0.1),
+                  fillColor: Colors.white.withValues(alpha: 0.1),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                     ),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                     ),
                   ),
                   focusedBorder: OutlineInputBorder(
@@ -1492,7 +1585,7 @@ Future<void> _showEditLocationDialog(
                   TextButton(
                     onPressed: () => Navigator.pop(dialogContext),
                     style: TextButton.styleFrom(
-                      foregroundColor: Colors.white.withOpacity(0.7),
+                      foregroundColor: Colors.white.withValues(alpha: 0.7),
                     ),
                     child: const Text('Cancel'),
                   ),
@@ -1536,13 +1629,13 @@ Future<void> _showEditBioDialog(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              AppColors.brandNavy.withOpacity(0.9),
-              AppColors.brandNavyDeep.withOpacity(0.95),
+              AppColors.brandNavy.withValues(alpha: 0.9),
+              AppColors.brandNavyDeep.withValues(alpha: 0.95),
             ],
           ),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: Colors.white.withOpacity(0.15),
+            color: Colors.white.withValues(alpha: 0.15),
           ),
         ),
         padding: const EdgeInsets.all(20),
@@ -1569,19 +1662,19 @@ Future<void> _showEditBioDialog(
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   hintText: 'Tell us about yourself...',
-                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
                   filled: true,
-                  fillColor: Colors.white.withOpacity(0.1),
+                  fillColor: Colors.white.withValues(alpha: 0.1),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                     ),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                     ),
                   ),
                   focusedBorder: OutlineInputBorder(
@@ -1600,7 +1693,7 @@ Future<void> _showEditBioDialog(
                   TextButton(
                     onPressed: () => Navigator.pop(dialogContext),
                     style: TextButton.styleFrom(
-                      foregroundColor: Colors.white.withOpacity(0.7),
+                      foregroundColor: Colors.white.withValues(alpha: 0.7),
                     ),
                     child: const Text('Cancel'),
                   ),
@@ -1644,13 +1737,13 @@ Future<void> _showEditInstagramDialog(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              AppColors.brandNavy.withOpacity(0.9),
-              AppColors.brandNavyDeep.withOpacity(0.95),
+              AppColors.brandNavy.withValues(alpha: 0.9),
+              AppColors.brandNavyDeep.withValues(alpha: 0.95),
             ],
           ),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: Colors.white.withOpacity(0.15),
+            color: Colors.white.withValues(alpha: 0.15),
           ),
         ),
         padding: const EdgeInsets.all(20),
@@ -1676,21 +1769,21 @@ Future<void> _showEditInstagramDialog(
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   hintText: '@username',
-                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
                   prefixText: '@',
                   prefixStyle: const TextStyle(color: Colors.white),
                   filled: true,
-                  fillColor: Colors.white.withOpacity(0.1),
+                  fillColor: Colors.white.withValues(alpha: 0.1),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                     ),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                     ),
                   ),
                   focusedBorder: OutlineInputBorder(
@@ -1709,7 +1802,7 @@ Future<void> _showEditInstagramDialog(
                   TextButton(
                     onPressed: () => Navigator.pop(dialogContext),
                     style: TextButton.styleFrom(
-                      foregroundColor: Colors.white.withOpacity(0.7),
+                      foregroundColor: Colors.white.withValues(alpha: 0.7),
                     ),
                     child: const Text('Cancel'),
                   ),
@@ -1755,13 +1848,13 @@ void _showRestTimerSettings(BuildContext context) {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              AppColors.brandNavy.withOpacity(0.95),
-              AppColors.brandNavyDeep.withOpacity(0.98),
+              AppColors.brandNavy.withValues(alpha: 0.95),
+              AppColors.brandNavyDeep.withValues(alpha: 0.98),
             ],
           ),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           border: Border.all(
-            color: Colors.white.withOpacity(0.1),
+            color: Colors.white.withValues(alpha: 0.1),
           ),
         ),
         padding: const EdgeInsets.all(16),
@@ -1791,7 +1884,7 @@ void _showRestTimerSettings(BuildContext context) {
               data: SliderTheme.of(context).copyWith(
                 activeTrackColor: AppColors.brandTeal,
                 thumbColor: AppColors.brandTeal,
-                overlayColor: AppColors.brandTeal.withOpacity(0.2),
+                overlayColor: AppColors.brandTeal.withValues(alpha: 0.2),
                 inactiveTrackColor: Colors.white24,
               ),
               child: Slider(
@@ -1821,7 +1914,7 @@ void _showRestTimerSettings(BuildContext context) {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
@@ -1850,7 +1943,7 @@ void _showRestTimerSettings(BuildContext context) {
                           'Vibrate on timer start & end',
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.white.withOpacity(0.6),
+                            color: Colors.white.withValues(alpha: 0.6),
                           ),
                         ),
                       ],
@@ -1862,7 +1955,7 @@ void _showRestTimerSettings(BuildContext context) {
                       settings.setHapticFeedbackEnabled(value);
                     },
                     activeThumbColor: AppColors.brandTeal,
-                    activeTrackColor: AppColors.brandTeal.withOpacity(0.3),
+                    activeTrackColor: AppColors.brandTeal.withValues(alpha: 0.3),
                   ),
                 ],
               ),

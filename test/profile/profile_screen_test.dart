@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -223,6 +224,29 @@ class _FakeFirebaseService implements FirebaseService {
   Future<Map<String, dynamic>?> getUserProfile(String userId) async {
     final data = _profiles[userId];
     return data != null ? Map<String, dynamic>.from(data) : null;
+  }
+
+  @override
+  Future<String?> uploadProfileImage(String userId, File imageFile) async {
+    // Simulate an upload by returning a predictable URL and persisting on profile
+    final url = 'https://example.com/$userId/profile.png';
+    final existing = Map<String, dynamic>.from(_profiles[userId] ?? {});
+    existing['avatarUrl'] = url;
+    _profiles[userId] = existing;
+    return url;
+  }
+
+  @override
+  Future<void> deleteProfileImage(String imageUrl) async {
+    // Simulate delete by removing avatarUrl if it matches
+    _profiles.updateAll((_, profile) {
+      if (profile['avatarUrl'] == imageUrl) {
+        final copy = Map<String, dynamic>.from(profile);
+        copy.remove('avatarUrl');
+        return copy;
+      }
+      return profile;
+    });
   }
 
   @override

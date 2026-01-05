@@ -72,7 +72,7 @@ class _AuthScreenState extends State<AuthScreen> {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: AppColors.brandTeal.withOpacity(0.35),
+            color: AppColors.brandTeal.withValues(alpha: 0.35),
             blurRadius: 24,
             offset: const Offset(0, 10),
           ),
@@ -121,7 +121,7 @@ class _AuthScreenState extends State<AuthScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -316,7 +316,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   boxShadow: _isSignUp
                       ? [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.06),
+                            color: Colors.black.withValues(alpha: 0.06),
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           ),
@@ -348,7 +348,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   boxShadow: !_isSignUp
                       ? [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.06),
+                            color: Colors.black.withValues(alpha: 0.06),
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           ),
@@ -383,7 +383,7 @@ class _AuthScreenState extends State<AuthScreen> {
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.brandTeal,
           foregroundColor: AppColors.brandNavy,
-          disabledBackgroundColor: AppColors.brandTeal.withOpacity(0.6),
+          disabledBackgroundColor: AppColors.brandTeal.withValues(alpha: 0.6),
           elevation: 0,
           shadowColor: Colors.transparent,
           shape: RoundedRectangleBorder(
@@ -496,7 +496,7 @@ class _AuthScreenState extends State<AuthScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.black,
                 foregroundColor: Colors.white,
-                disabledBackgroundColor: Colors.black.withOpacity(0.6),
+                disabledBackgroundColor: Colors.black.withValues(alpha: 0.6),
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
@@ -727,12 +727,13 @@ class _AuthScreenState extends State<AuthScreen> {
               }
               
               Navigator.of(context).pop();
+              final messenger = ScaffoldMessenger.of(context);
               
               final success = await authNotifier.sendPasswordResetEmail(email);
               
               if (!mounted) return;
               
-              ScaffoldMessenger.of(context).showSnackBar(
+              messenger.showSnackBar(
                 SnackBar(
                   content: Text(
                     success

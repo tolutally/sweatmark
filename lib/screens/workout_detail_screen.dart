@@ -5,6 +5,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../models/workout_model.dart';
 import '../data/exercise_data.dart';
 import '../state/workout_notifier.dart';
+import '../theme/app_theme.dart';
 
 class WorkoutDetailScreen extends StatelessWidget {
   final WorkoutLog workout;
@@ -240,6 +241,8 @@ class WorkoutDetailScreen extends StatelessWidget {
     double totalVolume = 0;
     int totalSets = 0;
     int totalReps = 0;
+    // ignore: unused_local_variable
+    final _ = totalVolume; // reserved for future use
 
     for (var exercise in workout.exercises) {
       for (var set in exercise.sets.where((s) => s.isCompleted)) {
@@ -298,7 +301,7 @@ class WorkoutDetailScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: 0.05),
                       blurRadius: 10,
                       offset: const Offset(0, 2),
                     ),
@@ -367,7 +370,7 @@ class WorkoutDetailScreen extends StatelessWidget {
                       icon: PhosphorIconsRegular.clock,
                       label: 'Duration',
                       value: _formatDuration(workout.durationSeconds),
-                      color: const Color(0xFF2BD4BD),
+                      color: AppColors.brandTeal,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -439,7 +442,7 @@ class WorkoutDetailScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
+                        color: Colors.black.withValues(alpha: 0.05),
                         blurRadius: 10,
                         offset: const Offset(0, 2),
                       ),
@@ -607,7 +610,7 @@ class _StatCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),

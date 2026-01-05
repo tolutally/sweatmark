@@ -1,11 +1,17 @@
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/user_settings.dart';
 
 class SettingsNotifier extends ChangeNotifier {
   static const String _restTimerDurationKey = 'rest_timer_duration';
   static const String _hapticFeedbackEnabledKey = 'haptic_feedback_enabled';
+  
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   
   int _restTimerDuration = 90; // Default 90 seconds
   bool _hapticFeedbackEnabled = true; // Default enabled
@@ -16,17 +22,23 @@ class SettingsNotifier extends ChangeNotifier {
   DateTime? _timerStartTime;
   int _timerOriginalDuration = 0;
   
+  // User unit preferences
+  UserSettings _userSettings = const UserSettings();
+  bool _userSettingsLoaded = false;
+  
   int get restTimerDuration => _restTimerDuration;
   bool get hapticFeedbackEnabled => _hapticFeedbackEnabled;
   int get currentRestSeconds => _currentRestSeconds;
   bool get isResting => _isResting;
   bool get isPaused => _isPaused;
+  UserSettings get userSettings => _userSettings;
   
   // Callback for timer completion
   VoidCallback? onTimerComplete;
   
   SettingsNotifier() {
     _loadSettings();
+    _loadUserSettings();
   }
   
   Future<void> _loadSettings() async {
@@ -178,6 +190,103 @@ class SettingsNotifier extends ChangeNotifier {
     final minutes = seconds ~/ 60;
     final remainingSeconds = seconds % 60;
     return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
+  }
+  
+  // ==================== User Unit Preferences ====================
+  
+  /// Load user settings from Firestore
+  Future<void> _loadUserSettings() async {
+    if (_userSettingsLoaded) return;
+
+    final user = _auth.currentUser;
+    if (user == null) {
+      _userSettingsLoaded = true;
+      return;
+    }
+
+    try {
+      final doc = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('settings')
+          .doc('preferences')
+          .get();
+
+      if (doc.exists && doc.data() != null) {
+        _userSettings = UserSettings.fromJson(doc.data()!);
+      }
+      _userSettingsLoaded = true;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('❌ Error loading user settings: $e');
+    }
+  }
+
+  /// Reload settings when user logs in
+  Future<void> reloadUserSettings() async {
+    _userSettingsLoaded = false;
+    await _loadUserSettings();
+  }
+
+  /// Save user settings to Firestore
+  Future<void> _saveUserSettings() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    try {
+      await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('settings')
+          .doc('preferences')
+          .set(_userSettings.toJson());
+    } catch (e) {
+      debugPrint('❌ Error saving user settings: $e');
+    }
+  }
+
+  /// Update distance unit
+  Future<void> setDistanceUnit(DistanceUnit unit) async {
+    _userSettings = _userSettings.copyWith(distanceUnit: unit);
+    notifyListeners();
+    await _saveUserSettings();
+  }
+
+  /// Update weight unit
+  Future<void> setWeightUnit(WeightUnit unit) async {
+    _userSettings = _userSettings.copyWith(weightUnit: unit);
+    notifyListeners();
+    await _saveUserSettings();
+  }
+
+  /// Format distance with current unit preference
+  String formatDistance(double? distance) => _userSettings.formatDistance(distance);
+
+  /// Format weight with current unit preference
+  String formatWeight(double? weight) => _userSettings.formatWeight(weight);
+
+  /// Format pace with current unit preference (min:sec/unit)
+  String formatPace(int? durationSeconds, double? distance) =>
+      _userSettings.formatPace(durationSeconds, distance);
+
+  /// Format duration as mm:ss or h:mm:ss
+  String formatDuration(int? seconds) => UserSettings.formatDuration(seconds);
+
+  /// Parse duration string to seconds
+  int? parseDuration(String input) => UserSettings.parseDuration(input);
+
+  /// Get weight unit suffix
+  String get weightSuffix => _userSettings.weightUnit == WeightUnit.lb ? 'lb' : 'kg';
+
+  /// Get distance unit suffix
+  String get distanceSuffix =>
+      _userSettings.distanceUnit == DistanceUnit.miles ? 'mi' : 'km';
+
+  /// Reset user settings when user logs out
+  void resetUserSettings() {
+    _userSettings = const UserSettings();
+    _userSettingsLoaded = false;
+    notifyListeners();
   }
   
   @override

@@ -3,18 +3,34 @@ enum MuscleStatus { recovered, recovering, fatigued }
 class WorkoutSet {
   double? weight;
   int? reps;
+  int? durationSeconds;  // For timed exercises (plank, cardio)
+  double? distance;      // For cardio exercises (miles or km)
+  double? speed;         // Speed in mph or km/h
+  double? incline;       // Incline percentage
+  int? resistance;       // Resistance level (1-20 typically)
   bool isCompleted;
   final bool isSuperSetRest;
 
-  WorkoutSet(
-      {this.weight,
-      this.reps,
-      this.isCompleted = false,
-      this.isSuperSetRest = false});
+  WorkoutSet({
+    this.weight,
+    this.reps,
+    this.durationSeconds,
+    this.distance,
+    this.speed,
+    this.incline,
+    this.resistance,
+    this.isCompleted = false,
+    this.isSuperSetRest = false,
+  });
 
   Map<String, dynamic> toJson() => {
         'weight': weight,
         'reps': reps,
+        'durationSeconds': durationSeconds,
+        'distance': distance,
+        'speed': speed,
+        'incline': incline,
+        'resistance': resistance,
         'isCompleted': isCompleted,
         'isSuperSetRest': isSuperSetRest,
       };
@@ -23,8 +39,37 @@ class WorkoutSet {
     return WorkoutSet(
       weight: (json['weight'] as num?)?.toDouble(),
       reps: json['reps'],
+      durationSeconds: json['durationSeconds'],
+      distance: (json['distance'] as num?)?.toDouble(),
+      speed: (json['speed'] as num?)?.toDouble(),
+      incline: (json['incline'] as num?)?.toDouble(),
+      resistance: json['resistance'],
       isCompleted: json['isCompleted'] ?? false,
       isSuperSetRest: json['isSuperSetRest'] ?? false,
+    );
+  }
+
+  WorkoutSet copyWith({
+    double? weight,
+    int? reps,
+    int? durationSeconds,
+    double? distance,
+    double? speed,
+    double? incline,
+    int? resistance,
+    bool? isCompleted,
+    bool? isSuperSetRest,
+  }) {
+    return WorkoutSet(
+      weight: weight ?? this.weight,
+      reps: reps ?? this.reps,
+      durationSeconds: durationSeconds ?? this.durationSeconds,
+      distance: distance ?? this.distance,
+      speed: speed ?? this.speed,
+      incline: incline ?? this.incline,
+      resistance: resistance ?? this.resistance,
+      isCompleted: isCompleted ?? this.isCompleted,
+      isSuperSetRest: isSuperSetRest ?? this.isSuperSetRest,
     );
   }
 }
@@ -34,6 +79,7 @@ class WorkoutExerciseLog {
   final String? exerciseName;
   final String? muscleGroup;
   final String? equipment;
+  final String? gifUrl;
   final List<WorkoutSet> sets;
   final String? superSetId;
   final int? orderInSuperSet;
@@ -43,6 +89,7 @@ class WorkoutExerciseLog {
     this.exerciseName,
     this.muscleGroup,
     this.equipment,
+    this.gifUrl,
     required this.sets,
     this.superSetId,
     this.orderInSuperSet,
@@ -53,6 +100,7 @@ class WorkoutExerciseLog {
         'exerciseName': exerciseName,
         'muscleGroup': muscleGroup,
         'equipment': equipment,
+        'gifUrl': gifUrl,
         'sets': sets.map((s) => s.toJson()).toList(),
         'superSetId': superSetId,
         'orderInSuperSet': orderInSuperSet,
@@ -64,6 +112,7 @@ class WorkoutExerciseLog {
       exerciseName: json['exerciseName'],
       muscleGroup: json['muscleGroup'],
       equipment: json['equipment'],
+      gifUrl: json['gifUrl'],
       sets: (json['sets'] as List).map((s) => WorkoutSet.fromJson(s)).toList(),
       superSetId: json['superSetId'],
       orderInSuperSet: json['orderInSuperSet'],
@@ -147,7 +196,7 @@ class WorkoutLog {
   }) : superSets = superSets ?? [];
 
   // Keep backward compatibility
-  String get id => workoutName;
+  String get id => timestamp.millisecondsSinceEpoch.toString();
 
   Map<String, dynamic> toJson() => {
         'workoutName': workoutName,

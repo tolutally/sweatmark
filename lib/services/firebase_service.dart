@@ -94,14 +94,15 @@ class FirebaseService {
     try {
       // Trigger the authentication flow
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-      
+
       if (googleUser == null) {
         // User cancelled the sign-in
         return null;
       }
 
       // Obtain the auth details from the request
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
 
       // Create a new credential
       final credential = GoogleAuthProvider.credential(
@@ -111,12 +112,12 @@ class FirebaseService {
 
       // Sign in to Firebase with the Google credential
       final userCredential = await _auth.signInWithCredential(credential);
-      
+
       // Create user profile if needed
       if (userCredential.user != null) {
         await _createUserProfileIfNeeded(userCredential.user!.uid);
       }
-      
+
       return userCredential;
     } catch (e) {
       print('Error signing in with Google: $e');
@@ -126,9 +127,11 @@ class FirebaseService {
 
   /// Generate a random string for Apple Sign-In nonce
   String _generateNonce([int length = 32]) {
-    const charset = '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
+    const charset =
+        '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
     final random = Random.secure();
-    return List.generate(length, (_) => charset[random.nextInt(charset.length)]).join();
+    return List.generate(length, (_) => charset[random.nextInt(charset.length)])
+        .join();
   }
 
   /// Generate SHA256 hash of a string
@@ -162,22 +165,24 @@ class FirebaseService {
 
       // Sign in to Firebase with the Apple credential
       final userCredential = await _auth.signInWithCredential(oauthCredential);
-      
+
       // Update display name if provided by Apple (only on first sign-in)
-      if (userCredential.user != null && 
-          appleCredential.givenName != null && 
+      if (userCredential.user != null &&
+          appleCredential.givenName != null &&
           userCredential.user!.displayName == null) {
-        final displayName = '${appleCredential.givenName ?? ''} ${appleCredential.familyName ?? ''}'.trim();
+        final displayName =
+            '${appleCredential.givenName ?? ''} ${appleCredential.familyName ?? ''}'
+                .trim();
         if (displayName.isNotEmpty) {
           await userCredential.user!.updateDisplayName(displayName);
         }
       }
-      
+
       // Create user profile if needed
       if (userCredential.user != null) {
         await _createUserProfileIfNeeded(userCredential.user!.uid);
       }
-      
+
       return userCredential;
     } catch (e) {
       print('Error signing in with Apple: $e');
@@ -221,10 +226,8 @@ class FirebaseService {
 
   Future<List<Map<String, dynamic>>> getGlobalExercises() async {
     try {
-      final snapshot = await _firestore
-          .collection('exercises')
-          .orderBy('name')
-          .get();
+      final snapshot =
+          await _firestore.collection('exercises').orderBy('name').get();
       return snapshot.docs.map((doc) => doc.data()).toList();
     } catch (e) {
       print('Error fetching global exercises: $e');
@@ -236,7 +239,8 @@ class FirebaseService {
     final batch = _firestore.batch();
     try {
       for (final ex in exercises) {
-        final docRef = _firestore.collection('exercises').doc(ex['id'] as String);
+        final docRef =
+            _firestore.collection('exercises').doc(ex['id'] as String);
         batch.set(docRef, ex, SetOptions(merge: true));
       }
       await batch.commit();
@@ -304,22 +308,22 @@ class FirebaseService {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final extension = imageFile.path.split('.').last;
       final fileName = 'profile_$timestamp.$extension';
-      
+
       // Reference to the storage location
       final ref = _storage.ref().child('users/$userId/profile/$fileName');
-      
+
       // Upload the file
       final uploadTask = ref.putFile(
         imageFile,
         SettableMetadata(contentType: 'image/$extension'),
       );
-      
+
       // Wait for upload to complete
       final snapshot = await uploadTask;
-      
+
       // Get download URL
       final downloadUrl = await snapshot.ref.getDownloadURL();
-      
+
       print('✅ Profile image uploaded: $downloadUrl');
       return downloadUrl;
     } catch (e) {
@@ -490,7 +494,8 @@ class FirebaseService {
   // ============================================
 
   /// Save custom exercise to Firebase
-  Future<void> saveCustomExercise(String userId, Map<String, dynamic> exercise) async {
+  Future<void> saveCustomExercise(
+      String userId, Map<String, dynamic> exercise) async {
     try {
       await _firestore
           .collection('users')
@@ -512,10 +517,15 @@ class FirebaseService {
           .collection('users')
           .doc(userId)
           .collection('custom_exercises')
-          .orderBy('name')
           .get();
 
-      return snapshot.docs.map((doc) => doc.data()).toList();
+      // Sort by name locally instead of using Firestore orderBy (avoids index requirement)
+      final exercises = snapshot.docs.map((doc) => doc.data()).toList();
+      exercises.sort((a, b) => (a['name'] ?? '')
+          .toString()
+          .toLowerCase()
+          .compareTo((b['name'] ?? '').toString().toLowerCase()));
+      return exercises;
     } catch (e) {
       print('❌ Error getting custom exercises from Firebase: $e');
       return [];
@@ -528,9 +538,16 @@ class FirebaseService {
         .collection('users')
         .doc(userId)
         .collection('custom_exercises')
-        .orderBy('name')
         .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
+        .map((snapshot) {
+      // Sort by name locally instead of using Firestore orderBy (avoids index requirement)
+      final exercises = snapshot.docs.map((doc) => doc.data()).toList();
+      exercises.sort((a, b) => (a['name'] ?? '')
+          .toString()
+          .toLowerCase()
+          .compareTo((b['name'] ?? '').toString().toLowerCase()));
+      return exercises;
+    });
   }
 
   /// Delete custom exercise from Firebase
@@ -565,7 +582,8 @@ class FirebaseService {
       }
 
       await batch.commit();
-      print('✅ Batch uploaded ${exercises.length} custom exercises to Firebase');
+      print(
+          '✅ Batch uploaded ${exercises.length} custom exercises to Firebase');
     } catch (e) {
       print('❌ Error batch uploading custom exercises: $e');
       rethrow;

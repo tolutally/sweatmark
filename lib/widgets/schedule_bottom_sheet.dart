@@ -135,7 +135,7 @@ class _ScheduleBottomSheetState extends State<ScheduleBottomSheet> {
                     decoration: InputDecoration(
                       hintText: 'Enter template name',
                       filled: true,
-                      fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                      fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
@@ -153,7 +153,7 @@ class _ScheduleBottomSheetState extends State<ScheduleBottomSheet> {
                     decoration: InputDecoration(
                       hintText: 'Add a description...',
                       filled: true,
-                      fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                      fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
@@ -260,8 +260,8 @@ class _ScheduleBottomSheetState extends State<ScheduleBottomSheet> {
             height: 56,
             decoration: BoxDecoration(
               color: isSelected
-                  ? Theme.of(context).colorScheme.primary.withOpacity(0.15)
-                  : Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                  ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
+                  : Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: isSelected
@@ -322,8 +322,8 @@ class _ScheduleBottomSheetState extends State<ScheduleBottomSheet> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
               color: isSelected
-                  ? Theme.of(context).colorScheme.primary.withOpacity(0.15)
-                  : Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                  ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
+                  : Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
                 color: isSelected
@@ -371,7 +371,7 @@ class _ScheduleBottomSheetState extends State<ScheduleBottomSheet> {
             decoration: BoxDecoration(
               color: isSelected
                   ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                  : Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
               shape: BoxShape.circle,
             ),
             child: Center(
@@ -395,7 +395,7 @@ class _ScheduleBottomSheetState extends State<ScheduleBottomSheet> {
       children: [
         Container(
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+            color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
@@ -442,7 +442,7 @@ class _ScheduleBottomSheetState extends State<ScheduleBottomSheet> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -545,7 +545,7 @@ class _ScheduleBottomSheetState extends State<ScheduleBottomSheet> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+              color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: _createNewCollection
@@ -588,7 +588,7 @@ class _ScheduleBottomSheetState extends State<ScheduleBottomSheet> {
             decoration: InputDecoration(
               hintText: 'Collection name',
               filled: true,
-              fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+              fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
@@ -613,8 +613,8 @@ class _ScheduleBottomSheetState extends State<ScheduleBottomSheet> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: isSelected
-              ? Theme.of(context).colorScheme.primary.withOpacity(0.15)
-              : Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
+              : Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected

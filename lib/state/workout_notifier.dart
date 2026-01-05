@@ -6,6 +6,9 @@ import '../data/exercise_data.dart';
 import '../services/storage_service.dart';
 import '../services/sync_service.dart';
 import '../services/pr_service.dart';
+import '../services/recovery_service.dart';
+import '../services/flame_service.dart';
+import '../services/notification_service.dart';
 
 class WorkoutNotifier extends ChangeNotifier {
   bool _isWorkoutActive = false;
@@ -27,9 +30,27 @@ class WorkoutNotifier extends ChangeNotifier {
   int get elapsedSeconds => _elapsedSeconds;
   bool _timerStarted = false;
 
+  // Track collapsed exercise cards (by exerciseId)
+  final Set<String> _collapsedExercises = {};
+  Set<String> get collapsedExercises => _collapsedExercises;
+
+  bool isExerciseCollapsed(String exerciseId) =>
+      _collapsedExercises.contains(exerciseId);
+
+  void toggleExerciseCollapsed(String exerciseId) {
+    if (_collapsedExercises.contains(exerciseId)) {
+      _collapsedExercises.remove(exerciseId);
+    } else {
+      _collapsedExercises.add(exerciseId);
+    }
+    notifyListeners();
+  }
+
   final StorageService _storageService = StorageService();
   final SyncService _syncService;
   final PRService _prService = PRService();
+  final RecoveryService _recoveryService = RecoveryService();
+  final FlameService _flameService = FlameService();
 
   List<WorkoutLog> _workoutHistory = [];
   List<WorkoutLog> get workoutHistory => _workoutHistory;
@@ -174,6 +195,7 @@ class WorkoutNotifier extends ChangeNotifier {
     _startTime = null;
     _elapsedSeconds = 0;
     _timerStarted = false;
+    _collapsedExercises.clear(); // Clear collapsed state when workout resets
     _timer?.cancel();
     _timer = null;
     notifyListeners();
@@ -229,6 +251,7 @@ class WorkoutNotifier extends ChangeNotifier {
       exerciseName: exercise.name,
       muscleGroup: exercise.muscleGroup,
       equipment: exercise.equipment,
+      gifUrl: exercise.gifUrl,
       sets: [
         WorkoutSet(weight: null, reps: null),
         WorkoutSet(weight: null, reps: null),
@@ -281,7 +304,69 @@ class WorkoutNotifier extends ChangeNotifier {
     if (_currentWorkout == null) return;
     final exerciseLog = _currentWorkout!.exercises
         .firstWhere((e) => e.exerciseId == exerciseId);
-    exerciseLog.sets.add(WorkoutSet(weight: null, reps: null));
+    
+    // Get the last set to prepopulate values (or first set if available)
+    WorkoutSet? templateSet;
+    if (exerciseLog.sets.isNotEmpty) {
+      // Try to find the last completed set (with values)
+      for (int i = exerciseLog.sets.length - 1; i >= 0; i--) {
+        final set = exerciseLog.sets[i];
+        if (set.weight != null || set.reps != null || set.durationSeconds != null) {
+          templateSet = set;
+          break;
+        }
+      }
+      // If no completed set, use the first set
+      templateSet ??= exerciseLog.sets.first;
+    }
+    
+    // Create new set with prepopulated values from template
+    exerciseLog.sets.add(WorkoutSet(
+      weight: templateSet?.weight,
+      reps: templateSet?.reps,
+      durationSeconds: templateSet?.durationSeconds,
+      distance: templateSet?.distance,
+      speed: templateSet?.speed,
+      incline: templateSet?.incline,
+      resistance: templateSet?.resistance,
+    ));
+    notifyListeners();
+  }
+
+  /// Add a set to all exercises in a superset
+  void addSetToSuperSet(String superSetId) {
+    if (_currentWorkout == null) return;
+    final superSet = getSuperSet(superSetId);
+    if (superSet == null) return;
+
+    for (final exerciseId in superSet.exerciseIds) {
+      final exerciseLog = _currentWorkout!.exercises.firstWhere(
+          (e) => e.exerciseId == exerciseId,
+          orElse: () => throw Exception('Exercise not found'));
+      
+      // Get template set for prepopulation
+      WorkoutSet? templateSet;
+      if (exerciseLog.sets.isNotEmpty) {
+        for (int i = exerciseLog.sets.length - 1; i >= 0; i--) {
+          final set = exerciseLog.sets[i];
+          if (set.weight != null || set.reps != null || set.durationSeconds != null) {
+            templateSet = set;
+            break;
+          }
+        }
+        templateSet ??= exerciseLog.sets.first;
+      }
+      
+      exerciseLog.sets.add(WorkoutSet(
+        weight: templateSet?.weight,
+        reps: templateSet?.reps,
+        durationSeconds: templateSet?.durationSeconds,
+        distance: templateSet?.distance,
+        speed: templateSet?.speed,
+        incline: templateSet?.incline,
+        resistance: templateSet?.resistance,
+      ));
+    }
     notifyListeners();
   }
 
@@ -295,13 +380,58 @@ class WorkoutNotifier extends ChangeNotifier {
     }
   }
 
-  void updateSet(String exerciseId, int setIndex, double? weight, int? reps) {
+  void updateSet(
+    String exerciseId,
+    int setIndex, {
+    double? weight,
+    int? reps,
+    int? durationSeconds,
+    double? distance,
+    double? speed,
+    double? incline,
+    int? resistance,
+  }) {
     if (_currentWorkout == null) return;
     final exerciseLog = _currentWorkout!.exercises
         .firstWhere((e) => e.exerciseId == exerciseId);
     if (setIndex < exerciseLog.sets.length) {
-      exerciseLog.sets[setIndex].weight = weight;
-      exerciseLog.sets[setIndex].reps = reps;
+      final set = exerciseLog.sets[setIndex];
+      // Only update provided fields, keep existing values for null
+      if (weight != null) set.weight = weight;
+      if (reps != null) set.reps = reps;
+      if (durationSeconds != null) set.durationSeconds = durationSeconds;
+      if (distance != null) set.distance = distance;
+      if (speed != null) set.speed = speed;
+      if (incline != null) set.incline = incline;
+      if (resistance != null) set.resistance = resistance;
+      notifyListeners();
+    }
+  }
+
+  /// Update set with explicit null clearing (for clearing fields)
+  void updateSetFields(
+    String exerciseId,
+    int setIndex, {
+    required double? weight,
+    required int? reps,
+    required int? durationSeconds,
+    required double? distance,
+    required double? speed,
+    required double? incline,
+    required int? resistance,
+  }) {
+    if (_currentWorkout == null) return;
+    final exerciseLog = _currentWorkout!.exercises
+        .firstWhere((e) => e.exerciseId == exerciseId);
+    if (setIndex < exerciseLog.sets.length) {
+      final set = exerciseLog.sets[setIndex];
+      set.weight = weight;
+      set.reps = reps;
+      set.durationSeconds = durationSeconds;
+      set.distance = distance;
+      set.speed = speed;
+      set.incline = incline;
+      set.resistance = resistance;
       notifyListeners();
     }
   }
@@ -347,12 +477,40 @@ class WorkoutNotifier extends ChangeNotifier {
     // Sync to cloud (with local fallback)
     await _syncService.syncWorkout(userId, finishedWorkout);
 
+    // Update muscle recovery tracking
+    await _recoveryService.updateRecoveryAfterWorkout(finishedWorkout, userId);
+
+    // Update flame stats (7-day peak volume)
+    if (userId != null) {
+      try {
+        await _flameService.recordWorkoutVolume(userId, finishedWorkout);
+      } catch (e) {
+        print('Error updating flame stats: $e');
+      }
+    }
+
     // Reload history
     await _loadWorkoutHistory();
 
     // Trigger PR notification callback immediately
     if (newPRs.isNotEmpty && onPersonalRecords != null) {
       onPersonalRecords!(newPRs);
+    }
+
+    // Show workout completion notification
+    final notificationService = NotificationService();
+    await notificationService.showWorkoutCompleteNotification(
+      workoutName: finishedWorkout.workoutName,
+      duration: Duration(seconds: _elapsedSeconds),
+      exerciseCount: finishedWorkout.exercises.length,
+    );
+
+    // Show PR notifications
+    for (final exerciseName in newPRs) {
+      await notificationService.showPRNotification(
+        exerciseName: exerciseName,
+        newRecord: 'New 1RM!',
+      );
     }
 
     // Delete draft workout if it exists
@@ -366,6 +524,87 @@ class WorkoutNotifier extends ChangeNotifier {
     _workoutName = 'My Workout 1';
     _workoutNotes = '';
     notifyListeners();
+  }
+
+  /// Finish and save a specific workout with provided data
+  /// Used when workout data is passed from summary screen to avoid timing issues
+  Future<void> finishWorkoutWithData(
+    WorkoutLog workout,
+    int durationSeconds,
+    String notes,
+    String? userId,
+  ) async {
+    _timer?.cancel();
+    _timer = null;
+    _stopAutoSave();
+
+    // Create finished workout with provided data
+    final finishedWorkout = WorkoutLog(
+      workoutName: workout.workoutName,
+      timestamp: workout.timestamp,
+      durationSeconds: durationSeconds,
+      exercises: workout.exercises,
+      isTestData: false,
+    );
+
+    // Detect personal records BEFORE syncing
+    final newPRs =
+        _prService.detectPersonalRecords(finishedWorkout, _workoutHistory);
+
+    // Sync to cloud (with local fallback)
+    await _syncService.syncWorkout(userId, finishedWorkout);
+
+    // Update muscle recovery tracking
+    await _recoveryService.updateRecoveryAfterWorkout(finishedWorkout, userId);
+
+    // Update flame stats (7-day peak volume)
+    if (userId != null) {
+      try {
+        await _flameService.recordWorkoutVolume(userId, finishedWorkout);
+      } catch (e) {
+        debugPrint('Error updating flame stats: $e');
+      }
+    }
+
+    // Reload history
+    await _loadWorkoutHistory();
+
+    // Trigger PR notification callback immediately
+    if (newPRs.isNotEmpty && onPersonalRecords != null) {
+      onPersonalRecords!(newPRs);
+    }
+
+    // Show workout completion notification
+    final notificationService = NotificationService();
+    await notificationService.showWorkoutCompleteNotification(
+      workoutName: finishedWorkout.workoutName,
+      duration: Duration(seconds: durationSeconds),
+      exerciseCount: finishedWorkout.exercises.length,
+    );
+
+    // Show PR notifications
+    for (final exerciseName in newPRs) {
+      await notificationService.showPRNotification(
+        exerciseName: exerciseName,
+        newRecord: 'New 1RM!',
+      );
+    }
+
+    // Delete draft workout if it exists
+    await deleteDraftWorkout();
+
+    // Reset local state
+    _isWorkoutActive = false;
+    _currentWorkout = null;
+    _startTime = null;
+    _elapsedSeconds = 0;
+    _timerStarted = false;
+    _workoutName = 'My Workout 1';
+    _workoutNotes = '';
+    notifyListeners();
+
+    debugPrint(
+        'Workout saved successfully with data: ${finishedWorkout.workoutName}');
   }
 
   /// Refresh workout history from cloud

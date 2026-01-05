@@ -6,10 +6,11 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/firebase_service.dart';
 import '../state/workout_notifier.dart';
-import '../state/recovery_notifier.dart';
 import '../state/template_notifier.dart';
 import '../state/auth_notifier.dart';
+import '../state/streak_notifier.dart';
 import '../models/template_model.dart';
+import '../widgets/flame_widget.dart';
 import '../theme/app_theme.dart';
 import 'active_workout_screen.dart';
 import 'library_screen.dart';
@@ -32,6 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Set<int> _scheduledWeekdays = {};
   String _reminderOption = 'None';
   bool _isLoadingSchedule = false;
+  bool _hasShownStreakBrokenModal = false;
 
   @override
   void didChangeDependencies() {
@@ -45,6 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
       templateNotifier.initialize(userId);
       _initializedTemplates = true;
       _loadScheduleFromCloud(firebaseService, userId);
+      _checkStreakBroken();
     }
   }
 
@@ -79,6 +82,77 @@ class _HomeScreenState extends State<HomeScreen> {
       'updatedAt': Timestamp.now(),
       'frequency': frequency,
     });
+  }
+
+  /// Check if streak was broken and show modal
+  void _checkStreakBroken() {
+    if (_hasShownStreakBrokenModal) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final streakNotifier = context.read<StreakNotifier?>();
+      final streak = streakNotifier?.streak;
+
+      if (streak?.wasStreakBroken == true) {
+        _hasShownStreakBrokenModal = true;
+        _showStreakBrokenModal(streak!.current - 1); // Show previous streak count
+      }
+    });
+  }
+
+  /// Show streak broken modal
+  void _showStreakBrokenModal(int previousStreak) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(PhosphorIconsBold.fire, color: AppColors.error, size: 32),
+            SizedBox(width: 12),
+            Text('Streak Broken'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Your $previousStreak-day streak has ended.',
+              style: const TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Don\'t worry! Every setback is a setup for a comeback. Start fresh and build an even stronger streak!',
+              style: TextStyle(fontSize: 14, color: AppColors.neutral600),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              final streakNotifier = context.read<StreakNotifier?>();
+              streakNotifier?.acknowledgeStreakBroken();
+              Navigator.of(context).pop();
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.brandTeal,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                'Start Fresh',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showScheduleModal() {
@@ -163,7 +237,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             }
                           });
                         },
-                        selectedColor: AppColors.brandTeal.withOpacity(0.15),
+                        selectedColor: AppColors.brandTeal.withValues(alpha: 0.15),
                         labelStyle: TextStyle(
                           color: isSelected
                               ? AppColors.brandTeal
@@ -307,7 +381,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final workoutNotifier = context.watch<WorkoutNotifier>();
-    final recoveryNotifier = context.watch<RecoveryNotifier>();
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -386,25 +459,72 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 24),
 
                 // Streak Cards
-                const Row(
-                  children: [
-                    Expanded(
-                      child: _StreakCard(
-                        count: '0',
-                        label: 'Day Streak',
-                        icon: PhosphorIconsBold.fire,
-                      ),
-                    ),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: _StreakCard(
-                        count: '1',
-                        label: 'Flame',
-                        icon: PhosphorIconsBold.flame,
-                      ),
-                    ),
-                  ],
+                Consumer<StreakNotifier?>(
+                  builder: (context, streakNotifier, child) {
+                    final streak = streakNotifier?.streak;
+                    final isLoading = streakNotifier?.isLoading ?? true;
+
+                    if (isLoading) {
+                      return const Row(
+                        children: [
+                          Expanded(
+                            child: _StreakCard(
+                              count: '--',
+                              label: 'Day Streak',
+                              subtitle: 'Loading...',
+                              icon: PhosphorIconsBold.fire,
+                              urgency: 'normal',
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: _StreakCard(
+                              count: '--',
+                              label: 'Best Streak',
+                              subtitle: 'Loading...',
+                              icon: PhosphorIconsBold.trophy,
+                              urgency: 'normal',
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+
+                    final current = streak?.current ?? 0;
+                    final best = streak?.best ?? 0;
+                    final deadlineText = streakNotifier?.getDeadlineText() ?? 'No deadline';
+                    final urgency = streakNotifier?.getUrgencyLevel() ?? 'normal';
+
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: _StreakCard(
+                            count: '$current',
+                            label: 'Day Streak',
+                            subtitle: current > 0 ? deadlineText : 'Start today!',
+                            icon: PhosphorIconsBold.fire,
+                            urgency: urgency,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _StreakCard(
+                            count: '$best',
+                            label: 'Best Streak',
+                            subtitle: best > 0 ? 'Keep it up!' : 'No streak yet',
+                            icon: PhosphorIconsBold.trophy,
+                            urgency: 'normal',
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
+
+                const SizedBox(height: 12),
+
+                // Flame Widget
+                const FlameWidget(),
 
                 const SizedBox(height: 24),
 
@@ -837,54 +957,52 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 const SizedBox(height: 24),
 
-                // Recovery Status
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        AppColors.error.withValues(alpha: 0.1),
-                        AppColors.warning.withValues(alpha: 0.1),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Row(
-                        children: [
-                          Icon(
-                            PhosphorIconsBold.heartbeat,
-                            color: AppColors.error,
-                            size: 24,
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            'Recovery Status',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        recoveryNotifier.muscleStatus.isEmpty
-                            ? 'All muscles recovered'
-                            : 'Some muscles recovering',
-                        style: const TextStyle(
-                          fontSize: 15,
-                          color: Colors.black54,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                // Recovery Status - DISABLED FOR NOW
+                // Container(
+                //   padding: const EdgeInsets.all(20),
+                //   decoration: BoxDecoration(
+                //     gradient: LinearGradient(
+                //       colors: [
+                //         AppColors.error.withValues(alpha: 0.1),
+                //         AppColors.warning.withValues(alpha: 0.1),
+                //       ],
+                //     ),
+                //     borderRadius: BorderRadius.circular(16),
+                //   ),
+                //   child: const Column(
+                //     crossAxisAlignment: CrossAxisAlignment.start,
+                //     children: [
+                //       Row(
+                //         children: [
+                //           Icon(
+                //             PhosphorIconsBold.heartbeat,
+                //             color: AppColors.error,
+                //             size: 24,
+                //           ),
+                //           SizedBox(width: 8),
+                //           Text(
+                //             'Recovery Status',
+                //             style: TextStyle(
+                //               fontSize: 18,
+                //               fontWeight: FontWeight.bold,
+                //               color: Colors.black,
+                //             ),
+                //           ),
+                //         ],
+                //       ),
+                //       SizedBox(height: 16),
+                //       Text(
+                //         'Track your muscle recovery',
+                //         style: TextStyle(
+                //           fontSize: 15,
+                //           color: Colors.black54,
+                //         ),
+                //       ),
+                //     ],
+                //   ),
+                // ),
 
-                const SizedBox(height: 24),
+                // const SizedBox(height: 24),
 
                 // My Collection
                 Row(
@@ -1188,7 +1306,7 @@ class _CollectionCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, 2),
             ),
@@ -1201,7 +1319,7 @@ class _CollectionCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.brandTeal.withOpacity(0.1),
+                color: AppColors.brandTeal.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
@@ -1243,13 +1361,52 @@ class _CollectionCard extends StatelessWidget {
 class _StreakCard extends StatelessWidget {
   final String count;
   final String label;
+  final String subtitle;
   final IconData icon;
+  final String urgency; // 'normal', 'warning', 'critical', 'expired'
 
   const _StreakCard({
     required this.count,
     required this.label,
+    required this.subtitle,
     required this.icon,
+    required this.urgency,
   });
+
+  Color _getBorderColor() {
+    switch (urgency) {
+      case 'critical':
+        return AppColors.error;
+      case 'warning':
+        return AppColors.warning;
+      case 'expired':
+        return AppColors.neutral400;
+      default:
+        return Colors.transparent;
+    }
+  }
+
+  Color _getIconBackgroundColor() {
+    switch (urgency) {
+      case 'critical':
+        return AppColors.error.withValues(alpha: 0.1);
+      case 'warning':
+        return AppColors.warning.withValues(alpha: 0.1);
+      default:
+        return AppColors.warning.withValues(alpha: 0.1);
+    }
+  }
+
+  Color _getIconColor() {
+    switch (urgency) {
+      case 'critical':
+        return AppColors.error;
+      case 'warning':
+        return AppColors.warning;
+      default:
+        return AppColors.warning;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1258,37 +1415,60 @@ class _StreakCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _getBorderColor(),
+          width: _getBorderColor() != Colors.transparent ? 2 : 0,
+        ),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.warning.withValues(alpha: 0.1),
+              color: _getIconBackgroundColor(),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: AppColors.warning, size: 20),
+            child: Icon(icon, color: _getIconColor(), size: 20),
           ),
           const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                count,
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  count,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
                 ),
-              ),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.black38,
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.black38,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: urgency == 'critical'
+                        ? AppColors.error
+                        : urgency == 'warning'
+                            ? AppColors.warning
+                            : AppColors.neutral600,
+                    fontWeight: urgency == 'critical' || urgency == 'warning'
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         ],
       ),

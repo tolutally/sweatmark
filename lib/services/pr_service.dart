@@ -31,16 +31,17 @@ class PRService {
       final current1RM = _calculateBest1RM(exerciseLog.sets);
       
       if (current1RM > 0) {
-        // If no history exists, it's a PR
+        // Use stored name first, fallback to library lookup
+        final exerciseName = exerciseLog.exerciseName ?? _getExerciseName(exerciseLog.exerciseId);
+        
+        // If no history exists, it's a PR (first time doing this exercise)
         if (!historicalBest.containsKey(exerciseLog.exerciseId)) {
-          final exerciseName = _getExerciseName(exerciseLog.exerciseId);
           if (exerciseName != null) {
             newPRs.add(exerciseName);
           }
         } 
         // If current exceeds historical best, it's a PR
         else if (current1RM > historicalBest[exerciseLog.exerciseId]!) {
-          final exerciseName = _getExerciseName(exerciseLog.exerciseId);
           if (exerciseName != null) {
             newPRs.add(exerciseName);
           }

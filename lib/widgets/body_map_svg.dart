@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../models/workout_model.dart';
 import '../data/muscle_assets.dart';
-import '../theme/app_theme.dart';
 
 class BodyMapSvg extends StatefulWidget {
   final Map<String, MuscleStatus> statusMap;
@@ -65,9 +64,9 @@ class _BodyMapSvgState extends State<BodyMapSvg>
       case MuscleStatus.recovered:
         return '#3b82f6'; // Blue
       case MuscleStatus.recovering:
-        return '#7EECD8'; // Lighter teal
+        return '#FFB648'; // Amber/Warning
       case MuscleStatus.fatigued:
-        return '#5EDDC8'; // AppColors.brandTeal
+        return '#FF7A68'; // Coral
     }
   }
 
@@ -93,30 +92,7 @@ class _BodyMapSvgState extends State<BodyMapSvg>
     final svgString = widget.isFront ? BODY_FRONT_SVG : BODY_BACK_SVG;
     final coloredSvg = _processSvg(svgString);
 
-    if (_hasFatiguedMuscle) {
-      return AnimatedBuilder(
-        animation: _pulseAnimation,
-        builder: (context, child) {
-          return Container(
-            decoration: BoxDecoration(
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.brandTeal.withOpacity(_pulseAnimation.value),
-                  blurRadius: 24,
-                  spreadRadius: 4,
-                ),
-              ],
-            ),
-            child: child,
-          );
-        },
-        child: SvgPicture.string(
-          coloredSvg,
-          fit: BoxFit.contain,
-        ),
-      );
-    }
-
+    // Clean and simple - no background gradient or glow
     return SvgPicture.string(
       coloredSvg,
       fit: BoxFit.contain,

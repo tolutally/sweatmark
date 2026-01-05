@@ -105,10 +105,10 @@ class ExerciseCard extends StatelessWidget {
                           ),
                           onChanged: (val) {
                             context.read<WorkoutNotifier>().updateSet(
-                                log.exerciseId,
-                                index,
-                                double.tryParse(val),
-                                set.reps);
+                                  log.exerciseId,
+                                  index,
+                                  weight: double.tryParse(val),
+                                );
                           },
                         ),
                       ),
@@ -131,10 +131,10 @@ class ExerciseCard extends StatelessWidget {
                           ),
                           onChanged: (val) {
                             context.read<WorkoutNotifier>().updateSet(
-                                log.exerciseId,
-                                index,
-                                set.weight,
-                                int.tryParse(val));
+                                  log.exerciseId,
+                                  index,
+                                  reps: int.tryParse(val),
+                                );
                           },
                         ),
                       ),

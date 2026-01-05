@@ -10,7 +10,7 @@ class StorageService {
   static const String _fileName = 'workout_logs.json';
   static const String _customExercisesFileName = 'custom_exercises.json';
   static const String _draftWorkoutFileName = 'draft_workout.json';
-  
+
   final FirebaseService _firebaseService = FirebaseService();
 
   Future<String> _getFilePath() async {
@@ -31,7 +31,7 @@ class StorageService {
   Future<void> saveWorkout(WorkoutLog log) async {
     final List<WorkoutLog> logs = await getWorkouts();
     logs.add(log);
-    
+
     final file = File(await _getFilePath());
     final jsonList = logs.map((e) => e.toJson()).toList();
     await file.writeAsString(jsonEncode(jsonList));
@@ -66,14 +66,27 @@ class StorageService {
 
   // Custom Exercises
   Future<void> saveCustomExercise(Exercise exercise) async {
+    print('💾 Saving custom exercise: ${exercise.name} (ID: ${exercise.id})');
+
     // Save locally
     final exercises = await getCustomExercises();
-    exercises.add(exercise);
-    
-    final file = File(await _getCustomExercisesFilePath());
+
+    // Check for duplicates by ID
+    final existingIndex = exercises.indexWhere((e) => e.id == exercise.id);
+    if (existingIndex >= 0) {
+      print('⚠️ Exercise with ID ${exercise.id} already exists, updating...');
+      exercises[existingIndex] = exercise;
+    } else {
+      exercises.add(exercise);
+    }
+
+    final filePath = await _getCustomExercisesFilePath();
+    final file = File(filePath);
     final jsonList = exercises.map((e) => e.toJson()).toList();
     await file.writeAsString(jsonEncode(jsonList));
-    
+    print(
+        '✅ Custom exercise saved locally to: $filePath (Total: ${exercises.length})');
+
     // Also sync to Firebase if user is logged in
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -84,51 +97,65 @@ class StorageService {
         print('⚠️ Failed to sync custom exercise to Firebase: $e');
         // Don't throw - local save succeeded
       }
+    } else {
+      print('ℹ️ User not logged in, skipping Firebase sync');
     }
   }
 
   Future<List<Exercise>> getCustomExercises() async {
     try {
-      final file = File(await _getCustomExercisesFilePath());
+      final filePath = await _getCustomExercisesFilePath();
+      final file = File(filePath);
       if (!await file.exists()) {
+        print('ℹ️ No local custom exercises file exists yet');
         return [];
       }
 
       final content = await file.readAsString();
       final List<dynamic> jsonList = jsonDecode(content);
-      return jsonList.map((e) => Exercise.fromJson(e)).toList();
+      final exercises = jsonList.map((e) => Exercise.fromJson(e)).toList();
+      print(
+          '📖 Loaded ${exercises.length} custom exercises from local storage');
+      return exercises;
     } catch (e) {
-      print('Error reading custom exercises: $e');
+      print('❌ Error reading custom exercises: $e');
       return [];
     }
   }
 
   /// Get custom exercises merged from local and Firebase
   Future<List<Exercise>> getCustomExercisesMerged() async {
+    print('🔄 Getting merged custom exercises...');
     final localExercises = await getCustomExercises();
-    
+
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
+      print(
+          'ℹ️ User not logged in, returning ${localExercises.length} local exercises only');
       return localExercises;
     }
-    
+
     try {
-      final firebaseExercises = await _firebaseService.getCustomExercises(user.uid);
-      
+      print('☁️ Fetching custom exercises from Firebase for user: ${user.uid}');
+      final firebaseExercises =
+          await _firebaseService.getCustomExercises(user.uid);
+      print('☁️ Retrieved ${firebaseExercises.length} exercises from Firebase');
+
       // Merge: use a map to avoid duplicates by ID
       final Map<String, Exercise> exerciseMap = {};
-      
+
       // Add local exercises first
       for (final ex in localExercises) {
         exerciseMap[ex.id] = ex;
       }
-      
+
       // Add/override with Firebase exercises
       for (final exMap in firebaseExercises) {
         final ex = Exercise.fromJson(exMap);
         exerciseMap[ex.id] = ex;
       }
-      
+
+      print('✅ Merged total: ${exerciseMap.length} custom exercises');
       return exerciseMap.values.toList();
     } catch (e) {
       print('⚠️ Error fetching Firebase exercises, using local only: $e');
@@ -140,7 +167,7 @@ class StorageService {
   Future<void> syncCustomExercisesToFirebase() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    
+
     try {
       final localExercises = await getCustomExercises();
       if (localExercises.isNotEmpty) {
@@ -157,11 +184,11 @@ class StorageService {
     // Delete locally
     final exercises = await getCustomExercises();
     exercises.removeWhere((e) => e.id == exerciseId);
-    
+
     final file = File(await _getCustomExercisesFilePath());
     final jsonList = exercises.map((e) => e.toJson()).toList();
     await file.writeAsString(jsonEncode(jsonList));
-    
+
     // Also delete from Firebase if user is logged in
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {

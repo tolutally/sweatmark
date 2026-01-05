@@ -1,0 +1,1431 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../data/exercise_data.dart';
+import '../models/exercise_model.dart';
+import '../widgets/library_item.dart';
+import '../services/storage_service.dart';
+import 'create_exercise_screen.dart';
+import '../theme/app_theme.dart';
+import '../services/firebase_service.dart';
+import '../data/seed_exercises.dart';
+import '../state/exercise_db_notifier.dart';
+import '../state/auth_notifier.dart';
+
+class LibraryScreen extends StatefulWidget {
+  final bool isPicker;
+  const LibraryScreen({super.key, this.isPicker = false});
+
+  @override
+  State<LibraryScreen> createState() => _LibraryScreenState();
+}
+
+class _LibraryScreenState extends State<LibraryScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  String? _selectedMuscle;
+
+  // Filter options extracted from exercise library
+  final List<String> _muscleGroups = [
+    'Chest',
+    'Back',
+    'Shoulders',
+    'Biceps',
+    'Triceps',
+    'Abs / Core',
+    'Legs',
+  ];
+  final List<String> _equipment = [
+    'Barbell',
+    'Dumbbell',
+    'Machine',
+    'Cable',
+    'Bodyweight',
+    'Kettlebell',
+    'Bands',
+    'Other'
+  ];
+  final List<String> _difficulties = ['Beginner', 'Intermediate', 'Advanced'];
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize ExerciseDB - load all exercises from cache
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final exerciseDbNotifier = context.read<ExerciseDbNotifier>();
+      await exerciseDbNotifier.search(query: ''); // Load all cached exercises
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _performSearch(String query) {
+    setState(() => _searchQuery = query);
+    final exerciseDbNotifier = context.read<ExerciseDbNotifier>();
+    exerciseDbNotifier.searchWithDebounce(query);
+  }
+
+  List<Exercise> _getFilteredExercises(List<Exercise> exercises) {
+    if (_selectedMuscle == null) return exercises;
+    return exercises.where((ex) => ex.muscleGroup == _selectedMuscle).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final exerciseDbNotifier = context.watch<ExerciseDbNotifier>();
+    final exercises = _getFilteredExercises(exerciseDbNotifier.exercises);
+    final isLoading = exerciseDbNotifier.isLoading;
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+      ),
+      child: Scaffold(
+        backgroundColor: AppColors.neutral50,
+        appBar: AppBar(
+          title: Text(
+            widget.isPicker ? 'Choose Exercise' : 'Exercise Library',
+            style: const TextStyle(color: AppColors.neutral900),
+          ),
+          iconTheme: const IconThemeData(color: AppColors.neutral800),
+          backgroundColor: AppColors.neutral50,
+          elevation: 0,
+        ),
+        body: Column(
+          children: [
+            // Search Bar
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search ${exercises.length}+ exercises...',
+                  prefixIcon: const Icon(Icons.search),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.neutral200),
+                  ),
+                ),
+                onChanged: (value) => _performSearch(value),
+              ),
+            ),
+
+            // Muscle Group Filter
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  FilterChip(
+                    label: Text(_selectedMuscle ?? 'All Muscles'),
+                    selected: _selectedMuscle != null,
+                    selectedColor: AppColors.brandTeal.withOpacity(0.18),
+                    backgroundColor: Colors.white,
+                    checkmarkColor: AppColors.brandTeal,
+                    labelStyle: TextStyle(
+                      color: _selectedMuscle != null
+                          ? AppColors.brandTeal
+                          : AppColors.neutral800,
+                    ),
+                    onSelected: (selected) {
+                      if (_selectedMuscle != null) {
+                        setState(() => _selectedMuscle = null);
+                      } else {
+                        _showMuscleGroupPicker();
+                      }
+                    },
+                  ),
+                  if (_selectedMuscle != null) ...[
+                    const SizedBox(width: 8),
+                    FilterChip(
+                      label: const Text('Clear Filter'),
+                      selected: false,
+                      onSelected: (selected) {
+                        setState(() => _selectedMuscle = null);
+                      },
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Exercise List
+            Expanded(
+              child: isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : exercises.isEmpty
+                      ? _buildEmptyState()
+                      : ListView.builder(
+                          itemCount: exercises.length,
+                          itemBuilder: (context, index) {
+                            final exercise = exercises[index];
+                            return _buildExerciseCard(exercise);
+                          },
+                        ),
+            ),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () async {
+            final Exercise? newExercise = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const CreateExerciseScreen(),
+              ),
+            );
+            if (newExercise != null && widget.isPicker && context.mounted) {
+              Navigator.pop(context, newExercise);
+            }
+          },
+          backgroundColor: AppColors.brandTeal,
+          icon: const Icon(PhosphorIconsBold.plus, color: Colors.white),
+          label: const Text(
+            'Create Exercise',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Column(
+      children: [
+        // Search Bar
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: TextField(
+            decoration: InputDecoration(
+              hintText: 'Search exercises...',
+              prefixIcon: const Icon(Icons.search),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.neutral200),
+              ),
+            ),
+            onChanged: (value) {
+              _searchQuery = value;
+              _filter();
+            },
+          ),
+        ),
+
+        // Filters
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              FilterChip(
+                label: Text(_selectedMuscle ?? 'Any Muscle'),
+                selected: _selectedMuscle != null,
+                selectedColor: AppColors.brandTeal.withOpacity(0.18),
+                backgroundColor: Colors.white,
+                checkmarkColor: AppColors.brandTeal,
+                labelStyle: TextStyle(
+                  color: _selectedMuscle != null
+                      ? AppColors.brandTeal
+                      : AppColors.neutral800,
+                ),
+                onSelected: (selected) {
+                  if (_selectedMuscle != null) {
+                    setState(() {
+                      _selectedMuscle = null;
+                      _filter();
+                    });
+                  } else {
+                    _showMuscleGroupPicker();
+                  }
+                },
+              ),
+              const SizedBox(width: 8),
+              FilterChip(
+                label: Text(_selectedEquipment ?? 'Any Equipment'),
+                selected: _selectedEquipment != null,
+                selectedColor: AppColors.brandTeal.withOpacity(0.18),
+                backgroundColor: Colors.white,
+                checkmarkColor: AppColors.brandTeal,
+                labelStyle: TextStyle(
+                  color: _selectedEquipment != null
+                      ? AppColors.brandTeal
+                      : AppColors.neutral800,
+                ),
+                onSelected: (selected) {
+                  if (_selectedEquipment != null) {
+                    setState(() {
+                      _selectedEquipment = null;
+                      _filter();
+                    });
+                  } else {
+                    _showEquipmentPicker();
+                  }
+                },
+              ),
+              const SizedBox(width: 8),
+              FilterChip(
+                label: Text(_selectedDifficulty ?? 'Any Difficulty'),
+                selected: _selectedDifficulty != null,
+                selectedColor: AppColors.brandTeal.withOpacity(0.18),
+                backgroundColor: Colors.white,
+                checkmarkColor: AppColors.brandTeal,
+                labelStyle: TextStyle(
+                  color: _selectedDifficulty != null
+                      ? AppColors.brandTeal
+                      : AppColors.neutral800,
+                ),
+                onSelected: (selected) {
+                  if (_selectedDifficulty != null) {
+                    setState(() {
+                      _selectedDifficulty = null;
+                      _filter();
+                    });
+                  } else {
+                    _showDifficultyPicker();
+                  }
+                },
+              ),
+              const SizedBox(width: 8),
+              if (_selectedMuscle != null ||
+                  _selectedEquipment != null ||
+                  _selectedDifficulty != null)
+                FilterChip(
+                  label: const Text('Clear All'),
+                  selected: false,
+                  onSelected: (selected) {
+                    setState(() {
+                      _selectedMuscle = null;
+                      _selectedEquipment = null;
+                      _selectedDifficulty = null;
+                      _filter();
+                    });
+                  },
+                ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // List
+        Expanded(
+          child: ListView.builder(
+            itemCount: _filteredExercises.length + 1, // +1 for Create button
+            itemBuilder: (context, index) {
+              // Create Exercise Button
+              if (index == 0) {
+                return Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: GestureDetector(
+                    onTap: () async {
+                      final Exercise? newExercise = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const CreateExerciseScreen(),
+                        ),
+                      );
+                      if (newExercise != null) {
+                        await _storageService.saveCustomExercise(newExercise);
+                        await _loadExercises();
+                        if (!context.mounted) return;
+                        if (widget.isPicker) {
+                          Navigator.pop(context, newExercise);
+                        }
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [AppColors.brandTeal, AppColors.infoSoft],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.brandTeal.withValues(alpha: 0.3),
+                            blurRadius: 15,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(PhosphorIconsBold.plus,
+                              color: Colors.white, size: 24),
+                          SizedBox(width: 12),
+                          Text(
+                            'Create Custom Exercise',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }
+
+              final exercise = _filteredExercises[index - 1];
+              return LibraryItem(
+                exercise: exercise,
+                onTap: widget.isPicker
+                    ? () {
+                        Navigator.pop(context, exercise);
+                      }
+                    : null,
+                onInfoTap: () {
+                  // Show info dialog
+                },
+              );
+            },
+          ),
+        )
+      ],
+    );
+  }
+
+  /// Build the "Browse ExerciseDB" tab
+  Widget _buildExerciseDbTab() {
+    return Consumer<ExerciseDbNotifier>(
+      builder: (context, notifier, _) {
+        return Column(
+          children: [
+            // Search Bar
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: TextField(
+                controller: _exerciseDbSearchController,
+                decoration: InputDecoration(
+                  hintText: 'Search 1300+ exercises...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: notifier.currentQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _exerciseDbSearchController.clear();
+                            notifier.clearFilters();
+                          },
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.neutral200),
+                  ),
+                ),
+                onChanged: (value) {
+                  notifier.searchWithDebounce(value);
+                },
+              ),
+            ),
+
+            // Body Part Filter Chips
+            if (notifier.filtersLoaded)
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    ...notifier.bodyParts.take(6).map((bodyPart) {
+                      final isSelected = notifier.currentBodyPart == bodyPart;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: FilterChip(
+                          label: Text(_capitalizeBodyPart(bodyPart)),
+                          selected: isSelected,
+                          selectedColor: AppColors.brandTeal.withOpacity(0.18),
+                          backgroundColor: Colors.white,
+                          checkmarkColor: AppColors.brandTeal,
+                          labelStyle: TextStyle(
+                            color: isSelected
+                                ? AppColors.brandTeal
+                                : AppColors.neutral800,
+                          ),
+                          onSelected: (selected) {
+                            if (isSelected) {
+                              notifier.filterByBodyPart(null);
+                            } else {
+                              notifier.filterByBodyPart(bodyPart);
+                            }
+                          },
+                        ),
+                      );
+                    }),
+                    FilterChip(
+                      label: const Text('More...'),
+                      selected: false,
+                      backgroundColor: Colors.white,
+                      onSelected: (_) => _showExerciseDbBodyPartPicker(notifier),
+                    ),
+                  ],
+                ),
+              ),
+
+            const SizedBox(height: 8),
+
+            // Results
+            Expanded(
+              child: _buildExerciseDbResults(notifier),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildExerciseDbResults(ExerciseDbNotifier notifier) {
+    // Loading state
+    if (notifier.isLoading) {
+      return _buildSkeletonLoader();
+    }
+
+    // Error state
+    if (notifier.error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(PhosphorIconsBold.warningCircle,
+                size: 48, color: AppColors.error),
+            const SizedBox(height: 16),
+            Text(
+              notifier.error!,
+              style: const TextStyle(color: AppColors.neutral600),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => notifier.search(
+                query: notifier.currentQuery,
+                bodyPart: notifier.currentBodyPart,
+              ),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Empty state (no search yet)
+    if (!notifier.hasFilters && notifier.exercises.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(PhosphorIconsBold.barbell,
+                size: 64, color: AppColors.neutral200),
+            const SizedBox(height: 16),
+            const Text(
+              'Search for exercises or select a body part',
+              style: TextStyle(
+                color: AppColors.neutral500,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Browse 1300+ exercises with animated GIFs',
+              style: TextStyle(
+                color: AppColors.neutral400,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // No results
+    if (notifier.hasFilters && notifier.exercises.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(PhosphorIconsBold.magnifyingGlass,
+                size: 48, color: AppColors.neutral200),
+            const SizedBox(height: 16),
+            const Text(
+              'No exercises found',
+              style: TextStyle(color: AppColors.neutral600),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () {
+                _exerciseDbSearchController.clear();
+                notifier.clearFilters();
+              },
+              child: const Text('Clear filters'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Results list
+    return ListView.builder(
+      itemCount: notifier.exercises.length,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemBuilder: (context, index) {
+        final exercise = notifier.exercises[index];
+        return _ExerciseDbItem(
+          exercise: exercise,
+          isSaved: notifier.isExerciseSaved(exercise),
+          onTap: widget.isPicker
+              ? () => Navigator.pop(context, exercise)
+              : () => _showExerciseDbDetail(exercise),
+          onSave: () => _saveExercise(exercise),
+        );
+      },
+    );
+  }
+
+  Widget _buildSkeletonLoader() {
+    return ListView.builder(
+      itemCount: 8,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemBuilder: (context, index) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              // Skeleton thumbnail
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: AppColors.neutral100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Skeleton text
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      height: 16,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: AppColors.neutral100,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      height: 12,
+                      width: 100,
+                      decoration: BoxDecoration(
+                        color: AppColors.neutral100,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showExerciseDbBodyPartPicker(ExerciseDbNotifier notifier) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.6,
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Column(
+          children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              child: Text(
+                'Select Body Part',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const Divider(),
+            Expanded(
+              child: ListView(
+                children: notifier.bodyParts
+                    .map((bodyPart) => ListTile(
+                          title: Text(
+                            _capitalizeBodyPart(bodyPart),
+                            style: const TextStyle(fontSize: 17),
+                          ),
+                          trailing: notifier.currentBodyPart == bodyPart
+                              ? const Icon(PhosphorIconsBold.check,
+                                  color: AppColors.info)
+                              : null,
+                          onTap: () {
+                            notifier.filterByBodyPart(bodyPart);
+                            Navigator.pop(context);
+                          },
+                        ))
+                    .toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showExerciseDbDetail(Exercise exercise) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        maxChildSize: 0.95,
+        minChildSize: 0.5,
+        expand: false,
+        builder: (context, scrollController) {
+          return _ExerciseDbDetailSheet(
+            exercise: exercise,
+            scrollController: scrollController,
+            onSave: () => _saveExercise(exercise),
+            onAddToWorkout: widget.isPicker
+                ? () => Navigator.pop(context, exercise)
+                : null,
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _saveExercise(Exercise exercise) async {
+    final authNotifier = context.read<AuthNotifier>();
+    final exerciseDbNotifier = context.read<ExerciseDbNotifier>();
+
+    if (!authNotifier.isAuthenticated || authNotifier.user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in to save exercises')),
+      );
+      return;
+    }
+
+    final isSaved = exerciseDbNotifier.isExerciseSaved(exercise);
+
+    if (isSaved) {
+      final success = await exerciseDbNotifier.removeExercise(
+        authNotifier.user!.uid,
+        exercise,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success
+                ? 'Removed from your library'
+                : 'Failed to remove exercise'),
+            backgroundColor: success ? AppColors.neutral600 : AppColors.error,
+          ),
+        );
+      }
+    } else {
+      final success = await exerciseDbNotifier.saveExercise(
+        authNotifier.user!.uid,
+        exercise,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success
+                ? 'Saved to your library!'
+                : 'Failed to save exercise'),
+            backgroundColor: success ? AppColors.success : AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  String _capitalizeBodyPart(String bodyPart) {
+    return bodyPart
+        .split(' ')
+        .map((word) => word[0].toUpperCase() + word.substring(1))
+        .join(' ');
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(PhosphorIconsBold.magnifyingGlass,
+              size: 64, color: AppColors.neutral300),
+          const SizedBox(height: 16),
+          const Text(
+            'No exercises found',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: AppColors.neutral600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Try adjusting your search or filters',
+            style: TextStyle(color: AppColors.neutral500),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExerciseCard(Exercise exercise) {
+    return GestureDetector(
+      onTap: widget.isPicker
+          ? () => Navigator.pop(context, exercise)
+          : null,
+      child: Container(
+        margin: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Exercise Image/GIF
+            if (exercise.gifUrl != null && exercise.gifUrl!.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: CachedNetworkImage(
+                  imageUrl: exercise.gifUrl!,
+                  width: 80,
+                  height: 80,
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) => Container(
+                    width: 80,
+                    height: 80,
+                    color: AppColors.neutral100,
+                    child: const Center(
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                  errorWidget: (context, url, error) => Container(
+                    width: 80,
+                    height: 80,
+                    color: AppColors.neutral100,
+                    child: Icon(PhosphorIconsBold.barbell,
+                        size: 32, color: AppColors.neutral400),
+                  ),
+                ),
+              )
+            else
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: AppColors.brandTeal.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(PhosphorIconsBold.barbell,
+                    size: 32, color: AppColors.brandTeal),
+              ),
+            const SizedBox(width: 16),
+            // Exercise Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    exercise.name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.neutral900,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    exercise.muscleGroup,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: AppColors.neutral600,
+                    ),
+                  ),
+                  if (exercise.equipment.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(PhosphorIconsBold.barbell,
+                            size: 14, color: AppColors.neutral500),
+                        const SizedBox(width: 4),
+                        Text(
+                          exercise.equipment,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.neutral500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (widget.isPicker)
+              Icon(PhosphorIconsBold.caretRight,
+                  size: 20, color: AppColors.neutral400),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showMuscleGroupPicker() {
+    final muscles = ['General', 'Chest', 'Back', 'Shoulders', 'Arms', 'Legs', 'Core', 'Cardio'];
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.5,
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              child: Text(
+                'Select Muscle Group',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const Divider(),
+            Expanded(
+              child: ListView(
+                children: muscles
+                    .map((muscle) => ListTile(
+                          title: Text(
+                            muscle,
+                            style: const TextStyle(fontSize: 17),
+                          ),
+                          trailing: _selectedMuscle == muscle
+                              ? const Icon(PhosphorIconsBold.check,
+                                  color: AppColors.brandTeal)
+                              : null,
+                          onTap: () {
+                            setState(() => _selectedMuscle = muscle);
+                            Navigator.pop(context);
+                          },
+                        ))
+                    .toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showEquipmentPicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.6,
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              child: Text(
+                'Select Equipment',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const Divider(),
+            Expanded(
+              child: ListView(
+                children: _equipment
+                    .map((equipment) => ListTile(
+                          title: Text(
+                            equipment,
+                            style: const TextStyle(fontSize: 17),
+                          ),
+                          trailing: _selectedEquipment == equipment
+                              ? const Icon(PhosphorIconsBold.check,
+                                  color: AppColors.info)
+                              : null,
+                          onTap: () {
+                            setState(() {
+                              _selectedEquipment = equipment;
+                              _filter();
+                            });
+                            Navigator.pop(context);
+                          },
+                        ))
+                    .toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDifficultyPicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.5,
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              child: Text(
+                'Select Difficulty',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const Divider(),
+            Expanded(
+              child: ListView(
+                children: _difficulties
+                    .map((difficulty) => ListTile(
+                          title: Text(
+                            difficulty,
+                            style: const TextStyle(fontSize: 17),
+                          ),
+                          trailing: _selectedDifficulty == difficulty
+                              ? const Icon(PhosphorIconsBold.check,
+                                  color: AppColors.info)
+                              : null,
+                          onTap: () {
+                            setState(() {
+                              _selectedDifficulty = difficulty;
+                              _filter();
+                            });
+                            Navigator.pop(context);
+                          },
+                        ))
+                    .toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// List item widget for ExerciseDB exercises with GIF thumbnail
+class _ExerciseDbItem extends StatelessWidget {
+  final Exercise exercise;
+  final bool isSaved;
+  final VoidCallback? onTap;
+  final VoidCallback? onSave;
+
+  const _ExerciseDbItem({
+    required this.exercise,
+    required this.isSaved,
+    this.onTap,
+    this.onSave,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // GIF Thumbnail
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: exercise.hasGif
+                  ? CachedNetworkImage(
+                      imageUrl: exercise.gifUrl!,
+                      width: 60,
+                      height: 60,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => Container(
+                        width: 60,
+                        height: 60,
+                        color: AppColors.neutral100,
+                        child: const Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                  AppColors.brandTeal),
+                            ),
+                          ),
+                        ),
+                      ),
+                      errorWidget: (context, url, error) => Container(
+                        width: 60,
+                        height: 60,
+                        color: AppColors.neutral100,
+                        child: const Icon(PhosphorIconsBold.barbell,
+                            color: AppColors.neutral400),
+                      ),
+                    )
+                  : Container(
+                      width: 60,
+                      height: 60,
+                      color: AppColors.neutral100,
+                      child: Center(
+                        child: Text(
+                          exercise.icon,
+                          style: const TextStyle(fontSize: 24),
+                        ),
+                      ),
+                    ),
+            ),
+            const SizedBox(width: 12),
+            // Exercise info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    exercise.name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.neutral900,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.brandTeal.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          exercise.muscleGroup,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.brandTeal,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      if (exercise.equipment.isNotEmpty)
+                        Text(
+                          exercise.equipment,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.neutral500,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            // Save button
+            IconButton(
+              icon: Icon(
+                isSaved
+                    ? PhosphorIconsFill.bookmarkSimple
+                    : PhosphorIconsBold.bookmarkSimple,
+                color: isSaved ? AppColors.brandTeal : AppColors.neutral400,
+              ),
+              onPressed: onSave,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Detail sheet for ExerciseDB exercises
+class _ExerciseDbDetailSheet extends StatelessWidget {
+  final Exercise exercise;
+  final ScrollController scrollController;
+  final VoidCallback? onSave;
+  final VoidCallback? onAddToWorkout;
+
+  const _ExerciseDbDetailSheet({
+    required this.exercise,
+    required this.scrollController,
+    this.onSave,
+    this.onAddToWorkout,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      controller: scrollController,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Handle bar
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.neutral200,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // GIF
+          if (exercise.hasGif)
+            Center(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: CachedNetworkImage(
+                  imageUrl: exercise.gifUrl!,
+                  height: 250,
+                  fit: BoxFit.contain,
+                  placeholder: (context, url) => Container(
+                    height: 250,
+                    color: AppColors.neutral100,
+                    child: const Center(
+                      child: CircularProgressIndicator(
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(AppColors.brandTeal),
+                      ),
+                    ),
+                  ),
+                  errorWidget: (context, url, error) => Container(
+                    height: 250,
+                    color: AppColors.neutral100,
+                    child: const Icon(PhosphorIconsBold.barbell,
+                        size: 64, color: AppColors.neutral400),
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(height: 20),
+
+          // Title
+          Text(
+            exercise.name,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: AppColors.neutral900,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Tags
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildTag(exercise.muscleGroup, AppColors.brandTeal),
+              if (exercise.equipment.isNotEmpty)
+                _buildTag(exercise.equipment, AppColors.info),
+              if (exercise.secondaryMuscles != null)
+                ...exercise.secondaryMuscles!
+                    .take(3)
+                    .map((m) => _buildTag(m, AppColors.neutral500)),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Instructions
+          if (exercise.instructions != null &&
+              exercise.instructions!.isNotEmpty) ...[
+            const Text(
+              'Instructions',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.neutral900,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...exercise.instructions!.split('\n').asMap().entries.map((entry) {
+              final index = entry.key;
+              final instruction = entry.value.trim();
+              if (instruction.isEmpty) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: AppColors.brandTeal.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '${index + 1}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.brandTeal,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        instruction,
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: AppColors.neutral600,
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+          const SizedBox(height: 24),
+
+          // Action buttons
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: onSave,
+                  icon: const Icon(PhosphorIconsBold.bookmarkSimple),
+                  label: const Text('Save to Library'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: const BorderSide(color: AppColors.brandTeal),
+                    foregroundColor: AppColors.brandTeal,
+                  ),
+                ),
+              ),
+              if (onAddToWorkout != null) ...[
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: onAddToWorkout,
+                    icon: const Icon(PhosphorIconsBold.plus),
+                    label: const Text('Add to Workout'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      backgroundColor: AppColors.brandTeal,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTag(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 13,
+          color: color,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+}

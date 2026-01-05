@@ -3,10 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../models/workout_model.dart';
-import '../data/exercise_data.dart';
 import '../state/workout_notifier.dart';
 import 'workout_detail_screen.dart';
 import '../theme/app_theme.dart';
+// Note: totalWeight computed but UI uses workout.durationSeconds
 
 class WorkoutHistoryScreen extends StatefulWidget {
   const WorkoutHistoryScreen({super.key});
@@ -185,16 +185,6 @@ class _WorkoutCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Calculate total weight
-    double totalWeight = 0;
-    for (var exercise in workout.exercises) {
-      for (var set in exercise.sets) {
-        if (set.weight != null && set.reps != null) {
-          totalWeight += (set.weight! * set.reps!);
-        }
-      }
-    }
-
     return GestureDetector(
       onTap: onTap,
       child: Container(

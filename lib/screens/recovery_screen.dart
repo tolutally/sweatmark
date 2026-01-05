@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
-import '../state/recovery_notifier.dart';
+import '../services/recovery_service.dart';
+import '../models/muscle_recovery_model.dart';
 import '../widgets/body_map_svg.dart';
 import '../models/workout_model.dart';
 import '../theme/app_theme.dart';
+import '../state/auth_notifier.dart';
+import 'muscle_detail_screen.dart';
 
 class RecoveryScreen extends StatefulWidget {
   const RecoveryScreen({super.key});
@@ -15,76 +18,134 @@ class RecoveryScreen extends StatefulWidget {
 }
 
 class _RecoveryScreenState extends State<RecoveryScreen> {
+  final RecoveryService _recoveryService = RecoveryService();
   bool _showFront = true;
+  bool _isLoading = true;
+  List<MuscleRecovery> _recoveries = [];
+  Map<String, MuscleRecovery> _recoveryMap = {};
 
   // Front-facing muscle groups
   static const List<String> _frontMuscles = [
     'Shoulders',
     'Chest',
-    'Biceps',
-    'Forearms',
-    'Abs',
-    'Quads',
-    'Calves',
+    'Arms', // Maps to Biceps/Triceps
+    'Core', // Maps to Abs
+    'Legs', // Maps to Quads/Calves
   ];
 
   // Back-facing muscle groups
   static const List<String> _backMuscles = [
-    'Traps',
-    'Lats',
-    'Lower Back',
-    'Triceps',
-    'Glutes',
-    'Hamstrings',
-    'Calves',
+    'Shoulders', // Traps
+    'Back', // Lats/Lower Back
+    'Arms', // Triceps
+    'Legs', // Hamstrings/Calves/Glutes
   ];
 
-  /// Format relative time from a DateTime
-  String _formatRelativeTime(DateTime? timestamp) {
-    if (timestamp == null) return 'Not yet trained';
+  @override
+  void initState() {
+    super.initState();
+    _loadRecoveryData();
+  }
 
-    final now = DateTime.now();
-    final difference = now.difference(timestamp);
+  Future<void> _loadRecoveryData() async {
+    setState(() => _isLoading = true);
+    
+    final authNotifier = context.read<AuthNotifier>();
+    final userId = authNotifier.user?.uid;
+    
+    final recoveries = userId != null
+        ? await _recoveryService.getRecoveryFirestore(userId)
+        : await _recoveryService.getRecoveryLocal();
+    
+    // Apply current decay to all recoveries for accurate display
+    final updatedRecoveries = recoveries.map((r) {
+      final currentFatigue = RecoveryService.getCurrentFatigue(r);
+      return r.copyWith(fatigue: currentFatigue);
+    }).toList();
+    
+    setState(() {
+      _recoveries = updatedRecoveries;
+      _recoveryMap = {for (var r in updatedRecoveries) r.muscleGroup: r};
+      _isLoading = false;
+    });
+  }
 
-    if (difference.inMinutes < 60) {
-      return 'Just now';
-    } else if (difference.inHours < 24) {
-      final hours = difference.inHours;
-      return '$hours ${hours == 1 ? 'hour' : 'hours'} ago';
-    } else if (difference.inDays < 7) {
-      final days = difference.inDays;
-      return '$days ${days == 1 ? 'day' : 'days'} ago';
-    } else {
-      final weeks = (difference.inDays / 7).floor();
-      return '$weeks ${weeks == 1 ? 'week' : 'weeks'} ago';
+  void _showMuscleDetail(BuildContext context, MuscleRecovery recovery) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MuscleDetailScreen(recovery: recovery),
+      ),
+    );
+  }
+
+  /// Convert RecoveryService data to body map format
+  /// Maps exercise library muscle names to body SVG muscle IDs
+  Map<String, MuscleStatus> _getBodyMapStatus() {
+    final Map<String, MuscleStatus> statusMap = {};
+    
+    // Map exercise library muscles to SVG body map muscles
+    final muscleMapping = {
+      'Chest': 'Chest',
+      'Lats': 'Lats',
+      'Mid Back': 'Lats', // Map to same SVG
+      'Lower Back': 'Lower Back',
+      'Quads': 'Quads',
+      'Hamstrings': 'Hamstrings',
+      'Calves': 'Calves',
+      'Shoulders': 'Shoulders', // Maps to both left and right
+      'Rear Delts': 'Shoulders', // Part of shoulders in SVG
+      'Biceps': 'Biceps',
+      'Triceps': 'Triceps',
+      'Forearms': 'Forearms',
+      'Core': 'Abs',
+      'Glutes': 'Hamstrings', // Glutes shown with hamstrings in back view
+      'Glutes/Quads': 'Quads', // Hybrid muscles
+      'Glutes/Hamstrings': 'Hamstrings',
+    };
+
+    // Initialize all SVG muscles as recovered
+    const svgMuscles = [
+      'Shoulders', 'Chest', 'Biceps', 'Forearms', 'Abs', 'Quads', 'Calves',
+      'Lats', 'Lower Back', 'Triceps', 'Hamstrings',
+    ];
+    
+    for (final muscle in svgMuscles) {
+      statusMap[muscle] = MuscleStatus.recovered;
     }
+
+    // Update with actual recovery data from exercise library muscles
+    _recoveryMap.forEach((group, recovery) {
+      final targetMuscle = muscleMapping[group];
+      if (targetMuscle != null) {
+        // Use worst status if multiple muscles map to same SVG muscle
+        final currentStatus = statusMap[targetMuscle];
+        if (currentStatus == null || recovery.status.index > currentStatus.index) {
+          statusMap[targetMuscle] = recovery.status;
+        }
+      }
+    });
+
+    return statusMap;
   }
 
   @override
   Widget build(BuildContext context) {
-    final notifier = context.watch<RecoveryNotifier>();
-    final statusMap = notifier.muscleStatus;
-    final lastWorkedMap = notifier.lastWorkedMap;
-    final hasWorkoutHistory = notifier.hasWorkoutHistory;
+    final statusMap = _getBodyMapStatus();
+    final hasWorkoutHistory = _recoveries.isNotEmpty;
 
-    // Filter muscles based on front/back view
-    final visibleMuscleNames = _showFront ? _frontMuscles : _backMuscles;
-    
-    // Get filtered and sorted muscle list (fatigued first, then recovering, then recovered)
-    final sortedMuscles = statusMap.keys
-        .where((muscle) => visibleMuscleNames.contains(muscle))
-        .toList()
-      ..sort((a, b) {
-        final statusA = statusMap[a]!;
-        final statusB = statusMap[b]!;
-        return statusA.index.compareTo(statusB.index);
-      });
+    // Show only muscles with readiness < 80 (adaptive display)
+    // Sort by readiness ascending (most fatigued first)
+    final visibleRecoveries = _recoveries
+      .where((r) => r.readiness < 80)
+      .toList()
+      ..sort((a, b) => a.readiness.compareTo(b.readiness));
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark, // Android: dark icons
-        statusBarBrightness: Brightness.light, // iOS: dark icons on light bg
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
       ),
       child: Scaffold(
         backgroundColor: Colors.white,
@@ -93,7 +154,10 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
           elevation: 0,
           scrolledUnderElevation: 0,
           centerTitle: true,
-          automaticallyImplyLeading: false,
+          leading: IconButton(
+            icon: const Icon(PhosphorIconsBold.caretLeft, color: Colors.black87),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
           title: const Text(
             'Muscle Recovery',
             style: TextStyle(
@@ -104,104 +168,223 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
           ),
           actions: [
             IconButton(
-              icon: const Icon(PhosphorIconsRegular.x, color: Colors.black54),
-              onPressed: () => Navigator.pop(context),
+              icon: const Icon(PhosphorIconsBold.arrowClockwise, color: Colors.black54),
+              onPressed: _loadRecoveryData,
             ),
           ],
         ),
-        body: CustomScrollView(
-          slivers: [
-            // Front/Back Toggle
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _ToggleButton(
-                          label: 'Front',
-                          isSelected: _showFront,
-                          onTap: () => setState(() => _showFront = true),
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : RefreshIndicator(
+                onRefresh: _loadRecoveryData,
+                child: CustomScrollView(
+                  slivers: [
+                    // Summary Stats
+                    if (hasWorkoutHistory) ...[
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                          child: _buildSummaryCard(),
                         ),
-                        _ToggleButton(
-                          label: 'Back',
-                          isSelected: !_showFront,
-                          onTap: () => setState(() => _showFront = false),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
+                      ),
+                    ],
 
-            // Body Map or Empty State
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: MediaQuery.of(context).size.height * 0.35,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 8),
-                  child: hasWorkoutHistory
-                      ? BodyMapSvg(
-                          statusMap: statusMap,
-                          isFront: _showFront,
+                    // Front/Back Toggle
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _ToggleButton(
+                                  label: 'Front',
+                                  isSelected: _showFront,
+                                  onTap: () => setState(() => _showFront = true),
+                                ),
+                                _ToggleButton(
+                                  label: 'Back',
+                                  isSelected: !_showFront,
+                                  onTap: () => setState(() => _showFront = false),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Body Map or Empty State
+                    SliverToBoxAdapter(
+                      child: SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.35,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 8),
+                          child: hasWorkoutHistory
+                              ? BodyMapSvg(
+                                  statusMap: statusMap,
+                                  isFront: _showFront,
+                                )
+                              : _EmptyStateCard(),
+                        ),
+                      ),
+                    ),
+
+                    // Muscle Status List Header
+                    if (hasWorkoutHistory) ...[
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                          child: Row(
+                            children: [
+                              Text(
+                                visibleRecoveries.isEmpty ? 'ALL MUSCLES RECOVERED' : 'MUSCLES NEEDING RECOVERY',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey.shade500,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                              if (visibleRecoveries.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 8),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.warning.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      '${visibleRecoveries.length}',
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.warning,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // Muscle Status List or All Recovered Message
+                      if (visibleRecoveries.isEmpty)
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.all(32.0),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  PhosphorIconsBold.smiley,
+                                  size: 64,
+                                  color: Colors.green.shade400,
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'All Muscles Recovered!',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey.shade800,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Your muscles are ready for training',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey.shade500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         )
-                      : _EmptyStateCard(),
-                ),
-              ),
-            ),
+                      else
+                        SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) {
+                              final recovery = visibleRecoveries[index];
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                child: _MuscleStatusRow(
+                                  recovery: recovery,
+                                  onTap: () => _showMuscleDetail(context, recovery),
+                                ),
+                              );
+                            },
+                            childCount: visibleRecoveries.length,
+                          ),
+                        ),
+                    ],
 
-            // Muscle Status List Header
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                child: Text(
-                  'MUSCLE GROUPS',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade500,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ),
-            ),
-
-            // Muscle Status List
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final muscle = sortedMuscles[index];
-                  final status = statusMap[muscle]!;
-                  final lastWorked = lastWorkedMap[muscle];
-
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    child: _MuscleStatusRow(
-                      muscle: muscle,
-                      status: status,
-                      lastWorkedText: _formatRelativeTime(lastWorked),
+                    // Bottom padding
+                    const SliverToBoxAdapter(
+                      child: SizedBox(height: 32),
                     ),
-                  );
-                },
-                childCount: sortedMuscles.length,
+                  ],
+                ),
               ),
-            ),
-
-            // Bottom padding
-            const SliverToBoxAdapter(
-              child: SizedBox(height: 32),
-            ),
-          ],
-        ),
       ),
+    );
+  }
+
+  Widget _buildSummaryCard() {
+    final recovered = _recoveries.where((r) => r.isFullyRecovered).length;
+    final recovering = _recoveries.where((r) => r.status == MuscleStatus.recovering).length;
+    final fatigued = _recoveries.where((r) => r.status == MuscleStatus.fatigued).length;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.brandNavy, AppColors.brandNavyDeep],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildStatColumn('💪', recovered.toString(), 'Recovered'),
+          _buildStatColumn('⏳', recovering.toString(), 'Recovering'),
+          _buildStatColumn('😓', fatigued.toString(), 'Fatigued'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatColumn(String emoji, String value, String label) {
+    return Column(
+      children: [
+        Text(emoji, style: const TextStyle(fontSize: 24)),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 11,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -231,7 +414,7 @@ class _ToggleButton extends StatelessWidget {
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: AppColors.brandTeal.withOpacity(0.3),
+                    color: AppColors.brandTeal.withValues(alpha: 0.3),
                     blurRadius: 8,
                     spreadRadius: 1,
                   ),
@@ -252,40 +435,20 @@ class _ToggleButton extends StatelessWidget {
 }
 
 class _MuscleStatusRow extends StatelessWidget {
-  final String muscle;
-  final MuscleStatus status;
-  final String lastWorkedText;
+  final MuscleRecovery recovery;
+  final VoidCallback? onTap;
 
   const _MuscleStatusRow({
-    required this.muscle,
-    required this.status,
-    required this.lastWorkedText,
+    required this.recovery,
+    this.onTap,
   });
 
   Color _getStatusColor() {
-    switch (status) {
-      case MuscleStatus.recovered:
-        return const Color(0xFF3B82F6); // Blue
-      case MuscleStatus.recovering:
-        return const Color(0xFFFF8C70); // Lighter coral
-      case MuscleStatus.fatigued:
-        return AppColors.brandTeal;
-    }
-  }
-
-  String _getStatusText() {
-    switch (status) {
-      case MuscleStatus.recovered:
-        return 'Recovered';
-      case MuscleStatus.recovering:
-        return 'Recovering';
-      case MuscleStatus.fatigued:
-        return 'Fatigued';
-    }
+    return Color(int.parse('0xFF${recovery.statusColor.substring(1)}'));
   }
 
   IconData _getStatusIcon() {
-    switch (status) {
+    switch (recovery.status) {
       case MuscleStatus.recovered:
         return PhosphorIconsBold.checkCircle;
       case MuscleStatus.recovering:
@@ -297,29 +460,31 @@ class _MuscleStatusRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isFatigued = status == MuscleStatus.fatigued;
+    final isFatigued = recovery.shouldWarn;
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
         color: Colors.grey.shade50,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: isFatigued
-              ? AppColors.brandTeal.withOpacity(0.3)
+              ? _getStatusColor().withValues(alpha: 0.3)
               : Colors.grey.shade200,
         ),
         boxShadow: isFatigued
             ? [
                 BoxShadow(
-                  color: AppColors.brandTeal.withOpacity(0.1),
+                  color: _getStatusColor().withValues(alpha: 0.1),
                   blurRadius: 8,
                   spreadRadius: 1,
                 ),
               ]
             : [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
+                  color: Colors.black.withValues(alpha: 0.04),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -332,7 +497,7 @@ class _MuscleStatusRow extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: _getStatusColor().withOpacity(0.1),
+              color: _getStatusColor().withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -348,42 +513,70 @@ class _MuscleStatusRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  muscle,
+                  recovery.muscleGroup,
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: Colors.black87,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  lastWorkedText,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade500,
-                  ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Text(
+                      recovery.timeSinceLastTrained,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                    Text(
+                      ' • ',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade400,
+                      ),
+                    ),
+                    Text(
+                      RecoveryService.getMuscleRecoverySpeed(recovery.muscleGroup),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          // Status badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: _getStatusColor().withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              _getStatusText(),
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: _getStatusColor(),
+          // Readiness percentage
+          Column(
+            children: [
+              Text(
+                '${recovery.readiness.toInt()}%',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: _getStatusColor(),
+                ),
               ),
-            ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: _getStatusColor().withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  recovery.statusEmoji,
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+            ],
           ),
         ],
       ),
+    ),
     );
   }
 }

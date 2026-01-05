@@ -44,6 +44,65 @@ service cloud.firestore {
       match /schedule/{document=**} {
         allow read, write: if isOwner(userId);
       }
+      
+      // User saved exercises from ExerciseDB
+      match /saved_exercises/{exerciseId} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      // User settings/preferences
+      match /settings/{document=**} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      // User streak data
+      match /streak/{document=**} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      // User achievements
+      match /achievements/{achievementId} {
+        allow read: if isOwner(userId);
+        // Only Cloud Functions can write achievements
+        allow write: if false;
+      }
+      
+      // User muscle recovery data
+      match /muscle_recovery/{muscleGroup} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      // User analytics data (flame stats, daily volumes)
+      match /analytics/{document=**} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      // User stats (flame peak volume, etc.)
+      match /stats/{document=**} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      // User personal records
+      match /personalRecords/{recordId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+    
+    // ============================================
+    // EXERCISEDB CACHE (server-write only)
+    // ============================================
+    match /exercisedb_exercises/{exerciseId} {
+      // Any authenticated user can read cached exercises
+      allow read: if isAuthenticatedUser();
+      // Only Cloud Functions can write (no client writes)
+      allow write: if false;
+    }
+    
+    match /exercisedb_queries/{queryHash} {
+      // Any authenticated user can read cached queries
+      allow read: if isAuthenticatedUser();
+      // Only Cloud Functions can write (no client writes)
+      allow write: if false;
     }
     
     // ============================================

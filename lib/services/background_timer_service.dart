@@ -129,7 +129,7 @@ class BackgroundTimerService {
           enableVibration: false,
           showWhen: false,
           icon: '@mipmap/ic_launcher',
-          color: Color(0xFF2BD4BD),
+          color: Color(0xFF5EDDC8),
         ),
       ),
     );
@@ -152,7 +152,7 @@ class BackgroundTimerService {
           enableVibration: true,
           autoCancel: true,
           icon: '@mipmap/ic_launcher',
-          color: Color(0xFF2BD4BD),
+          color: Color(0xFF5EDDC8),
         ),
         iOS: DarwinNotificationDetails(
           presentAlert: true,
@@ -185,7 +185,7 @@ class BackgroundTimerService {
           playSound: false,
           enableVibration: true,
           icon: '@mipmap/ic_launcher',
-          color: Color(0xFF2BD4BD),
+          color: Color(0xFF5EDDC8),
         ),
         iOS: DarwinNotificationDetails(
           presentAlert: true,

@@ -39,6 +39,8 @@
 	<string>SweatMark needs camera access to take your profile photo</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>SweatMark needs photo library access to choose your profile photo</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>We save your workout summary image to your photos when you share it.</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>dev.flutter.background.refresh</string>

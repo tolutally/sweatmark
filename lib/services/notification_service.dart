@@ -179,6 +179,24 @@ class NotificationService {
   /// Get and log FCM token
   Future<String?> _getFCMToken() async {
     try {
+      // On iOS, we need to get APNS token first
+      if (Platform.isIOS) {
+        final apnsToken = await _fcm.getAPNSToken();
+        if (apnsToken == null) {
+          debugPrint('⚠️ APNS token not available yet, waiting...');
+          // Wait a bit and try again
+          await Future.delayed(const Duration(seconds: 2));
+          final retryToken = await _fcm.getAPNSToken();
+          if (retryToken == null) {
+            debugPrint('❌ APNS token still not available');
+            return null;
+          }
+          debugPrint('✅ APNS Token obtained: $retryToken');
+        } else {
+          debugPrint('✅ APNS Token: $apnsToken');
+        }
+      }
+
       final token = await _fcm.getToken();
       debugPrint('🔑 FCM Token: $token');
 
@@ -503,7 +521,7 @@ class NotificationService {
           enableVibration: false,
           showWhen: false,
           icon: '@mipmap/ic_launcher',
-          color: Color(0xFF2BD4BD),
+          color: Color(0xFF5EDDC8),
         ),
       ),
     );
@@ -532,7 +550,7 @@ class NotificationService {
           playSound: false,
           enableVibration: true,
           icon: '@mipmap/ic_launcher',
-          color: Color(0xFF2BD4BD),
+          color: Color(0xFF5EDDC8),
         ),
         iOS: DarwinNotificationDetails(
           presentAlert: true,
