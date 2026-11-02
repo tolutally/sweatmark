@@ -1,11 +1,11 @@
+import 'session_notifier.dart';
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import '../models/flame_model.dart';
 import '../models/workout_model.dart';
 import '../services/flame_service.dart';
 
 /// State management for Flame (7-day peak volume tracker)
-class FlameNotifier extends ChangeNotifier {
+class FlameNotifier extends SessionNotifier {
   final FlameService _flameService;
   final String userId;
 

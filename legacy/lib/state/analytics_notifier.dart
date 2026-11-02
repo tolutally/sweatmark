@@ -1,10 +1,10 @@
+import 'session_notifier.dart';
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import '../models/analytics_model.dart';
 import '../services/analytics_service.dart';
 
 /// State management for Analytics screen
-class AnalyticsNotifier extends ChangeNotifier {
+class AnalyticsNotifier extends SessionNotifier {
   final AnalyticsService _analyticsService;
   final String userId;
 

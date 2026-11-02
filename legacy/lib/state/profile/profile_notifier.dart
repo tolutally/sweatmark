@@ -1,10 +1,11 @@
+import '../session_notifier.dart';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../../models/profile_model.dart';
 import '../../services/firebase_service.dart';
 
-class ProfileNotifier extends ChangeNotifier {
+class ProfileNotifier extends SessionNotifier {
   ProfileNotifier(this._firebaseService);
 
   final FirebaseService _firebaseService;

@@ -2,24 +2,25 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Defines the type of streak tracking
 enum StreakType {
-  daily,    // Must complete 1 workout per day
-  weekly,   // Must complete X workouts per week (Mon-Sun)
-  custom,   // Must complete workouts on specific days of week
+  daily, // Must complete 1 workout per day
+  weekly, // Must complete X workouts per week (Mon-Sun)
+  custom, // Must complete workouts on specific days of week
 }
 
 /// Model for tracking workout streaks with grace period support
 class StreakModel {
-  final int current;            // Current active streak count
-  final int best;               // All-time best streak
-  final String? lastCompletedLocalDate;  // Last workout date in YYYY-MM-DD format (local timezone)
-  final String timezone;        // User's timezone (e.g., 'America/Los_Angeles')
-  final StreakType type;        // Type of streak tracking
-  final int weeklyGoal;         // Number of workouts per week (for weekly type)
+  final int current; // Current active streak count
+  final int best; // All-time best streak
+  final String?
+      lastCompletedLocalDate; // Last workout date in YYYY-MM-DD format (local timezone)
+  final String timezone; // User's timezone (e.g., 'America/Los_Angeles')
+  final StreakType type; // Type of streak tracking
+  final int weeklyGoal; // Number of workouts per week (for weekly type)
   final int currentWeekWorkouts; // Workouts completed this week
-  final String? weekStartDate;  // Start of current week (YYYY-MM-DD, Monday)
+  final String? weekStartDate; // Start of current week (YYYY-MM-DD, Monday)
   final List<int> scheduledDays; // Days of week for custom type (1=Mon, 7=Sun)
   final DateTime? graceDeadline; // Extended deadline with 6-hour grace period
-  final bool wasStreakBroken;   // Flag to show "streak broken" modal
+  final bool wasStreakBroken; // Flag to show "streak broken" modal
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -44,10 +45,10 @@ class StreakModel {
   /// Returns null if no deadline exists
   double? hoursUntilDeadline() {
     if (graceDeadline == null) return null;
-    
+
     final now = DateTime.now();
     final difference = graceDeadline!.difference(now);
-    
+
     return difference.inMinutes / 60.0;
   }
 
@@ -66,7 +67,7 @@ class StreakModel {
   /// Factory constructor from Firestore document
   factory StreakModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
-    
+
     return StreakModel(
       current: data['current'] ?? 0,
       best: data['best'] ?? 0,
@@ -80,8 +81,9 @@ class StreakModel {
       currentWeekWorkouts: data['currentWeekWorkouts'] ?? 0,
       weekStartDate: data['weekStartDate'],
       scheduledDays: (data['scheduledDays'] as List<dynamic>?)
-          ?.map((e) => e as int)
-          .toList() ?? [],
+              ?.map((e) => e as int)
+              .toList() ??
+          [],
       graceDeadline: data['graceDeadline'] != null
           ? (data['graceDeadline'] as Timestamp).toDate()
           : null,
@@ -103,9 +105,8 @@ class StreakModel {
       'currentWeekWorkouts': currentWeekWorkouts,
       'weekStartDate': weekStartDate,
       'scheduledDays': scheduledDays,
-      'graceDeadline': graceDeadline != null 
-          ? Timestamp.fromDate(graceDeadline!)
-          : null,
+      'graceDeadline':
+          graceDeadline != null ? Timestamp.fromDate(graceDeadline!) : null,
       'wasStreakBroken': wasStreakBroken,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
@@ -131,7 +132,8 @@ class StreakModel {
     return StreakModel(
       current: current ?? this.current,
       best: best ?? this.best,
-      lastCompletedLocalDate: lastCompletedLocalDate ?? this.lastCompletedLocalDate,
+      lastCompletedLocalDate:
+          lastCompletedLocalDate ?? this.lastCompletedLocalDate,
       timezone: timezone ?? this.timezone,
       type: type ?? this.type,
       weeklyGoal: weeklyGoal ?? this.weeklyGoal,

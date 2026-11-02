@@ -62,7 +62,9 @@ enum SweatTier {
         : 1.0;
 
     // Return the lower of the two (both requirements must be met)
-    return (workoutProgress < volumeProgress) ? workoutProgress : volumeProgress;
+    return (workoutProgress < volumeProgress)
+        ? workoutProgress
+        : volumeProgress;
   }
 
   /// Returns what's needed for next tier

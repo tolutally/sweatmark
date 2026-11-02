@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphor_icons/phosphor_icons.dart';
 import '../models/exercise_model.dart';
 import '../state/workout_notifier.dart';
 import '../state/settings_notifier.dart';
@@ -478,6 +478,11 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                                     widget.exercise.id,
                                     currentSetIndex,
                                     weight: weight,
+                                    weightUnit: widget.exerciseLog
+                                            .sets[currentSetIndex].weightUnit ??
+                                        context
+                                            .read<SettingsNotifier>()
+                                            .weightSuffix,
                                     reps: reps,
                                   );
                                   notifier.toggleSetCompletion(
@@ -653,9 +658,8 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                         fontSize: 18,
                         fontWeight:
                             reps == value ? FontWeight.bold : FontWeight.normal,
-                        color: reps == value
-                            ? AppColors.brandTeal
-                            : Colors.black,
+                        color:
+                            reps == value ? AppColors.brandTeal : Colors.black,
                       ),
                     ),
                     selected: reps == value,

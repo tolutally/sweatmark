@@ -1,10 +1,10 @@
+import 'session_notifier.dart';
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import '../models/streak_model.dart';
 import '../services/streak_service.dart';
 
 /// State management for workout streaks with real-time Firestore sync
-class StreakNotifier extends ChangeNotifier {
+class StreakNotifier extends SessionNotifier {
   final StreakService _streakService;
   final String userId;
 
