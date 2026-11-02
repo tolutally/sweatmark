@@ -1,4 +1,6 @@
+import 'widgets/personal_records.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -7,20 +9,16 @@ import 'firebase_options.dart';
 import 'state/workout_notifier.dart';
 import 'state/auth_notifier.dart';
 import 'state/settings_notifier.dart';
-import 'state/profile/profile_notifier.dart';
 import 'state/navigation/tab_navigation_notifier.dart';
 import 'state/template_notifier.dart';
 import 'state/exercise_db_notifier.dart';
-import 'state/streak_notifier.dart';
-import 'state/flame_notifier.dart';
-import 'state/analytics_notifier.dart';
 import 'services/firebase_service.dart';
-import 'services/flame_service.dart';
-import 'services/analytics_service.dart';
 import 'services/storage_service.dart';
+import 'services/account_storage.dart';
+import 'widgets/account_session.dart';
 import 'services/sync_service.dart';
 import 'services/notification_service.dart';
-import 'services/streak_service.dart';
+import 'data/exercise_catalog.dart';
 import 'data/exercise_db_repository.dart';
 import 'widgets/app_shell.dart';
 import 'screens/auth_screen.dart';
@@ -29,11 +27,17 @@ import 'theme/app_theme.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Set system UI overlay style for light theme (dark status bar icons)
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks(['General Sans'],
+        await rootBundle.loadString('assets/fonts/general_sans/LICENSE.txt'));
+  });
+
+  // Initial system UI style; the app theme follows the device appearance.
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.dark, // Dark icons for Android
-    statusBarBrightness: Brightness.light, // Light status bar for iOS (means dark icons)
+    statusBarBrightness:
+        Brightness.light, // Light status bar for iOS (means dark icons)
   ));
 
   // Initialize Firebase
@@ -41,17 +45,25 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    
+
     // Enable Firestore offline persistence
     FirebaseFirestore.instance.settings = const Settings(
       persistenceEnabled: true,
       cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
     );
-    
+
     print('Firebase initialized successfully');
   } catch (e) {
     print('Firebase initialization error: $e');
     print('Please run: flutterfire configure');
+  }
+
+  // Records and progress map older exercise IDs through the bundled catalog,
+  // so it must be ready before history is first shown.
+  try {
+    await ExerciseCatalog.load();
+  } catch (e) {
+    debugPrint('Exercise catalog failed to load: $e');
   }
 
   // Initialize notification service
@@ -69,78 +81,61 @@ class SweatMarkApp extends StatelessWidget {
   const SweatMarkApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // Initialize services
-    final firebaseService = FirebaseService();
-    final storageService = StorageService();
-    final syncService = SyncService(firebaseService, storageService);
-    final notificationService = NotificationService();
-    final exerciseDbRepository = ExerciseDbRepository();
-    final streakService = StreakService();
-    final flameService = FlameService();
-    final analyticsService = AnalyticsService();
+  Widget build(BuildContext context) => ChangeNotifierProvider(
+        create: (_) => AuthNotifier(FirebaseService()),
+        child: Selector<AuthNotifier, String?>(
+          selector: (_, auth) => auth.isAuthenticated ? auth.user!.uid : null,
+          builder: (_, userId, __) => AccountSession(
+            userId: userId,
+            builder: (_) => _SessionApp(userId: userId),
+          ),
+        ),
+      );
+}
 
+class _SessionApp extends StatefulWidget {
+  final String? userId;
+  const _SessionApp({required this.userId});
+
+  @override
+  State<_SessionApp> createState() => _SessionAppState();
+}
+
+class _SessionAppState extends State<_SessionApp> {
+  late final account = AccountStorage(widget.userId);
+  late final firebaseService = FirebaseService();
+  late final storageService = StorageService(account: account);
+  late final syncService = SyncService(firebaseService, storageService);
+  late final notificationService = NotificationService();
+  late final exerciseDbRepository = ExerciseDbRepository();
+
+  @override
+  void dispose() {
+    syncService.dispose();
+    firebaseService.stopWorkoutsListener();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthNotifier(firebaseService)),
-        ChangeNotifierProvider(create: (_) => WorkoutNotifier(syncService)),
+        ChangeNotifierProvider(
+            create: (_) => WorkoutNotifier(
+                  syncService,
+                  storageService: storageService,
+                )),
         ChangeNotifierProvider(create: (_) => SettingsNotifier()),
-        ChangeNotifierProvider(create: (_) => ProfileNotifier(firebaseService)),
         ChangeNotifierProvider(create: (_) => TabNavigationNotifier()),
         ChangeNotifierProvider(create: (_) => TemplateNotifier()),
         ChangeNotifierProvider(
           create: (_) => ExerciseDbNotifier(exerciseDbRepository),
-        ),
-        ChangeNotifierProxyProvider<AuthNotifier, StreakNotifier?>(
-          create: (_) => null,
-          update: (_, auth, previous) {
-            if (auth.user == null) return null;
-            // Reuse existing notifier if user hasn't changed
-            if (previous != null && previous.userId == auth.user!.uid) {
-              return previous;
-            }
-            return StreakNotifier(
-              streakService: streakService,
-              userId: auth.user!.uid,
-            );
-          },
-        ),
-        ChangeNotifierProxyProvider<AuthNotifier, FlameNotifier?>(
-          create: (_) => null,
-          update: (_, auth, previous) {
-            if (auth.user == null) return null;
-            // Reuse existing notifier if user hasn't changed
-            if (previous != null && previous.userId == auth.user!.uid) {
-              return previous;
-            }
-            return FlameNotifier(
-              flameService: flameService,
-              userId: auth.user!.uid,
-            );
-          },
-        ),
-        ChangeNotifierProxyProvider<AuthNotifier, AnalyticsNotifier?>(
-          create: (_) => null,
-          update: (_, auth, previous) {
-            if (auth.user == null) return null;
-            // Reuse existing notifier if user hasn't changed
-            if (previous != null && previous.userId == auth.user!.uid) {
-              return previous;
-            }
-            return AnalyticsNotifier(
-              analyticsService: analyticsService,
-              userId: auth.user!.uid,
-            );
-          },
         ),
         Provider.value(value: firebaseService),
         Provider.value(value: storageService),
         Provider.value(value: syncService),
         Provider.value(value: notificationService),
         Provider.value(value: exerciseDbRepository),
-        Provider.value(value: streakService),
-        Provider.value(value: flameService),
-        Provider.value(value: analyticsService),
       ],
       child: MaterialApp(
         title: 'SweatMark',
@@ -148,6 +143,12 @@ class SweatMarkApp extends StatelessWidget {
         theme: lightTheme,
         darkTheme: darkTheme,
         themeMode: ThemeMode.system,
+        builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+          value: Theme.of(context).brightness == Brightness.dark
+              ? SystemUiOverlayStyle.light
+              : SystemUiOverlayStyle.dark,
+          child: child!,
+        ),
         home: const AuthWrapper(),
       ),
     );
@@ -170,7 +171,7 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    
+
     // Defer setup to avoid accessing context before widget is fully mounted
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -180,67 +181,35 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
   }
 
   void _setupListeners() {
-    final authNotifier = context.read<AuthNotifier>();
+    final auth = context.read<AuthNotifier>();
+    if (!auth.isAuthenticated) return;
+    final userId = auth.user!.uid;
     _firebaseService = context.read<FirebaseService>();
     _workoutNotifier = context.read<WorkoutNotifier>();
-    final profileNotifier = context.read<ProfileNotifier>();
-    final templateNotifier = context.read<TemplateNotifier>();
-
-    // Listen to auth state and start/stop Firestore listeners
-    authNotifier.addListener(() {
-      if (authNotifier.isAuthenticated && authNotifier.user != null) {
-        // Start real-time listeners when authenticated
-        _firebaseService?.startWorkoutsListener(
-          authNotifier.user!.uid,
-          (workouts) {
-            // Update workout history in local storage when cloud changes
-            // This is silent and invisible to the user
-            print('Received ${workouts.length} workouts from Firestore');
-          },
-        );
-
-        // Initialize template notifier for the user
-        templateNotifier.initialize(authNotifier.user!.uid);
-
-        // Load workout history from cloud
-        _workoutNotifier?.loadWorkoutHistoryFromCloud(authNotifier.user!.uid);
-
-        // Set up PR notification callback
-        if (_workoutNotifier != null) {
-          _workoutNotifier!.onPersonalRecords = (newPRs) {
-          if (mounted) {
-            final message = newPRs.length == 1
-                ? '🎉 New PR: ${newPRs.first}!'
-                : '🎉 ${newPRs.length} New PRs: ${newPRs.join(", ")}!';
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(message),
-                backgroundColor: AppColors.brandTeal,
-                duration: const Duration(seconds: 4),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          }
-          };
-        }
-
-        profileNotifier.loadProfile(authNotifier.user!.uid, forceRefresh: true);
-      } else {
-        // Stop listeners when signed out
-        _firebaseService?.stopWorkoutsListener();
-        if (_workoutNotifier != null) {
-          _workoutNotifier!.onPersonalRecords = null;
-        }
-        profileNotifier.clear();
-      }
-    });
+    context.read<TemplateNotifier>().initialize(userId);
+    _workoutNotifier!.loadWorkoutHistoryFromCloud(userId);
+    _workoutNotifier!.onPersonalRecords = (newPRs) {
+      if (!mounted) return;
+      final settings = context.read<SettingsNotifier>();
+      final message = newPRs
+          .map((r) =>
+              'New PR! ${r.exerciseName} · ${r.label(settings.weightSuffix)}')
+          .join('\n');
+      if (settings.hapticFeedbackEnabled) HapticFeedback.mediumImpact();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: RecordCelebration(message),
+        backgroundColor: AppDesign.of(context).recordContainer,
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+      ));
+    };
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _firebaseService?.stopWorkoutsListener();
+    _workoutNotifier?.onPersonalRecords = null;
     super.dispose();
   }
 

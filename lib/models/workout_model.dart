@@ -2,20 +2,32 @@ enum MuscleStatus { recovered, recovering, fatigued }
 
 class WorkoutSet {
   double? weight;
+  String? weightUnit;
+  double? get weightKg => weight == null || weightUnit == null
+      ? null
+      : weightUnit == 'kg'
+          ? weight
+          : weight! / 2.2046226218;
+  String get weightLabel => weight == null
+      ? '—'
+      : '${weight!.toStringAsFixed(1)} ${weightUnit ?? "unit unknown"}';
   int? reps;
-  int? durationSeconds;  // For timed exercises (plank, cardio)
-  double? distance;      // For cardio exercises (miles or km)
-  double? speed;         // Speed in mph or km/h
-  double? incline;       // Incline percentage
-  int? resistance;       // Resistance level (1-20 typically)
+  int? durationSeconds; // For timed exercises (plank, cardio)
+  String? distanceUnit;
+  double? distance; // For cardio exercises (miles or km)
+  double? speed; // Speed in mph or km/h
+  double? incline; // Incline percentage
+  int? resistance; // Resistance level (1-20 typically)
   bool isCompleted;
   final bool isSuperSetRest;
 
   WorkoutSet({
     this.weight,
+    this.weightUnit,
     this.reps,
     this.durationSeconds,
     this.distance,
+    this.distanceUnit,
     this.speed,
     this.incline,
     this.resistance,
@@ -25,9 +37,11 @@ class WorkoutSet {
 
   Map<String, dynamic> toJson() => {
         'weight': weight,
+        'weightUnit': weightUnit,
         'reps': reps,
         'durationSeconds': durationSeconds,
         'distance': distance,
+        'distanceUnit': distanceUnit,
         'speed': speed,
         'incline': incline,
         'resistance': resistance,
@@ -38,9 +52,14 @@ class WorkoutSet {
   factory WorkoutSet.fromJson(Map<String, dynamic> json) {
     return WorkoutSet(
       weight: (json['weight'] as num?)?.toDouble(),
+      weightUnit:
+          ['kg', 'lb'].contains(json['weightUnit']) ? json['weightUnit'] : null,
       reps: json['reps'],
       durationSeconds: json['durationSeconds'],
       distance: (json['distance'] as num?)?.toDouble(),
+      distanceUnit: ['km', 'mi'].contains(json['distanceUnit'])
+          ? json['distanceUnit']
+          : null,
       speed: (json['speed'] as num?)?.toDouble(),
       incline: (json['incline'] as num?)?.toDouble(),
       resistance: json['resistance'],
@@ -51,9 +70,11 @@ class WorkoutSet {
 
   WorkoutSet copyWith({
     double? weight,
+    String? weightUnit,
     int? reps,
     int? durationSeconds,
     double? distance,
+    String? distanceUnit,
     double? speed,
     double? incline,
     int? resistance,
@@ -62,9 +83,11 @@ class WorkoutSet {
   }) {
     return WorkoutSet(
       weight: weight ?? this.weight,
+      weightUnit: weightUnit ?? this.weightUnit,
       reps: reps ?? this.reps,
       durationSeconds: durationSeconds ?? this.durationSeconds,
       distance: distance ?? this.distance,
+      distanceUnit: distanceUnit ?? this.distanceUnit,
       speed: speed ?? this.speed,
       incline: incline ?? this.incline,
       resistance: resistance ?? this.resistance,
@@ -74,7 +97,25 @@ class WorkoutSet {
   }
 }
 
+/// Readable exercise name for history, stats and sharing. Some older logs kept
+/// only an ID such as `free_Upright_Barbell_Row`; never show raw IDs.
+String exerciseDisplayName(String id,
+    {String? saved, Map<String, String> catalog = const {}}) {
+  final name = saved?.trim();
+  if (name != null && name.isNotEmpty && name != id) return name;
+  final known = catalog[id]?.trim();
+  if (known != null && known.isNotEmpty && known != id) return known;
+  // free-exercise-db IDs encode the name with underscores.
+  if (id.startsWith('free_') && id.length > 5) {
+    return id.substring(5).replaceAll('_', ' ').replaceAll(RegExp(r'\s+'), ' ');
+  }
+  return 'Saved exercise';
+}
+
 class WorkoutExerciseLog {
+  final int? averageHeartRate;
+  final String? intensity;
+  final String? exerciseType;
   final String exerciseId;
   final String? exerciseName;
   final String? muscleGroup;
@@ -86,6 +127,9 @@ class WorkoutExerciseLog {
 
   WorkoutExerciseLog({
     required this.exerciseId,
+    this.exerciseType,
+    this.averageHeartRate,
+    this.intensity,
     this.exerciseName,
     this.muscleGroup,
     this.equipment,
@@ -95,8 +139,14 @@ class WorkoutExerciseLog {
     this.orderInSuperSet,
   });
 
+  String get displayName =>
+      exerciseDisplayName(exerciseId, saved: exerciseName);
+
   Map<String, dynamic> toJson() => {
         'exerciseId': exerciseId,
+        'exerciseType': exerciseType,
+        'averageHeartRate': averageHeartRate,
+        'intensity': intensity,
         'exerciseName': exerciseName,
         'muscleGroup': muscleGroup,
         'equipment': equipment,
@@ -109,6 +159,11 @@ class WorkoutExerciseLog {
   factory WorkoutExerciseLog.fromJson(Map<String, dynamic> json) {
     return WorkoutExerciseLog(
       exerciseId: json['exerciseId'],
+      exerciseType: json['exerciseType'],
+      averageHeartRate: (json['averageHeartRate'] as num?)?.toInt(),
+      intensity: ['Low', 'Moderate', 'High'].contains(json['intensity'])
+          ? json['intensity']
+          : null,
       exerciseName: json['exerciseName'],
       muscleGroup: json['muscleGroup'],
       equipment: json['equipment'],

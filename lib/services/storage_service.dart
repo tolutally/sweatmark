@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:path_provider/path_provider.dart';
+import 'account_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/workout_model.dart';
 import '../models/exercise_model.dart';
@@ -11,234 +11,305 @@ class StorageService {
   static const String _customExercisesFileName = 'custom_exercises.json';
   static const String _draftWorkoutFileName = 'draft_workout.json';
 
-  final FirebaseService _firebaseService = FirebaseService();
+  late final FirebaseService _firebaseService = FirebaseService();
+  final AccountStorage _account;
+  String? get userId => _account.userId;
 
-  Future<String> _getFilePath() async {
-    final directory = await getApplicationDocumentsDirectory();
-    return '${directory.path}/$_fileName';
-  }
+  StorageService({AccountStorage? account})
+      : _account =
+            account ?? AccountStorage(FirebaseAuth.instance.currentUser?.uid);
 
-  Future<String> _getCustomExercisesFilePath() async {
-    final directory = await getApplicationDocumentsDirectory();
-    return '${directory.path}/$_customExercisesFileName';
-  }
+  bool get _canSync =>
+      userId != null && FirebaseAuth.instance.currentUser?.uid == userId;
 
-  Future<String> _getDraftWorkoutFilePath() async {
-    final directory = await getApplicationDocumentsDirectory();
-    return '${directory.path}/$_draftWorkoutFileName';
-  }
+  Future<String> _getFilePath() => _account.filePath(_fileName);
 
-  Future<void> saveWorkout(WorkoutLog log) async {
-    final List<WorkoutLog> logs = await getWorkouts();
-    logs.add(log);
+  Future<String> _getCustomExercisesFilePath() =>
+      _account.filePath(_customExercisesFileName);
 
-    final file = File(await _getFilePath());
-    final jsonList = logs.map((e) => e.toJson()).toList();
-    await file.writeAsString(jsonEncode(jsonList));
-  }
+  Future<String> _getDraftWorkoutFilePath() =>
+      _account.filePath(_draftWorkoutFileName);
 
-  Future<List<WorkoutLog>> getWorkouts() async {
-    try {
-      final file = File(await _getFilePath());
-      if (!await file.exists()) {
-        return [];
+  // One atomic snapshot contains both history and the durable outbox. Locks
+  // are shared across service instances, including overlapping login sessions.
+  static final Map<String, Future<void>> _locks = {};
+
+  Future<T> _withWorkouts<T>(
+      Future<T> Function(Map<String, dynamic>, String) action) async {
+    final path = await _account.filePath('workout_state.json');
+    final previous = _locks[path] ?? Future<void>.value();
+    final next = previous.then((_) async {
+      final file = File(path);
+      Map<String, dynamic> state;
+      if (await file.exists()) {
+        state = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      } else {
+        final legacy = File(await _getFilePath());
+        final logs = await legacy.exists()
+            ? (jsonDecode(await legacy.readAsString()) as List)
+            : <dynamic>[];
+        state = {
+          'revision': 0,
+          'workouts': <String, dynamic>{},
+          'pending': <String, dynamic>{}
+        };
+        for (final json in logs) {
+          final workout = WorkoutLog.fromJson(Map<String, dynamic>.from(json));
+          state['workouts'][workout.id] = workout.toJson();
+          state['pending'][workout.id] = {
+            'revision': 0,
+            'delete': false,
+            'workout': workout.toJson()
+          };
+        }
       }
-
-      final content = await file.readAsString();
-      final List<dynamic> jsonList = jsonDecode(content);
-      return jsonList.map((e) => WorkoutLog.fromJson(e)).toList();
-    } catch (e) {
-      print('Error reading workouts: $e');
-      return [];
+      if (!state.containsKey('draft')) {
+        final legacyDraft = File(await _getDraftWorkoutFilePath());
+        state['draft'] = await legacyDraft.exists()
+            ? jsonDecode(await legacyDraft.readAsString())
+            : null;
+      }
+      return action(state, path);
+    });
+    final tail = next.then<void>((_) {}, onError: (Object _, StackTrace __) {});
+    _locks[path] = tail;
+    try {
+      return await next;
+    } finally {
+      if (identical(_locks[path], tail)) _locks.remove(path);
     }
   }
+
+  Future<void> _writeState(Map<String, dynamic> state, String path) async {
+    final temporary = File('$path.tmp');
+    await temporary.writeAsString(jsonEncode(state), flush: true);
+    await temporary.rename(path);
+  }
+
+  Future<void> saveWorkout(WorkoutLog log) => _changeWorkout(log, false);
+  Future<void> deleteWorkout(WorkoutLog log) => _changeWorkout(log, true);
+
+  Future<void> _changeWorkout(WorkoutLog log, bool delete) =>
+      _withWorkouts((state, path) async {
+        final revision = (state['revision'] as int) + 1;
+        state['revision'] = revision;
+        state['deleted'] ??= <String, dynamic>{};
+        if (delete) {
+          state['deleted'][log.id] = true;
+          state['workouts'].remove(log.id);
+        } else {
+          state['deleted'].remove(log.id);
+          state['workouts'][log.id] = log.toJson();
+        }
+        if (!delete &&
+            state['draft']?['timestamp'] == log.timestamp.toIso8601String()) {
+          state['draft'] = null;
+        }
+        state['pending'][log.id] = {
+          'revision': revision,
+          'delete': delete,
+          'workout': log.toJson()
+        };
+        await _writeState(state, path);
+      });
+
+  Future<List<WorkoutLog>> getWorkouts() => userId == null
+      ? Future.value([])
+      : _withWorkouts((state, _) async {
+          final logs = (state['workouts'] as Map)
+              .values
+              .map((json) =>
+                  WorkoutLog.fromJson(Map<String, dynamic>.from(json)))
+              .toList();
+          logs.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+          return logs;
+        });
+
+  Future<Map<String, dynamic>> pendingWorkouts() =>
+      _withWorkouts((state, path) async {
+        // Persist migration even when there are no subsequent user edits.
+        await _writeState(state, path);
+        return Map<String, dynamic>.from(state['pending']);
+      });
+
+  Future<void> acknowledgeWorkout(String id, int revision) =>
+      _withWorkouts((state, path) async {
+        if (state['pending'][id]?['revision'] == revision) {
+          state['pending'].remove(id);
+          state['revision'] = (state['revision'] as int) + 1;
+          await _writeState(state, path);
+        }
+      });
+
+  Future<int> workoutRevision() =>
+      _withWorkouts((state, _) async => state['revision'] as int);
+
+  Future<void> mergeCloudWorkouts(List<WorkoutLog> cloud,
+          {int? expectedRevision}) =>
+      _withWorkouts((state, path) async {
+        if (expectedRevision != null && state['revision'] != expectedRevision) {
+          return;
+        }
+        for (final workout in cloud) {
+          if (!state['pending'].containsKey(workout.id) &&
+              !(state['deleted'] as Map? ?? {}).containsKey(workout.id)) {
+            state['workouts'][workout.id] = workout.toJson();
+          }
+        }
+        await _writeState(state, path);
+      });
 
   Future<void> clearWorkouts() async {
-    try {
-      final file = File(await _getFilePath());
-      if (await file.exists()) {
-        await file.writeAsString(jsonEncode([]));
-      }
-    } catch (e) {
-      print('Error clearing workouts: $e');
+    for (final workout in await getWorkouts()) {
+      await deleteWorkout(workout);
     }
   }
 
-  // Custom Exercises
-  Future<void> saveCustomExercise(Exercise exercise) async {
-    print('💾 Saving custom exercise: ${exercise.name} (ID: ${exercise.id})');
-
-    // Save locally
-    final exercises = await getCustomExercises();
-
-    // Check for duplicates by ID
-    final existingIndex = exercises.indexWhere((e) => e.id == exercise.id);
-    if (existingIndex >= 0) {
-      print('⚠️ Exercise with ID ${exercise.id} already exists, updating...');
-      exercises[existingIndex] = exercise;
-    } else {
-      exercises.add(exercise);
-    }
-
-    final filePath = await _getCustomExercisesFilePath();
-    final file = File(filePath);
-    final jsonList = exercises.map((e) => e.toJson()).toList();
-    await file.writeAsString(jsonEncode(jsonList));
-    print(
-        '✅ Custom exercise saved locally to: $filePath (Total: ${exercises.length})');
-
-    // Also sync to Firebase if user is logged in
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      try {
-        await _firebaseService.saveCustomExercise(user.uid, exercise.toJson());
-        print('✅ Custom exercise synced to Firebase: ${exercise.name}');
-      } catch (e) {
-        print('⚠️ Failed to sync custom exercise to Firebase: $e');
-        // Don't throw - local save succeeded
-      }
-    } else {
-      print('ℹ️ User not logged in, skipping Firebase sync');
-    }
-  }
-
-  Future<List<Exercise>> getCustomExercises() async {
-    try {
-      final filePath = await _getCustomExercisesFilePath();
-      final file = File(filePath);
+  // Custom exercises use an atomic account-scoped snapshot and durable outbox.
+  Future<T> _withExercises<T>(
+      Future<T> Function(Map<String, dynamic>, String) action) async {
+    final path = await _account.filePath('exercise_state.json');
+    final previous = _locks[path] ?? Future<void>.value();
+    final next = previous.then((_) async {
+      final file = File(path);
+      final state = await file.exists()
+          ? Map<String, dynamic>.from(jsonDecode(await file.readAsString()))
+          : <String, dynamic>{
+              'revision': 0,
+              'items': <String, dynamic>{},
+              'pending': <String, dynamic>{},
+              'deleted': <String, dynamic>{}
+            };
       if (!await file.exists()) {
-        print('ℹ️ No local custom exercises file exists yet');
-        return [];
+        final legacy = File(await _getCustomExercisesFilePath());
+        if (await legacy.exists()) {
+          for (final json in jsonDecode(await legacy.readAsString()) as List) {
+            final exercise = Exercise.fromJson(Map<String, dynamic>.from(json));
+            state['items'][exercise.id] = exercise.toJson();
+            state['pending'][exercise.id] = {
+              'revision': 0,
+              'delete': false,
+              'exercise': exercise.toJson()
+            };
+          }
+        }
+        await _writeState(state, path);
       }
-
-      final content = await file.readAsString();
-      final List<dynamic> jsonList = jsonDecode(content);
-      final exercises = jsonList.map((e) => Exercise.fromJson(e)).toList();
-      print(
-          '📖 Loaded ${exercises.length} custom exercises from local storage');
-      return exercises;
-    } catch (e) {
-      print('❌ Error reading custom exercises: $e');
-      return [];
+      return action(state, path);
+    });
+    final tail = next.then<void>((_) {}, onError: (Object _, StackTrace __) {});
+    _locks[path] = tail;
+    try {
+      return await next;
+    } finally {
+      if (identical(_locks[path], tail)) _locks.remove(path);
     }
   }
 
-  /// Get custom exercises merged from local and Firebase
+  Future<void> saveCustomExercise(Exercise exercise) =>
+      _changeExercise(exercise.id, exercise);
+
+  Future<void> deleteCustomExercise(String id) => _changeExercise(id, null);
+
+  Future<void> _changeExercise(String id, Exercise? exercise) =>
+      _withExercises((state, path) async {
+        final revision = (state['revision'] as int) + 1;
+        state['revision'] = revision;
+        if (exercise == null) {
+          state['items'].remove(id);
+          state['deleted'][id] = true;
+        } else {
+          state['items'][id] = exercise.toJson();
+          state['deleted'].remove(id);
+        }
+        state['pending'][id] = {
+          'revision': revision,
+          'delete': exercise == null,
+          'exercise': exercise?.toJson()
+        };
+        await _writeState(state, path);
+      });
+
+  Future<List<Exercise>> getCustomExercises() => userId == null
+      ? Future.value([])
+      : _withExercises((state, _) async => (state['items'] as Map)
+          .values
+          .map((json) => Exercise.fromJson(Map<String, dynamic>.from(json)))
+          .toList());
+
+  Future<Map<String, dynamic>> pendingExercises() => _withExercises(
+      (state, _) async => Map<String, dynamic>.from(state['pending']));
+
+  Future<void> acknowledgeExercise(String id, int revision) =>
+      _withExercises((state, path) async {
+        if (state['pending'][id]?['revision'] == revision) {
+          state['pending'].remove(id);
+          state['revision'] = (state['revision'] as int) + 1;
+          await _writeState(state, path);
+        }
+      });
+
+  Future<int> exerciseRevision() =>
+      _withExercises((state, _) async => state['revision'] as int);
+
+  Future<void> mergeCloudExercises(List<Map<String, dynamic>> cloud,
+          {required int expectedRevision}) =>
+      _withExercises((state, path) async {
+        if (state['revision'] != expectedRevision) return;
+        for (final json in cloud) {
+          final exercise = Exercise.fromJson(json);
+          if (!state['pending'].containsKey(exercise.id) &&
+              !state['deleted'].containsKey(exercise.id)) {
+            state['items'][exercise.id] = exercise.toJson();
+          }
+        }
+        await _writeState(state, path);
+      });
+
   Future<List<Exercise>> getCustomExercisesMerged() async {
-    print('🔄 Getting merged custom exercises...');
-    final localExercises = await getCustomExercises();
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      print(
-          'ℹ️ User not logged in, returning ${localExercises.length} local exercises only');
-      return localExercises;
-    }
-
-    try {
-      print('☁️ Fetching custom exercises from Firebase for user: ${user.uid}');
-      final firebaseExercises =
-          await _firebaseService.getCustomExercises(user.uid);
-      print('☁️ Retrieved ${firebaseExercises.length} exercises from Firebase');
-
-      // Merge: use a map to avoid duplicates by ID
-      final Map<String, Exercise> exerciseMap = {};
-
-      // Add local exercises first
-      for (final ex in localExercises) {
-        exerciseMap[ex.id] = ex;
-      }
-
-      // Add/override with Firebase exercises
-      for (final exMap in firebaseExercises) {
-        final ex = Exercise.fromJson(exMap);
-        exerciseMap[ex.id] = ex;
-      }
-
-      print('✅ Merged total: ${exerciseMap.length} custom exercises');
-      return exerciseMap.values.toList();
-    } catch (e) {
-      print('⚠️ Error fetching Firebase exercises, using local only: $e');
-      return localExercises;
-    }
-  }
-
-  /// Sync local custom exercises to Firebase (call on login)
-  Future<void> syncCustomExercisesToFirebase() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    try {
-      final localExercises = await getCustomExercises();
-      if (localExercises.isNotEmpty) {
-        final jsonList = localExercises.map((e) => e.toJson()).toList();
-        await _firebaseService.batchUploadCustomExercises(user.uid, jsonList);
-        print('✅ Synced ${localExercises.length} local exercises to Firebase');
-      }
-    } catch (e) {
-      print('⚠️ Error syncing exercises to Firebase: $e');
-    }
-  }
-
-  Future<void> deleteCustomExercise(String exerciseId) async {
-    // Delete locally
-    final exercises = await getCustomExercises();
-    exercises.removeWhere((e) => e.id == exerciseId);
-
-    final file = File(await _getCustomExercisesFilePath());
-    final jsonList = exercises.map((e) => e.toJson()).toList();
-    await file.writeAsString(jsonEncode(jsonList));
-
-    // Also delete from Firebase if user is logged in
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
+    if (_canSync) {
       try {
-        await _firebaseService.deleteCustomExercise(user.uid, exerciseId);
-        print('✅ Custom exercise deleted from Firebase: $exerciseId');
-      } catch (e) {
-        print('⚠️ Failed to delete custom exercise from Firebase: $e');
+        final revision = await exerciseRevision();
+        final cloud = await _firebaseService
+            .getCustomExercises(userId!)
+            .timeout(const Duration(seconds: 3));
+        if (!_canSync) return [];
+        await mergeCloudExercises(cloud, expectedRevision: revision);
+      } catch (_) {
+        // Offline reads preserve the cached library and pending local edits.
       }
     }
+    return getCustomExercises();
   }
 
-  // Draft Workout (Save for Later)
-  Future<void> saveDraftWorkout(Map<String, dynamic> draftData) async {
-    final file = File(await _getDraftWorkoutFilePath());
-    await file.writeAsString(jsonEncode(draftData));
-  }
+  // Draft and completion share a commit, preventing completed drafts from
+  // returning after a crash between saving history and clearing the draft.
+  Future<void> saveDraftWorkout(Map<String, dynamic> draftData) =>
+      _withWorkouts((state, path) async {
+        final timestamp = draftData['timestamp'] as String?;
+        if (timestamp != null) {
+          final id =
+              DateTime.parse(timestamp).millisecondsSinceEpoch.toString();
+          if (state['workouts'].containsKey(id) ||
+              (state['deleted'] as Map? ?? {}).containsKey(id)) {
+            return;
+          }
+        }
+        state['draft'] = draftData;
+        await _writeState(state, path);
+      });
 
   Future<Map<String, dynamic>?> getDraftWorkout() async {
-    try {
-      final file = File(await _getDraftWorkoutFilePath());
-      if (!await file.exists()) {
-        return null;
-      }
-
-      final content = await file.readAsString();
-      return jsonDecode(content) as Map<String, dynamic>;
-    } catch (e) {
-      print('Error reading draft workout: $e');
-      return null;
-    }
+    if (userId == null) return null;
+    return _withWorkouts((state, _) async => state['draft'] == null
+        ? null
+        : Map<String, dynamic>.from(state['draft']));
   }
 
-  Future<void> deleteDraftWorkout() async {
-    try {
-      final file = File(await _getDraftWorkoutFilePath());
-      if (await file.exists()) {
-        await file.delete();
-      }
-    } catch (e) {
-      print('Error deleting draft workout: $e');
-    }
-  }
+  Future<void> deleteDraftWorkout() => _withWorkouts((state, path) async {
+        state['draft'] = null;
+        await _writeState(state, path);
+      });
 
-  Future<bool> hasDraftWorkout() async {
-    try {
-      final file = File(await _getDraftWorkoutFilePath());
-      return await file.exists();
-    } catch (e) {
-      return false;
-    }
-  }
+  Future<bool> hasDraftWorkout() async => await getDraftWorkout() != null;
 }

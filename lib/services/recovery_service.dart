@@ -1,12 +1,16 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
-import 'package:path_provider/path_provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'account_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/muscle_recovery_model.dart';
 import '../models/workout_model.dart';
 
 class RecoveryService {
+  final AccountStorage _account;
+  RecoveryService({AccountStorage? account})
+      : _account = account ?? AccountStorage(FirebaseAuth.instance.currentUser?.uid);
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static const String _recoveryFileName = 'muscle_recovery.json';
 
@@ -218,10 +222,7 @@ class RecoveryService {
   // LOCAL STORAGE
   // ============================================
 
-  Future<String> _getRecoveryFilePath() async {
-    final directory = await getApplicationDocumentsDirectory();
-    return '${directory.path}/$_recoveryFileName';
-  }
+  Future<String> _getRecoveryFilePath() => _account.filePath(_recoveryFileName);
 
   Future<void> _saveRecoveryLocal(List<MuscleRecovery> recoveries) async {
     try {

@@ -350,20 +350,22 @@ class FirebaseService {
 
   /// Save workout to Firestore
   Future<void> saveWorkout(String userId, WorkoutLog workout) async {
-    try {
-      await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('workouts')
-          .doc(workout.id)
-          .set(workout.toJson());
-
-      // Update stats
-      await _incrementWorkoutCount(userId);
-    } catch (e) {
-      print('Error saving workout: $e');
-      rethrow;
-    }
+    final user = _firestore.collection('users').doc(userId);
+    final reference = user.collection('workouts').doc(workout.id);
+    final profile = user.collection('profile').doc('data');
+    // A replay after a crash must not count the same workout twice.
+    await _firestore.runTransaction((transaction) async {
+      final existing = await transaction.get(reference);
+      transaction.set(reference, workout.toJson());
+      if (!existing.exists) {
+        transaction.set(
+            profile,
+            {
+              'stats': {'totalWorkouts': FieldValue.increment(1)}
+            },
+            SetOptions(merge: true));
+      }
+    });
   }
 
   /// Get all workouts for a user
@@ -381,7 +383,7 @@ class FirebaseService {
           .toList();
     } catch (e) {
       print('Error getting workouts: $e');
-      return [];
+      rethrow;
     }
   }
 
@@ -470,22 +472,6 @@ class FirebaseService {
     } catch (e) {
       print('Error deleting workout: $e');
       rethrow;
-    }
-  }
-
-  /// Increment workout count in user stats
-  Future<void> _incrementWorkoutCount(String userId) async {
-    try {
-      await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('profile')
-          .doc('data')
-          .update({
-        'stats.totalWorkouts': FieldValue.increment(1),
-      });
-    } catch (e) {
-      print('Error incrementing workout count: $e');
     }
   }
 

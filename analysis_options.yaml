@@ -12,6 +12,15 @@ analyzer:
     unused_field: ignore
     avoid_print: ignore
     constant_identifier_names: ignore
+  exclude:
+    - legacy/**
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
 include: package:flutter_lints/flutter.yaml
 
 linter:
