@@ -1,16 +1,14 @@
+import '../data/exercise_catalog.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/exercise_media.dart';
 import '../models/exercise_model.dart';
-import '../theme/app_theme.dart';
 import '../state/exercise_db_notifier.dart';
-import '../state/auth_notifier.dart';
-import '../services/recovery_service.dart';
-import '../models/muscle_recovery_model.dart';
 import '../services/storage_service.dart';
+import '../state/workout_notifier.dart';
+import '../theme/app_theme.dart';
 import 'create_exercise_screen.dart';
+import 'exercise_info_screen.dart';
 
 class LibraryScreen extends StatefulWidget {
   final bool isPicker;
@@ -21,93 +19,45 @@ class LibraryScreen extends StatefulWidget {
 }
 
 class _LibraryScreenState extends State<LibraryScreen> {
+  ColorScheme get _colors => Theme.of(context).colorScheme;
+  bool get _dark => Theme.of(context).brightness == Brightness.dark;
+  Color get _panel =>
+      _dark ? _colors.surfaceContainer : AppColors.referencePanel;
   final TextEditingController _searchController = TextEditingController();
-  final RecoveryService _recoveryService = RecoveryService();
   final StorageService _storageService = StorageService();
+  // A search response is a subset of the catalog. Keep already loaded items so
+  // short queries and filter choices remain useful while another search loads.
+  final Map<String, Exercise> _catalog = {};
   String _searchQuery = '';
   String? _selectedMuscle;
   String? _selectedEquipment;
-  Map<String, MuscleRecovery> _muscleRecoveries = {};
   List<Exercise> _customExercises = [];
-  List<String> _availableMuscles = [];
-  List<String> _availableEquipment = [];
   bool _isLoadingCustomExercises = false;
 
   @override
   void initState() {
     super.initState();
-    // Initialize ExerciseDB - load all exercises from cache
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
       final exerciseDbNotifier = context.read<ExerciseDbNotifier>();
-      await exerciseDbNotifier.search(
-          query: '', forceLoad: true); // Load all cached exercises
+      await exerciseDbNotifier.search(query: '', forceLoad: true);
+      if (!mounted) return;
       await _loadCustomExercises();
-
-      // Load filter options from exercises
-      _loadFilterOptions();
-
-      // Load muscle recovery data
-      await _loadRecoveryData();
-    });
-  }
-
-  void _loadFilterOptions() {
-    final exerciseDbNotifier = context.read<ExerciseDbNotifier>();
-    final exercises = [
-      ...exerciseDbNotifier.exercises,
-      ..._customExercises,
-    ];
-
-    // Get unique muscle groups
-    final muscles = exercises
-        .map((e) => e.muscleGroup)
-        .where((m) => m.isNotEmpty)
-        .toSet()
-        .toList();
-    muscles.sort();
-
-    // Get unique equipment
-    final equipment = exercises
-        .map((e) => e.equipment)
-        .where((e) => e.isNotEmpty)
-        .toSet()
-        .toList();
-    equipment.sort();
-
-    setState(() {
-      _availableMuscles = muscles;
-      _availableEquipment = equipment;
-    });
-  }
-
-  Future<void> _loadRecoveryData() async {
-    final authNotifier = context.read<AuthNotifier>();
-    final userId = authNotifier.user?.uid;
-
-    final recoveries = userId != null
-        ? await _recoveryService.getRecoveryFirestore(userId)
-        : await _recoveryService.getRecoveryLocal();
-
-    setState(() {
-      _muscleRecoveries = {
-        for (var r in recoveries) r.muscleGroup: r,
-      };
     });
   }
 
   Future<void> _loadCustomExercises() async {
+    if (!mounted) return;
     setState(() => _isLoadingCustomExercises = true);
     try {
       final custom = await _storageService.getCustomExercisesMerged();
       custom.sort((a, b) => a.name.compareTo(b.name));
       if (!mounted) return;
       setState(() => _customExercises = custom);
-      _loadFilterOptions();
-    } catch (e) {
-      print('Error loading custom exercises: $e');
+    } catch (error) {
+      debugPrint('Error loading custom exercises: $error');
     } finally {
-      if (!mounted) return;
-      setState(() => _isLoadingCustomExercises = false);
+      if (mounted) setState(() => _isLoadingCustomExercises = false);
     }
   }
 
@@ -118,48 +68,40 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   void _performSearch(String query) {
-    setState(() => _searchQuery = query);
+    final normalized = query.trim();
+    setState(() => _searchQuery = normalized);
     final exerciseDbNotifier = context.read<ExerciseDbNotifier>();
-    exerciseDbNotifier.searchWithDebounce(query);
+    if (normalized.length < 2) {
+      // This also cancels a pending remote search. The one-letter filter stays
+      // local, while clearing search restores the complete cached library.
+      exerciseDbNotifier.search(query: '', forceLoad: true);
+    } else {
+      exerciseDbNotifier.searchWithDebounce(normalized);
+    }
   }
 
-  List<Exercise> _applySearchFilter(List<Exercise> exercises) {
-    if (_searchQuery.isEmpty) return exercises;
+  List<Exercise> _getFilteredExercises(Iterable<Exercise> exercises) {
     final query = _searchQuery.toLowerCase();
-    return exercises
-        .where((ex) =>
-            ex.name.toLowerCase().contains(query) ||
-            ex.muscleGroup.toLowerCase().contains(query) ||
-            ex.equipment.toLowerCase().contains(query))
-        .toList();
+    return exercises.where((exercise) {
+      final matchesQuery = query.isEmpty ||
+          exercise.name.toLowerCase().contains(query) ||
+          exercise.muscleGroup.toLowerCase().contains(query) ||
+          exercise.equipment.toLowerCase().contains(query);
+      return matchesQuery &&
+          (_selectedMuscle == null ||
+              exercise.muscleGroup.toLowerCase() ==
+                  _selectedMuscle!.toLowerCase()) &&
+          (_selectedEquipment == null ||
+              exercise.equipment.toLowerCase() ==
+                  _selectedEquipment!.toLowerCase());
+    }).toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
   }
 
-  List<Exercise> _getFilteredExercises(List<Exercise> exercises) {
-    var filtered = _applySearchFilter(exercises);
-
-    if (_selectedMuscle != null) {
-      filtered = filtered
-          .where((ex) =>
-              ex.muscleGroup.toLowerCase() == _selectedMuscle!.toLowerCase())
-          .toList();
-    }
-
-    if (_selectedEquipment != null) {
-      filtered = filtered
-          .where((ex) =>
-              ex.equipment.toLowerCase() == _selectedEquipment!.toLowerCase())
-          .toList();
-    }
-
-    return filtered;
-  }
-
-  void _clearFilters() {
-    setState(() {
-      _selectedMuscle = null;
-      _selectedEquipment = null;
-    });
-  }
+  void _clearFilters() => setState(() {
+        _selectedMuscle = null;
+        _selectedEquipment = null;
+      });
 
   bool get _hasActiveFilters =>
       _selectedMuscle != null || _selectedEquipment != null;
@@ -167,690 +109,421 @@ class _LibraryScreenState extends State<LibraryScreen> {
   @override
   Widget build(BuildContext context) {
     final exerciseDbNotifier = context.watch<ExerciseDbNotifier>();
-    final allExercises = exerciseDbNotifier.exercises;
-    final exercises = [
-      ..._getFilteredExercises(_customExercises),
-      ..._getFilteredExercises(allExercises),
-    ];
+    for (final exercise in exerciseDbNotifier.exercises) {
+      _catalog[exercise.id] = exercise;
+    }
+    final logged = context
+        .watch<WorkoutNotifier>()
+        .workoutHistory
+        .expand((w) => w.exercises);
+    final byId = <String, Exercise>{
+      // Older logged movements that map onto the catalog appear once, as the
+      // catalog entry; their history is matched by canonical ID.
+      for (final exercise in logged)
+        if (ExerciseCatalog.canonicalId(exercise.exerciseId,
+                name: exercise.exerciseName) ==
+            exercise.exerciseId)
+          exercise.exerciseId: Exercise(
+              id: exercise.exerciseId,
+              name: exercise.displayName,
+              muscleGroup: exercise.muscleGroup ?? '',
+              equipment: exercise.equipment ?? '',
+              icon: '💪'),
+      ..._catalog,
+      for (final exercise in _customExercises) exercise.id: exercise,
+    };
+    final muscles = byId.values
+        .map((e) => e.muscleGroup)
+        .where((m) => m.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+    final equipment = byId.values
+        .map((e) => e.equipment)
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+    final exercises = _getFilteredExercises(byId.values);
     final isLoading =
         (exerciseDbNotifier.isLoading || _isLoadingCustomExercises) &&
             exercises.isEmpty;
 
-    // Update filter options when exercises change
-    if ((allExercises.isNotEmpty || _customExercises.isNotEmpty) &&
-        _availableMuscles.isEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _loadFilterOptions());
-    }
-
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
-        statusBarBrightness: Brightness.light,
-      ),
-      child: Scaffold(
-        backgroundColor: AppColors.neutral50,
-        appBar: AppBar(
-          title: Text(
-            widget.isPicker ? 'Choose Exercise' : 'Exercise Library',
-            style: const TextStyle(color: AppColors.neutral900),
-          ),
-          iconTheme: const IconThemeData(color: AppColors.neutral800),
-          backgroundColor: AppColors.neutral50,
-          elevation: 0,
-          actions: widget.isPicker
-              ? null
-              : [
-                  PopupMenuButton<String>(
-                    icon: const Icon(PhosphorIconsRegular.dotsThreeVertical,
-                        color: AppColors.neutral800),
-                    onSelected: (value) async {
-                      if (value == 'download') {
-                        _showDownloadExercisesDialog(
-                            context, exerciseDbNotifier);
-                      }
-                    },
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: 'download',
-                        child: Row(
-                          children: [
-                            Icon(PhosphorIconsRegular.download, size: 20),
-                            SizedBox(width: 12),
-                            Text('Download More Exercises'),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-        ),
-        body: Column(
-          children: [
-            // Search Bar
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: TextField(
-                controller: _searchController,
-                style: const TextStyle(color: Colors.black87),
-                decoration: InputDecoration(
-                  hintText: 'Search ${exercises.length}+ exercises...',
-                  hintStyle: const TextStyle(color: AppColors.neutral400),
-                  prefixIcon:
-                      const Icon(Icons.search, color: AppColors.neutral500),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.neutral200),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.neutral200),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                        color: AppColors.brandTeal, width: 1.5),
-                  ),
-                ),
-                onChanged: (value) => _performSearch(value),
-              ),
-            ),
-
-            // Filter Dropdowns
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  // Muscle Filter Dropdown
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: _selectedMuscle != null
-                              ? AppColors.brandTeal
-                              : AppColors.neutral200,
-                        ),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: _selectedMuscle,
-                          dropdownColor: Colors.white,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Colors.black87,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          hint: const Row(
-                            children: [
-                              Icon(PhosphorIconsBold.personArmsSpread,
-                                  size: 16, color: AppColors.neutral500),
-                              SizedBox(width: 6),
-                              Text('Muscle',
-                                  style: TextStyle(
-                                      color: AppColors.neutral500,
-                                      fontSize: 13)),
-                            ],
-                          ),
-                          icon: const Icon(PhosphorIconsBold.caretDown,
-                              size: 14, color: AppColors.neutral500),
-                          isExpanded: true,
-                          isDense: true,
-                          menuMaxHeight: 300,
-                          items: [
-                            const DropdownMenuItem<String>(
-                              value: null,
-                              child: Text('All Muscles',
-                                  style: TextStyle(fontSize: 13)),
-                            ),
-                            ..._availableMuscles
-                                .map((muscle) => DropdownMenuItem(
-                                      value: muscle,
-                                      child: Text(
-                                        _capitalizeWords(muscle),
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(fontSize: 13),
-                                      ),
-                                    )),
-                          ],
-                          onChanged: (value) {
-                            setState(() => _selectedMuscle = value);
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  // Equipment Filter Dropdown
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: _selectedEquipment != null
-                              ? AppColors.brandTeal
-                              : AppColors.neutral200,
-                        ),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: _selectedEquipment,
-                          dropdownColor: Colors.white,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Colors.black87,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          hint: const Row(
-                            children: [
-                              Icon(PhosphorIconsBold.barbell,
-                                  size: 16, color: AppColors.neutral500),
-                              SizedBox(width: 6),
-                              Text('Equipment',
-                                  style: TextStyle(
-                                      color: AppColors.neutral500,
-                                      fontSize: 13)),
-                            ],
-                          ),
-                          icon: const Icon(PhosphorIconsBold.caretDown,
-                              size: 14, color: AppColors.neutral500),
-                          isExpanded: true,
-                          isDense: true,
-                          menuMaxHeight: 300,
-                          items: [
-                            const DropdownMenuItem<String>(
-                              value: null,
-                              child: Text('All Equipment',
-                                  style: TextStyle(fontSize: 13)),
-                            ),
-                            ..._availableEquipment
-                                .map((equipment) => DropdownMenuItem(
-                                      value: equipment,
-                                      child: Text(
-                                        _capitalizeWords(equipment),
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(fontSize: 13),
-                                      ),
-                                    )),
-                          ],
-                          onChanged: (value) {
-                            setState(() => _selectedEquipment = value);
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Clear Filters Button (shown when filters are active)
-            if (_hasActiveFilters)
-              Padding(
-                padding: const EdgeInsets.only(left: 16, right: 16, top: 12),
-                child: Row(
-                  children: [
-                    Text(
-                      '${exercises.length} results',
-                      style: const TextStyle(
-                        color: AppColors.neutral600,
-                        fontSize: 13,
-                      ),
-                    ),
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: _clearFilters,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: AppColors.brandTeal.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(PhosphorIconsBold.x,
-                                size: 14, color: AppColors.brandTeal),
-                            SizedBox(width: 4),
-                            Text(
-                              'Clear Filters',
+    return Scaffold(
+        backgroundColor: _panel,
+        body: SafeArea(
+            bottom: false,
+            child: Column(children: [
+              if (widget.isPicker)
+                Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+                    child: Row(children: [
+                      IconButton(
+                          tooltip: 'Close exercise picker',
+                          style: IconButton.styleFrom(
+                              backgroundColor: _colors.surface,
+                              foregroundColor: _colors.onSurface,
+                              minimumSize: const Size(44, 44)),
+                          onPressed: () => Navigator.maybePop(context),
+                          icon: const Icon(Icons.close_rounded, size: 22)),
+                      const SizedBox(width: 6),
+                      const Expanded(
+                          child: Text('Choose exercises',
+                              textAlign: TextAlign.center,
                               style: TextStyle(
-                                color: AppColors.brandTeal,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-            const SizedBox(height: 16),
-
-            // Exercise List
-            Expanded(
-              child: isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : exercises.isEmpty
-                      ? _buildEmptyState()
-                      : ListView.builder(
-                          itemCount: exercises.length,
-                          itemBuilder: (context, index) {
-                            final exercise = exercises[index];
-                            return _buildExerciseCard(exercise);
-                          },
-                        ),
-            ),
-          ],
-        ),
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: () async {
-            final Exercise? newExercise = await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const CreateExerciseScreen(),
-              ),
-            );
-            if (newExercise != null) {
-              final Exercise customExercise =
-                  newExercise.copyWith(source: 'custom');
-              try {
-                await _storageService.saveCustomExercise(customExercise);
-                await _loadCustomExercises();
-                if (!context.mounted) return;
-                if (widget.isPicker) {
-                  Navigator.pop(context, customExercise);
-                }
-              } catch (e) {
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Failed to save custom exercise'),
-                  ),
-                );
-              }
-            }
-          },
-          backgroundColor: AppColors.brandTeal,
-          icon: const Icon(PhosphorIconsBold.plus, color: Colors.white),
-          label: const Text(
-            'Create Exercise',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-          ),
-        ),
-      ),
-    );
+                                  fontSize: 17, fontWeight: FontWeight.w500))),
+                      const SizedBox(width: 50)
+                    ])),
+              Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+                  child: TextField(
+                      controller: _searchController,
+                      onChanged: _performSearch,
+                      textInputAction: TextInputAction.search,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w400),
+                      decoration: InputDecoration(
+                          hintText: 'Search Exercises',
+                          hintStyle: TextStyle(
+                              color: _colors.onSurfaceVariant, fontSize: 16),
+                          filled: true,
+                          fillColor: _colors.surface,
+                          prefixIcon: Icon(Icons.search_rounded,
+                              size: 25, color: _colors.onSurface),
+                          suffixIcon: _searchController.text.isEmpty
+                              ? null
+                              : IconButton(
+                                  tooltip: 'Clear search',
+                                  icon:
+                                      const Icon(Icons.close_rounded, size: 20),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    _performSearch('');
+                                  }),
+                          contentPadding: const EdgeInsets.symmetric(
+                              vertical: 16, horizontal: 18),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(32)),
+                          enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(32),
+                              borderSide:
+                                  BorderSide(color: _colors.outlineVariant)),
+                          focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(32),
+                              borderSide: const BorderSide(
+                                  color: AppColors.lavender, width: 1.5))))),
+              Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: LayoutBuilder(builder: (_, constraints) {
+                    final filters = [
+                      _filter(
+                          'Any Muscle',
+                          'Muscle group',
+                          _selectedMuscle,
+                          muscles,
+                          Icons.accessibility_new_rounded,
+                          (value) => setState(() => _selectedMuscle = value)),
+                      _filter(
+                          'Any Equipment',
+                          'Equipment',
+                          _selectedEquipment,
+                          equipment,
+                          Icons.fitness_center_outlined,
+                          (value) => setState(() => _selectedEquipment = value))
+                    ];
+                    if (MediaQuery.textScalerOf(context).scale(1) > 1.3 ||
+                        constraints.maxWidth < 280) {
+                      return Column(children: [
+                        filters[0],
+                        const SizedBox(height: 8),
+                        filters[1]
+                      ]);
+                    }
+                    return Row(children: [
+                      Expanded(child: filters[0]),
+                      const SizedBox(width: 10),
+                      Expanded(child: filters[1])
+                    ]);
+                  })),
+              if (_hasActiveFilters)
+                Align(
+                    alignment: Alignment.centerRight,
+                    child: Padding(
+                        padding: const EdgeInsets.only(right: 10),
+                        child: TextButton(
+                            onPressed: _clearFilters,
+                            child: const Text('Clear filters')))),
+              const SizedBox(height: 16),
+              Expanded(
+                  child: ListView.builder(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                      itemCount: exercises.length + 1,
+                      itemBuilder: (context, index) {
+                        if (index == 0) {
+                          return Column(children: [
+                            _customRow(),
+                            if (isLoading)
+                              const Padding(
+                                  padding: EdgeInsets.all(32),
+                                  child: CircularProgressIndicator(
+                                      color: AppColors.lavender)),
+                            if (!isLoading && exercises.isEmpty)
+                              const Padding(
+                                  padding: EdgeInsets.all(24),
+                                  child: Text(
+                                      'No exercises found. Try another search or filter.',
+                                      textAlign: TextAlign.center,
+                                      style:
+                                          TextStyle(fontSize: 14, height: 1.5)))
+                          ]);
+                        }
+                        return _buildExerciseRow(exercises[index - 1]);
+                      }))
+            ])));
   }
 
-  Widget _buildEmptyState() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(PhosphorIconsBold.magnifyingGlass,
-              size: 64, color: AppColors.neutral400),
-          SizedBox(height: 16),
-          Text(
-            'No exercises found',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: AppColors.neutral600,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Try adjusting your search or filters',
-            style: TextStyle(color: AppColors.neutral500),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildExerciseCard(Exercise exercise) {
-    final recovery = _muscleRecoveries[exercise.muscleGroup];
-
-    return GestureDetector(
-      onTap: widget.isPicker ? () => Navigator.pop(context, exercise) : null,
-      child: Container(
-        margin: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: recovery != null && recovery.shouldWarn
-              ? Border.all(
-                  color: Color(
-                      int.parse('0xFF${recovery.statusColor.substring(1)}')),
-                  width: 2)
-              : null,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Exercise Image/GIF
-            if (exercise.gifUrl != null && exercise.gifUrl!.isNotEmpty)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: CachedNetworkImage(
-                  imageUrl: exercise.gifUrl!,
-                  width: 80,
-                  height: 80,
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(
-                    width: 80,
-                    height: 80,
-                    color: AppColors.neutral100,
-                    child: const Center(
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  ),
-                  errorWidget: (context, url, error) => Container(
-                    width: 80,
-                    height: 80,
-                    color: AppColors.neutral100,
-                    child: const Icon(PhosphorIconsBold.barbell,
-                        size: 32, color: AppColors.neutral400),
-                  ),
-                ),
-              )
-            else
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: AppColors.brandTeal.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(PhosphorIconsBold.barbell,
-                    size: 32, color: AppColors.brandTeal),
-              ),
-            const SizedBox(width: 16),
-            // Exercise Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    exercise.name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.neutral900,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Text(
-                        exercise.muscleGroup,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: AppColors.neutral600,
-                        ),
-                      ),
-                      if (recovery != null) ...[
-                        const SizedBox(width: 8),
-                        Container(
+  Widget _filter(
+          String anyLabel,
+          String title,
+          String? selected,
+          List<String> values,
+          IconData icon,
+          ValueChanged<String?> onChanged) =>
+      Material(
+          color: selected == null
+              ? _colors.surface
+              : (_dark ? _colors.primaryContainer : AppColors.paleLavender),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(28),
+              side: BorderSide(
+                  color: selected == null
+                      ? _colors.outlineVariant
+                      : AppColors.lavender)),
+          child: Semantics(
+              button: true,
+              selected: selected != null,
+              child: InkWell(
+                  borderRadius: BorderRadius.circular(28),
+                  onTap: () => _chooseFilter(
+                      anyLabel, title, selected, values, onChanged),
+                  child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 44),
+                      child: Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Color(int.parse(
-                                    '0xFF${recovery.statusColor.substring(1)}'))
-                                .withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                recovery.statusEmoji,
-                                style: const TextStyle(fontSize: 10),
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                recovery.timeSinceLastTrained,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Color(int.parse(
-                                      '0xFF${recovery.statusColor.substring(1)}')),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  if (exercise.equipment.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(PhosphorIconsBold.barbell,
-                            size: 14, color: AppColors.neutral500),
-                        const SizedBox(width: 4),
-                        Text(
-                          exercise.equipment,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.neutral500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            if (widget.isPicker)
-              const Icon(PhosphorIconsBold.caretRight,
-                  size: 20, color: AppColors.neutral400),
-          ],
-        ),
-      ),
-    );
+                              horizontal: 12, vertical: 10),
+                          child: Row(children: [
+                            const SizedBox(width: 1),
+                            Icon(icon,
+                                size: 20,
+                                color: _dark
+                                    ? AppColors.paleLavender
+                                    : AppColors.lavender),
+                            const SizedBox(width: 8),
+                            Expanded(
+                                child: Text(
+                                    selected == null
+                                        ? anyLabel
+                                        : _capitalizeWords(selected),
+                                    style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500)))
+                          ]))))));
+
+  Future<void> _chooseFilter(String anyLabel, String title, String? selected,
+      List<String> values, ValueChanged<String?> onChanged) async {
+    // Index zero explicitly means "Any"; dismissing the sheet keeps selection.
+    final index = await showModalBottomSheet<int>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        backgroundColor: _panel,
+        shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
+        builder: (sheet) => DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: .62,
+            minChildSize: .3,
+            maxChildSize: .9,
+            builder: (_, controller) => Column(children: [
+                  Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                      child: Row(children: [
+                        const SizedBox(width: 44),
+                        Expanded(
+                            child: Text(title,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w500))),
+                        IconButton(
+                            tooltip: 'Close filters',
+                            style: IconButton.styleFrom(
+                                backgroundColor: _colors.surface,
+                                foregroundColor: _colors.onSurface),
+                            onPressed: () => Navigator.pop(sheet),
+                            icon: const Icon(Icons.close_rounded, size: 21))
+                      ])),
+                  Expanded(
+                      child: ListView.builder(
+                          controller: controller,
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                          itemCount: values.length + 1,
+                          itemBuilder: (_, index) {
+                            final value = index == 0 ? null : values[index - 1];
+                            final chosen = selected == value;
+                            return Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Material(
+                                    color: chosen
+                                        ? (_dark
+                                            ? _colors.primaryContainer
+                                            : AppColors.paleLavender)
+                                        : _colors.surface,
+                                    borderRadius: BorderRadius.circular(20),
+                                    child: Semantics(
+                                        selected: chosen,
+                                        button: true,
+                                        child: InkWell(
+                                            borderRadius:
+                                                BorderRadius.circular(20),
+                                            onTap: () =>
+                                                Navigator.pop(sheet, index),
+                                            child: Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 16,
+                                                        vertical: 16),
+                                                child: Row(children: [
+                                                  Expanded(
+                                                      child: Text(
+                                                          value == null
+                                                              ? anyLabel
+                                                              : _capitalizeWords(
+                                                                  value),
+                                                          style: const TextStyle(
+                                                              fontSize: 15,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w500))),
+                                                  if (chosen) ...[
+                                                    const SizedBox(width: 12),
+                                                    Icon(Icons.check_rounded,
+                                                        size: 21,
+                                                        color:
+                                                            _colors.onSurface)
+                                                  ]
+                                                ]))))));
+                          }))
+                ])));
+    if (!mounted || index == null) return;
+    onChanged(index == 0 ? null : values[index - 1]);
   }
 
-  String _capitalizeWords(String text) {
-    return text.split(' ').map((word) {
-      if (word.isEmpty) return word;
-      return word[0].toUpperCase() + word.substring(1).toLowerCase();
-    }).join(' ');
+  Future<void> _createExercise() async {
+    final exercise = await Navigator.push<Exercise>(context,
+        MaterialPageRoute(builder: (_) => const CreateExerciseScreen()));
+    if (exercise == null || !mounted) return;
+    final custom = exercise.copyWith(source: 'custom');
+    try {
+      await _storageService.saveCustomExercise(custom);
+      if (!mounted) return;
+      await _loadCustomExercises();
+      if (mounted && widget.isPicker) Navigator.pop(context, custom);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to save custom exercise')));
+      }
+    }
   }
 
-  void _showDownloadExercisesDialog(
-      BuildContext context, ExerciseDbNotifier notifier) {
-    String currentTerm = '';
-    int progress = 0;
-    int total = 0;
-    bool isDownloading = false;
-    bool isComplete = false;
-    Map<String, dynamic>? result;
+  Widget _customRow() => Material(
+      color: Colors.transparent,
+      child: InkWell(
+          onTap: _createExercise,
+          borderRadius: BorderRadius.circular(18),
+          child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(children: [
+                Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                        color: _dark
+                            ? _colors.primaryContainer
+                            : AppColors.paleLavender,
+                        borderRadius: BorderRadius.circular(16)),
+                    child: const Icon(Icons.add_rounded,
+                        color: AppColors.lavender, size: 30)),
+                const SizedBox(width: 14),
+                const Expanded(
+                    child: Text('Create Custom Exercise…',
+                        style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w500)))
+              ]))));
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Row(
-            children: [
-              const Icon(PhosphorIconsBold.download,
-                  color: AppColors.brandTeal),
-              const SizedBox(width: 12),
-              const Expanded(child: Text('Download All Exercises')),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (!isDownloading && !isComplete) ...[
-                const Text(
-                  'This will download ALL exercises from the ExerciseDB database. This may take several minutes.',
-                ),
-                const SizedBox(height: 16),
-                FutureBuilder<int>(
-                  future: notifier.getExerciseCount(),
-                  builder: (context, snapshot) {
-                    final count = snapshot.data ?? 0;
-                    return Text(
-                      'Current exercises: $count',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.neutral800,
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  '⚠️ Keep the app open during download',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.neutral600,
-                  ),
-                ),
-              ],
-              if (isDownloading && !isComplete) ...[
-                const LinearProgressIndicator(
-                  backgroundColor: AppColors.neutral200,
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.brandTeal),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  currentTerm,
-                  style: const TextStyle(
-                    color: AppColors.neutral600,
-                    fontSize: 13,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Please wait, this may take a few minutes...',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.neutral800,
-                  ),
-                ),
-              ],
-              if (isComplete && result != null) ...[
-                const Icon(
-                  PhosphorIconsBold.checkCircle,
-                  color: Colors.green,
-                  size: 48,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Download Complete!',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text('Exercises before: ${result!['totalBefore']}'),
-                Text('Exercises after: ${result!['totalAfter']}'),
-                Text(
-                  'New exercises added: ${result!['totalAdded']}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.brandTeal,
-                  ),
-                ),
-              ],
-            ],
-          ),
-          actions: [
-            if (!isDownloading && !isComplete)
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-            if (!isDownloading && !isComplete)
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.brandTeal,
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: () async {
-                  setDialogState(() {
-                    isDownloading = true;
-                  });
+  Widget _buildExerciseRow(Exercise exercise) => Material(
+      color: Colors.transparent,
+      child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: widget.isPicker
+              ? () => Navigator.pop(context, exercise)
+              : () => showExerciseInfo(context, exercise),
+          child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(children: [
+                Container(
+                    width: 56,
+                    height: 56,
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                        color: _colors.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                              color: _colors.shadow.withValues(alpha: .025),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4))
+                        ]),
+                    child: exercise.hasGif
+                        ? ExerciseMedia(
+                            imageUrl: exercise.gifUrl!,
+                            fit: BoxFit.contain,
+                            placeholder: (_, __) => Icon(
+                                Icons.fitness_center_outlined,
+                                color: _colors.onSurfaceVariant,
+                                size: 22),
+                            errorWidget: (_, __, ___) => Icon(
+                                Icons.fitness_center_outlined,
+                                color: _colors.onSurfaceVariant,
+                                size: 22))
+                        : Icon(Icons.fitness_center_outlined,
+                            color: _colors.onSurfaceVariant, size: 22)),
+                const SizedBox(width: 14),
+                Expanded(
+                    child: Text(exercise.name,
+                        style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            height: 1.35))),
+                const SizedBox(width: 3),
+                IconButton(
+                    tooltip: 'Info for ${exercise.name}',
+                    padding: const EdgeInsets.all(10),
+                    constraints:
+                        const BoxConstraints(minWidth: 44, minHeight: 44),
+                    icon: const Icon(Icons.info_outline_rounded,
+                        color: AppColors.lavender, size: 24),
+                    onPressed: () => showExerciseInfo(context, exercise))
+              ]))));
 
-                  try {
-                    final downloadResult =
-                        await notifier.populateExerciseDatabase(
-                      onProgress: (term, p, t) {
-                        setDialogState(() {
-                          currentTerm = term;
-                          progress = p;
-                          total = t;
-                        });
-                      },
-                    );
-
-                    setDialogState(() {
-                      isDownloading = false;
-                      isComplete = true;
-                      result = downloadResult;
-                    });
-
-                    // Refresh the exercise list
-                    notifier.clearCache();
-                    await notifier.search(forceLoad: true);
-                    if (mounted) {
-                      _loadFilterOptions();
-                    }
-                  } catch (e) {
-                    setDialogState(() {
-                      isDownloading = false;
-                    });
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                            content: Text('Error downloading exercises: $e')),
-                      );
-                      Navigator.pop(context);
-                    }
-                  }
-                },
-                child: const Text('Start Download'),
-              ),
-            if (isComplete)
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.brandTeal,
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Done'),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
+  String _capitalizeWords(String text) => text
+      .split(' ')
+      .map((word) => word.isEmpty
+          ? word
+          : word[0].toUpperCase() + word.substring(1).toLowerCase())
+      .join(' ');
 }

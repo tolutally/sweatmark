@@ -1,20 +1,25 @@
+import '../widgets/personal_records.dart';
+import '../widgets/exercise_media.dart';
+import '../widgets/cardio_details_button.dart';
+import 'exercise_info_screen.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphor_icons/phosphor_icons.dart';
 import '../state/workout_notifier.dart';
+import '../state/auth_notifier.dart';
 import '../state/settings_notifier.dart';
 import '../state/exercise_db_notifier.dart';
 import '../models/exercise_model.dart';
 import '../models/workout_model.dart';
 import '../models/user_settings.dart';
 import '../data/exercise_data.dart';
-import '../widgets/schedule_bottom_sheet.dart';
 import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 import 'library_screen.dart';
+import 'exercise_progress_screen.dart';
 import 'workout_summary_screen.dart';
 
 class ActiveWorkoutScreen extends StatefulWidget {
@@ -26,6 +31,7 @@ class ActiveWorkoutScreen extends StatefulWidget {
 
 class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
     with WidgetsBindingObserver {
+  bool _saving = false;
   final NotificationService _notificationService = NotificationService();
 
   @override
@@ -82,19 +88,26 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
     }
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(
+      value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
-        statusBarBrightness: Brightness.light,
+        statusBarIconBrightness: Theme.of(context).brightness == Brightness.dark
+            ? Brightness.light
+            : Brightness.dark,
+        statusBarBrightness: Theme.of(context).brightness,
       ),
       child: Scaffold(
-        backgroundColor: const Color(0xFFF5F5F5),
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
         appBar: AppBar(
-          backgroundColor: const Color(0xFFF5F5F5),
+          backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(PhosphorIconsRegular.caretLeft,
-                color: Colors.black87, size: 28),
+            tooltip: 'Back',
+            style: IconButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.surface,
+              shape: const CircleBorder(),
+            ),
+            icon: Icon(PhosphorIconsRegular.caretLeft,
+                color: Theme.of(context).colorScheme.onSurface, size: 28),
             onPressed: () {
               // Save draft and go back without cancelling
               notifier.saveDraftWorkout();
@@ -106,18 +119,18 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
               margin: const EdgeInsets.only(right: 16),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xFFE8F5F3),
-                borderRadius: BorderRadius.circular(20),
+                color: Theme.of(context).colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(999),
               ),
               child: Row(
                 children: [
-                  const Icon(PhosphorIconsBold.play,
-                      color: AppColors.brandTeal, size: 16),
+                  Icon(PhosphorIconsBold.play,
+                      color: Theme.of(context).colorScheme.primary, size: 16),
                   const SizedBox(width: 8),
                   Text(
                     _formatDuration(notifier.elapsedSeconds),
-                    style: const TextStyle(
-                      color: Colors.black,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontWeight: FontWeight.w600,
                       fontSize: 15,
                     ),
@@ -135,21 +148,19 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
               // Workout Header - Compact
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                color: const Color(0xFFF5F5F5),
+                color: Theme.of(context).colorScheme.surfaceContainerLow,
                 child: Row(
                   children: [
                     Container(
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFFFB84D), Color(0xFFFF8E53)],
-                        ),
+                        color: Theme.of(context).colorScheme.primaryContainer,
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         PhosphorIconsBold.barbell,
-                        color: Colors.black,
+                        color: Theme.of(context).colorScheme.onSurface,
                         size: 22,
                       ),
                     ),
@@ -165,46 +176,27 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
                                 Flexible(
                                   child: Text(
                                     notifier.workoutName,
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black,
+                                    style: TextStyle(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w600,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurface,
                                     ),
                                   ),
                                 ),
                                 const SizedBox(width: 6),
-                                const Icon(
+                                Icon(
                                   PhosphorIconsRegular.pencilSimple,
                                   size: 16,
-                                  color: Colors.black54,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
                                 ),
                               ],
                             ),
                           ),
                           const SizedBox(height: 2),
-                          GestureDetector(
-                            onTap: () {
-                              ScheduleBottomSheet.show(
-                                context,
-                                workoutName: notifier.workoutName,
-                                exercises: workout.exercises,
-                              );
-                            },
-                            child: const Row(
-                              children: [
-                                Text(
-                                  'Set up schedule & repeat',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Color(0xFF007AFF),
-                                  ),
-                                ),
-                                SizedBox(width: 4),
-                                Icon(PhosphorIconsRegular.caretRight,
-                                    size: 12, color: Color(0xFF007AFF)),
-                              ],
-                            ),
-                          ),
                         ],
                       ),
                     ),
@@ -239,28 +231,34 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: Theme.of(context).colorScheme.surface,
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.04),
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .shadow
+                                      .withValues(alpha: 0.04),
                                   blurRadius: 6,
                                   offset: const Offset(0, 2),
                                 ),
                               ],
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Icon(PhosphorIconsBold.plus,
-                                    color: AppColors.brandTeal, size: 18),
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                    size: 18),
                                 SizedBox(width: 8),
                                 Text(
                                   'Add Exercise',
                                   style: TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w600,
-                                    color: Colors.black,
+                                    color:
+                                        Theme.of(context).colorScheme.onSurface,
                                   ),
                                 ),
                               ],
@@ -299,7 +297,11 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
                                 exerciseData.isNotEmpty
                                     ? {
                                         ...exerciseData,
-                                        'gifUrl': exerciseLog.gifUrl
+                                        'exerciseType':
+                                            exerciseLog.exerciseType ??
+                                                exerciseData['exerciseType'],
+                                        'gifUrl': exerciseLog.gifUrl ??
+                                            exerciseData['gifUrl']
                                       }
                                     : {
                                         'id': exerciseLog.exerciseId,
@@ -309,7 +311,11 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
                                             exerciseLog.muscleGroup ?? 'Custom',
                                         'equipment':
                                             exerciseLog.equipment ?? 'Custom',
-                                        'gifUrl': exerciseLog.gifUrl,
+                                        'exerciseType':
+                                            exerciseLog.exerciseType ??
+                                                exerciseData['exerciseType'],
+                                        'gifUrl': exerciseLog.gifUrl ??
+                                            exerciseData['gifUrl'],
                                       },
                               );
                               superSetExercises.add((exerciseLog, exercise, j));
@@ -341,13 +347,21 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
                         );
                         final exercise = Exercise.fromJson(
                           exerciseData.isNotEmpty
-                              ? {...exerciseData, 'gifUrl': log.gifUrl}
+                              ? {
+                                  ...exerciseData,
+                                  'exerciseType': log.exerciseType ??
+                                      exerciseData['exerciseType'],
+                                  'gifUrl': log.gifUrl ?? exerciseData['gifUrl']
+                                }
                               : {
                                   'id': log.exerciseId,
                                   'name': log.exerciseName ?? 'Custom Exercise',
                                   'muscleGroup': log.muscleGroup ?? 'Custom',
                                   'equipment': log.equipment ?? 'Custom',
-                                  'gifUrl': log.gifUrl,
+                                  'exerciseType': log.exerciseType ??
+                                      exerciseData['exerciseType'],
+                                  'gifUrl':
+                                      log.gifUrl ?? exerciseData['gifUrl'],
                                 },
                         );
 
@@ -395,84 +409,33 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: Theme.of(context).colorScheme.surface,
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.06),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .shadow
+                                  .withValues(alpha: 0.06),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
                           ],
                         ),
-                        child: const Icon(
+                        child: Icon(
                           PhosphorIconsBold.dotsThreeOutline,
-                          color: Colors.black54,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           size: 20,
                         ),
                       ),
                     ),
                     const SizedBox(width: 10),
-                    // AI Button - Floating style
-                    GestureDetector(
-                      onTap: () {
-                        // AI workout builder
-                      },
-                      child: Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [AppColors.brandTeal, AppColors.info],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.brandTeal.withValues(alpha: 0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          PhosphorIconsBold.sparkle,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    // Finish Workout Button - Full width
+                    // The save action uses the shared primary-button treatment.
                     Expanded(
-                      child: GestureDetector(
-                        onTap: () => _showFinishWorkoutConfirmation(
+                      child: FilledButton(
+                        onPressed: () => _showFinishWorkoutConfirmation(
                             context, notifier, workout),
-                        child: Container(
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: Colors.black,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.15),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: const Center(
-                            child: Text(
-                              'Finish Workout',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
+                        child: Text(_saving ? 'Saving…' : 'Finish & save'),
                       ),
                     ),
                   ],
@@ -509,21 +472,21 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
     final parentContext = context;
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (sheetContext) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 20),
-            const Text(
+            Text(
               'Workout Options',
               style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                fontSize: 24,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 20),
@@ -532,26 +495,28 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFE5E5),
+                  color: Theme.of(context).colorScheme.errorContainer,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(
+                child: Icon(
                   PhosphorIconsBold.trash,
-                  color: Color(0xFFFF6B6B),
+                  color: Theme.of(context).colorScheme.error,
                   size: 20,
                 ),
               ),
-              title: const Text(
+              title: Text(
                 'Discard Workout',
                 style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w600,
-                  color: Colors.black87,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
-              subtitle: const Text(
+              subtitle: Text(
                 'Delete this workout permanently',
-                style: TextStyle(fontSize: 14, color: Colors.black54),
+                style: TextStyle(
+                    fontSize: 14,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
               onTap: () async {
                 // Delete draft and reset workout without saving
@@ -572,12 +537,12 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: const Text(
+                  child: Text(
                     'Cancel',
                     style: TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w600,
-                      color: Colors.black87,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                 ),
@@ -590,212 +555,77 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
     );
   }
 
-  void _showFinishWorkoutConfirmation(
-      BuildContext context, WorkoutNotifier notifier, dynamic workout) {
-    // Calculate workout stats
-    int totalSets = 0;
-    int completedSets = 0;
-
-    for (var exercise in workout.exercises) {
-      for (var set in exercise.sets) {
-        totalSets++;
-        if (set.isCompleted) {
-          completedSets++;
-        }
-      }
+  Future<void> _showFinishWorkoutConfirmation(
+      BuildContext context, WorkoutNotifier notifier, dynamic workout) async {
+    if (_saving || workout == null) return;
+    final sets = (workout as WorkoutLog)
+        .exercises
+        .expand((e) => e.sets)
+        .where((s) => !s.isSuperSetRest)
+        .toList();
+    if (!sets.any((s) => s.isCompleted)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Complete at least one set before saving.')));
+      return;
     }
-
-    final hasIncompleteSets = completedSets < totalSets;
-    final exerciseCount = workout.exercises.length;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Handle bar
-              Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Title
-              const Text(
-                'Finish Workout?',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Stats Row
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF5F5F5),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _StatItem(
-                      icon: PhosphorIconsBold.barbell,
-                      value: exerciseCount.toString(),
-                      label: 'Exercises',
-                      color: AppColors.brandTeal,
-                    ),
-                    Container(width: 1, height: 40, color: Colors.grey[300]),
-                    _StatItem(
-                      icon: PhosphorIconsBold.checkCircle,
-                      value: '$completedSets/$totalSets',
-                      label: 'Sets Done',
-                      color: hasIncompleteSets
-                          ? const Color(0xFFFF9500)
-                          : const Color(0xFF34C759),
-                    ),
-                    Container(width: 1, height: 40, color: Colors.grey[300]),
-                    _StatItem(
-                      icon: PhosphorIconsBold.timer,
-                      value: _formatDuration(notifier.elapsedSeconds),
-                      label: 'Duration',
-                      color: const Color(0xFF007AFF),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Warning if incomplete sets
-              if (hasIncompleteSets) ...[
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF3E0),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                        color: const Color(0xFFFF9500).withValues(alpha: 0.3)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        PhosphorIconsBold.warning,
-                        color: Color(0xFFFF9500),
-                        size: 20,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'You have ${totalSets - completedSets} incomplete ${(totalSets - completedSets) == 1 ? 'set' : 'sets'}',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFFE65100),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-
-              const SizedBox(height: 24),
-
-              // Action Buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(sheetContext),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        side: const BorderSide(color: Colors.black26),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                      ),
-                      child: const Text(
-                        'Continue',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        // Capture workout data BEFORE closing sheet or any state changes
-                        final workoutToSave = notifier.currentWorkout;
-                        final duration = notifier.elapsedSeconds;
-                        final name = notifier.workoutName;
-
-                        Navigator.pop(sheetContext); // Close bottom sheet
-
-                        if (workoutToSave == null) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content: Text('No workout to save')),
-                            );
-                          }
-                          return;
-                        }
-
-                        // Navigate to summary screen with the captured workout data
-                        if (!context.mounted) return;
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => WorkoutSummaryScreen(
-                              completedWorkout: workoutToSave,
-                              elapsedSeconds: duration,
-                              workoutName: name,
-                            ),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                      ),
-                      child: const Text(
-                        'Finish',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
+    if (sets.any((s) => !s.isCompleted)) {
+      final finish = await showDialog<bool>(
+          context: context,
+          builder: (dialog) => AlertDialog(
+                title: const Text('Unfinished sets'),
+                content: const Text(
+                    'Save your completed sets and leave unfinished sets out?'),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(dialog, false),
+                      child: const Text('Keep logging')),
+                  FilledButton(
+                      onPressed: () => Navigator.pop(dialog, true),
+                      child: const Text('Finish & save'))
                 ],
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      ),
-    );
+              ));
+      if (finish != true || !context.mounted) return;
+    }
+    setState(() => _saving = true);
+    final finished = WorkoutLog(
+        workoutName: notifier.workoutName,
+        timestamp: workout.timestamp,
+        durationSeconds: notifier.elapsedSeconds,
+        notes: notifier.workoutNotes,
+        superSets: workout.superSets,
+        exercises: workout.exercises
+            .where((e) => e.sets.any((s) => s.isCompleted))
+            .map((e) => WorkoutExerciseLog(
+                  exerciseId: e.exerciseId,
+                  exerciseName: e.exerciseName,
+                  muscleGroup: e.muscleGroup,
+                  equipment: e.equipment,
+                  gifUrl: e.gifUrl,
+                  superSetId: e.superSetId,
+                  orderInSuperSet: e.orderInSuperSet,
+                  sets: e.sets
+                      .where((s) => s.isCompleted && !s.isSuperSetRest)
+                      .map((s) => s.copyWith())
+                      .toList(),
+                ))
+            .toList());
+    try {
+      await notifier.finishWorkoutWithData(finished, finished.durationSeconds,
+          finished.notes ?? '', context.read<AuthNotifier>().user?.uid);
+      if (!context.mounted) return;
+      await Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+              builder: (_) =>
+                  WorkoutSummaryScreen(completedWorkout: finished)));
+    } catch (_) {
+      if (context.mounted)
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
+                'Could not save on this device. Your workout is still here. Try again.')));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   String _formatDuration(int seconds) {
@@ -879,38 +709,40 @@ class _SuperSetWorkoutCardState extends State<_SuperSetWorkoutCard> {
     final notifier = context.read<WorkoutNotifier>();
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (sheetContext) => Container(
         padding: const EdgeInsets.symmetric(vertical: 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
+            Text(
               'Super Set',
               style: TextStyle(
                 fontSize: 17,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 20),
             ListTile(
-              leading: const Icon(PhosphorIconsBold.arrowsOutLineVertical,
-                  color: Colors.black87),
-              title: const Text('Reorder Exercises',
-                  style: TextStyle(color: Colors.black87)),
+              leading: Icon(PhosphorIconsBold.arrowsOutLineVertical,
+                  color: Theme.of(context).colorScheme.onSurface),
+              title: Text('Reorder Exercises',
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface)),
               onTap: () {
                 Navigator.pop(sheetContext);
                 _showSuperSetManagement(context, notifier, widget.superSet.id);
               },
             ),
             ListTile(
-              leading: const Icon(PhosphorIconsBold.x, color: Colors.red),
-              title: const Text('Break Super Set',
-                  style: TextStyle(color: Colors.red)),
+              leading: Icon(PhosphorIconsBold.x,
+                  color: Theme.of(context).colorScheme.error),
+              title: Text('Break Super Set',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
               onTap: () {
                 Navigator.pop(sheetContext);
                 // Remove all exercises from superset
@@ -936,15 +768,15 @@ class _SuperSetWorkoutCardState extends State<_SuperSetWorkoutCard> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: AppColors.brandTeal,
+          color: Theme.of(context).colorScheme.primary,
           width: 2,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -956,25 +788,25 @@ class _SuperSetWorkoutCardState extends State<_SuperSetWorkoutCard> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-            decoration: const BoxDecoration(
-              color: AppColors.brandTeal,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary,
               borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(14),
-                topRight: Radius.circular(14),
+                topLeft: Radius.circular(24),
+                topRight: Radius.circular(24),
               ),
             ),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   PhosphorIconsBold.arrowsClockwise,
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.onPrimary,
                   size: 18,
                 ),
                 const SizedBox(width: 8),
                 Text(
                   'Super Set · $exerciseCount exercises',
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onPrimary,
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
                   ),
@@ -983,9 +815,9 @@ class _SuperSetWorkoutCardState extends State<_SuperSetWorkoutCard> {
                 // Menu button
                 GestureDetector(
                   onTap: () => _showSuperSetMenu(context),
-                  child: const Icon(
+                  child: Icon(
                     PhosphorIconsRegular.dotsThree,
-                    color: Colors.white70,
+                    color: Theme.of(context).colorScheme.onPrimary,
                     size: 22,
                   ),
                 ),
@@ -997,7 +829,7 @@ class _SuperSetWorkoutCardState extends State<_SuperSetWorkoutCard> {
                     _isCollapsed
                         ? PhosphorIconsRegular.caretDown
                         : PhosphorIconsRegular.check,
-                    color: Colors.white,
+                    color: Theme.of(context).colorScheme.onPrimary,
                     size: 22,
                   ),
                 ),
@@ -1021,16 +853,16 @@ class _SuperSetWorkoutCardState extends State<_SuperSetWorkoutCard> {
                         width: 36,
                         height: 36,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF5F5F5),
+                          color:
+                              Theme.of(context).colorScheme.surfaceContainerLow,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         clipBehavior: Clip.antiAlias,
                         child: exercise.hasGif
-                            ? Image.network(
-                                exercise.gifUrl!,
+                            ? ExerciseMedia(
+                                imageUrl: exercise.gifUrl!,
                                 fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    Center(
+                                errorWidget: (context, url, error) => Center(
                                   child: Text(exercise.exerciseType.icon,
                                       style: const TextStyle(fontSize: 16)),
                                 ),
@@ -1042,32 +874,41 @@ class _SuperSetWorkoutCardState extends State<_SuperSetWorkoutCard> {
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Text(
-                          exercise.name,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.black87,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              BestRecordBadge(exercise.id),
+                              Text(
+                                exercise.name,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ]),
                       ),
                       // Order label (A, B, C...)
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                          color: AppColors.brandTeal.withValues(alpha: 0.15),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
                           String.fromCharCode(65 +
                               widget.exercises.indexOf(item)), // A, B, C...
-                          style: const TextStyle(
-                            fontSize: 12,
+                          style: TextStyle(
+                            fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: AppColors.brandTeal,
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                         ),
                       ),
@@ -1081,7 +922,7 @@ class _SuperSetWorkoutCardState extends State<_SuperSetWorkoutCard> {
           // Divider
           Container(
             height: 1,
-            color: Colors.grey[200],
+            color: Theme.of(context).colorScheme.outlineVariant,
             margin: const EdgeInsets.symmetric(horizontal: 16),
           ),
 
@@ -1091,18 +932,23 @@ class _SuperSetWorkoutCardState extends State<_SuperSetWorkoutCard> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Column(
                 children: [
+                  for (final entry in widget.exercises)
+                    if (entry.$1.exerciseType == 'cardio' ||
+                        entry.$2.exerciseType == ExerciseType.cardio)
+                      CardioDetailsButton(exercise: entry.$1),
                   // Column Headers
-                  const Padding(
-                    padding:
-                        EdgeInsets.only(left: 56, bottom: 8, right: 48),
+                  Padding(
+                    padding: EdgeInsets.only(left: 56, bottom: 8, right: 48),
                     child: Row(
                       children: [
                         Expanded(
                           child: Text(
                             'WEIGHT',
                             style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.black38,
+                              fontSize: 13,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
                               fontWeight: FontWeight.w600,
                               letterSpacing: 0.5,
                             ),
@@ -1114,8 +960,10 @@ class _SuperSetWorkoutCardState extends State<_SuperSetWorkoutCard> {
                           child: Text(
                             'REPS',
                             style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.black38,
+                              fontSize: 13,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
                               fontWeight: FontWeight.w600,
                               letterSpacing: 0.5,
                             ),
@@ -1126,6 +974,8 @@ class _SuperSetWorkoutCardState extends State<_SuperSetWorkoutCard> {
                     ),
                   ),
 
+                  for (final item in widget.exercises)
+                    PreviousSets(exerciseId: item.$1.exerciseId),
                   // Alternating Sets List
                   ..._alternatingSetsList.map((item) {
                     final exerciseLetter = String.fromCharCode(65 +
@@ -1150,7 +1000,7 @@ class _SuperSetWorkoutCardState extends State<_SuperSetWorkoutCard> {
                   // Add Set Button (adds to ALL exercises)
                   Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8F8F8),
+                      color: Theme.of(context).colorScheme.surfaceContainerLow,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: GestureDetector(
@@ -1158,18 +1008,19 @@ class _SuperSetWorkoutCardState extends State<_SuperSetWorkoutCard> {
                           notifier.addSetToSuperSet(widget.superSet.id),
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(PhosphorIconsRegular.plusCircle,
-                                color: AppColors.brandTeal, size: 18),
+                                color: Theme.of(context).colorScheme.primary,
+                                size: 18),
                             SizedBox(width: 8),
                             Text(
                               'Add Set to All',
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
-                                color: Colors.black87,
+                                color: Theme.of(context).colorScheme.onSurface,
                               ),
                             ),
                           ],
@@ -1249,21 +1100,22 @@ class _SuperSetSetRowState extends State<_SuperSetSetRow> {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
           color: isCompleted
-              ? AppColors.brandTeal.withValues(alpha: 0.08)
+              ? AppDesign.of(context).successContainer
               : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(
           children: [
+            SetRecordBadge(widget.exerciseId, widget.setIndex),
             // Exercise letter + set number (e.g., "A1", "B1")
             Container(
               width: 40,
               height: 32,
               decoration: BoxDecoration(
                 color: isCompleted
-                    ? AppColors.brandTeal.withValues(alpha: 0.2)
-                    : Colors.grey[200],
-                borderRadius: BorderRadius.circular(8),
+                    ? AppDesign.of(context).successContainer
+                    : Theme.of(context).colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(12),
               ),
               alignment: Alignment.center,
               child: Text(
@@ -1271,7 +1123,9 @@ class _SuperSetSetRowState extends State<_SuperSetSetRow> {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: isCompleted ? AppColors.brandTeal : Colors.black54,
+                  color: isCompleted
+                      ? AppDesign.of(context).successContainer
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ),
@@ -1279,24 +1133,29 @@ class _SuperSetSetRowState extends State<_SuperSetSetRow> {
             // Weight field
             Expanded(
               child: Container(
-                height: 36,
+                constraints: const BoxConstraints(minHeight: 44),
                 decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: TextField(
                   controller: _weightController,
                   textAlign: TextAlign.center,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
-                    color: Colors.black87,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
+                    suffixText: widget.set.weightUnit ??
+                        (widget.set.weight == null
+                            ? context.read<SettingsNotifier>().weightSuffix
+                            : '?'),
                     hintText: '—',
-                    hintStyle: TextStyle(color: Colors.black26),
+                    hintStyle: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant),
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,
@@ -1305,7 +1164,10 @@ class _SuperSetSetRowState extends State<_SuperSetSetRow> {
                   onChanged: (value) {
                     final weight = double.tryParse(value);
                     notifier.updateSet(widget.exerciseId, widget.setIndex,
-                        weight: weight);
+                        weight: weight,
+                        clearWeight: weight == null,
+                        weightUnit: widget.set.weightUnit ??
+                            context.read<SettingsNotifier>().weightSuffix);
                   },
                 ),
               ),
@@ -1314,23 +1176,24 @@ class _SuperSetSetRowState extends State<_SuperSetSetRow> {
             // Reps field
             Expanded(
               child: Container(
-                height: 36,
+                constraints: const BoxConstraints(minHeight: 44),
                 decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: TextField(
                   controller: _repsController,
                   textAlign: TextAlign.center,
                   keyboardType: TextInputType.number,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
-                    color: Colors.black87,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: '—',
-                    hintStyle: TextStyle(color: Colors.black26),
+                    hintStyle: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant),
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,
@@ -1339,31 +1202,30 @@ class _SuperSetSetRowState extends State<_SuperSetSetRow> {
                   onChanged: (value) {
                     final reps = int.tryParse(value);
                     notifier.updateSet(widget.exerciseId, widget.setIndex,
-                        reps: reps);
+                        reps: reps, clearReps: reps == null);
                   },
                 ),
               ),
             ),
             const SizedBox(width: 8),
-            // Complete button
-            GestureDetector(
-              onTap: () => notifier.toggleSetCompletion(
+            // Completion stays green; the hit target remains comfortable.
+            IconButton(
+              tooltip: isCompleted ? 'Mark set incomplete' : 'Complete set',
+              onPressed: () => notifier.toggleSetCompletion(
                   widget.exerciseId, widget.setIndex),
-              child: Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: isCompleted ? AppColors.brandTeal : Colors.grey[200],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
+              style: IconButton.styleFrom(
+                backgroundColor: isCompleted
+                    ? AppDesign.of(context).successContainer
+                    : Theme.of(context).colorScheme.surfaceContainerLow,
+                foregroundColor: isCompleted
+                    ? AppDesign.of(context).onSuccessContainer
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              icon: Icon(
                   isCompleted
                       ? PhosphorIconsBold.check
                       : PhosphorIconsRegular.check,
-                  size: 18,
-                  color: isCompleted ? Colors.white : Colors.black38,
-                ),
-              ),
+                  size: 18),
             ),
           ],
         ),
@@ -1389,8 +1251,6 @@ class _ExerciseWorkoutCard extends StatefulWidget {
 }
 
 class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
-  List<SetFieldType>? _selectedFields; // Custom field selection
-
   // Get collapsed state from notifier instead of local state
   bool get _isCollapsed {
     final notifier = context.read<WorkoutNotifier>();
@@ -1403,11 +1263,16 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
   }
 
   List<SetFieldType> get _effectiveFields =>
-      _selectedFields ?? _inferDefaultFields(widget.exercise);
+      context.read<WorkoutNotifier>().exerciseFields(widget.log.exerciseId) ??
+      _inferDefaultFields(widget.exercise);
 
   /// Infer default fields based on exercise name and type
   List<SetFieldType> _inferDefaultFields(Exercise exercise) {
     final lowerName = exercise.name.toLowerCase();
+
+    if (exercise.exerciseType != ExerciseType.cardio) {
+      return exercise.exerciseType.defaultFields;
+    }
 
     // Treadmill: time, speed, incline
     if (lowerName.contains('treadmill') ||
@@ -1446,10 +1311,10 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setSheetState) => Container(
@@ -1462,12 +1327,12 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const SizedBox(width: 40),
-                  const Text(
+                  Text(
                     'Field Types',
                     style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   IconButton(
@@ -1478,13 +1343,14 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
               ),
               Text(
                 'Select 1-3 field types',
-                style: TextStyle(fontSize: 14, color: Colors.blue[400]),
+                style: TextStyle(
+                    fontSize: 14, color: Theme.of(context).colorScheme.primary),
               ),
               const SizedBox(height: 16),
               // Field options
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.grey[50],
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Column(
@@ -1510,7 +1376,8 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                         decoration: BoxDecoration(
                           border: Border(
                             bottom: BorderSide(
-                              color: Colors.grey[200]!,
+                              color:
+                                  Theme.of(context).colorScheme.outlineVariant,
                               width: field != SetFieldType.values.last ? 1 : 0,
                             ),
                           ),
@@ -1528,14 +1395,17 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                                     ? FontWeight.w600
                                     : FontWeight.normal,
                                 color: isSelected
-                                    ? Colors.black87
-                                    : Colors.grey[600],
+                                    ? Theme.of(context).colorScheme.onSurface
+                                    : Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
                               ),
                             ),
                             const Spacer(),
                             if (isSelected)
-                              const Icon(PhosphorIconsBold.check,
-                                  color: AppColors.brandTeal, size: 20),
+                              Icon(PhosphorIconsBold.check,
+                                  color: Theme.of(context).colorScheme.primary,
+                                  size: 20),
                           ],
                         ),
                       ),
@@ -1549,12 +1419,12 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    setState(() => _selectedFields = tempSelected);
+                    context
+                        .read<WorkoutNotifier>()
+                        .setExerciseFields(widget.log.exerciseId, tempSelected);
                     Navigator.pop(sheetContext);
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -1578,9 +1448,9 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
     final parentContext = context;
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (sheetContext) => Container(
         padding: const EdgeInsets.symmetric(vertical: 20),
@@ -1589,18 +1459,19 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
           children: [
             Text(
               widget.exercise.name,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 17,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 20),
             ListTile(
-              leading:
-                  const Icon(PhosphorIconsBold.info, color: Colors.black87),
-              title: const Text('Exercise Info',
-                  style: TextStyle(color: Colors.black87)),
+              leading: Icon(PhosphorIconsBold.info,
+                  color: Theme.of(context).colorScheme.onSurface),
+              title: Text('Exercise Info',
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface)),
               onTap: () {
                 Navigator.pop(sheetContext);
                 if (!mounted) return;
@@ -1608,10 +1479,11 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
               },
             ),
             ListTile(
-              leading:
-                  const Icon(PhosphorIconsBold.copy, color: Colors.black87),
-              title: const Text('Duplicate Exercise',
-                  style: TextStyle(color: Colors.black87)),
+              leading: Icon(PhosphorIconsBold.copy,
+                  color: Theme.of(context).colorScheme.onSurface),
+              title: Text('Duplicate Exercise',
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface)),
               onTap: () {
                 Navigator.pop(sheetContext);
                 if (!mounted) return;
@@ -1622,9 +1494,10 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
               },
             ),
             ListTile(
-              leading: const Icon(PhosphorIconsBold.trash, color: Colors.red),
-              title: const Text('Remove Exercise',
-                  style: TextStyle(color: Colors.red)),
+              leading: Icon(PhosphorIconsBold.trash,
+                  color: Theme.of(context).colorScheme.error),
+              title: Text('Remove Exercise',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
               onTap: () {
                 Navigator.pop(sheetContext);
                 if (!mounted) return;
@@ -1638,79 +1511,13 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
   }
 
   void _showExerciseInfo(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
-        title: Text(widget.exercise.name,
-            style: const TextStyle(color: Colors.black87)),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Muscle Group',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.black54,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                widget.exercise.muscleGroup,
-                style: const TextStyle(fontSize: 15, color: Colors.black87),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Equipment',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.black54,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                widget.exercise.equipment,
-                style: const TextStyle(fontSize: 15, color: Colors.black87),
-              ),
-              if (widget.exercise.instructions != null)
-                const SizedBox(height: 16),
-              if (widget.exercise.instructions != null)
-                const Text(
-                  'Instructions',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.black54,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              if (widget.exercise.instructions != null)
-                const SizedBox(height: 4),
-              if (widget.exercise.instructions != null)
-                Text(
-                  widget.exercise.instructions!,
-                  style: const TextStyle(fontSize: 15, color: Colors.black87),
-                ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
+    showExerciseInfo(context, widget.exercise);
   }
 
   Widget _buildColumnHeaders(List<SetFieldType> fields) {
-    const headerStyle = TextStyle(
-      fontSize: 11,
-      color: Colors.black38,
+    final headerStyle = TextStyle(
+      fontSize: 13,
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
       fontWeight: FontWeight.w600,
       letterSpacing: 0.5,
     );
@@ -1743,17 +1550,17 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
         border: isInSuperSet
             ? Border.all(
-                color: AppColors.brandTeal,
+                color: Theme.of(context).colorScheme.primary,
                 width: 2,
               )
             : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -1766,35 +1573,35 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-              decoration: const BoxDecoration(
-                color: AppColors.brandTeal,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary,
                 borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(14),
-                  topRight: Radius.circular(14),
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
                 ),
               ),
               child: Row(
                 children: [
-                  const Icon(
+                  Icon(
                     PhosphorIconsBold.arrowsClockwise,
-                    color: Colors.white,
+                    color: Theme.of(context).colorScheme.onPrimary,
                     size: 16,
                   ),
                   const SizedBox(width: 8),
                   Text(
                     'Super Set ${superSetPosition != null ? (superSetPosition + 1) : ''}',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onPrimary,
                       fontWeight: FontWeight.w600,
-                      fontSize: 12,
+                      fontSize: 13,
                     ),
                   ),
                   const Spacer(),
                   Text(
                     '${superSet.exerciseIds.length} exercises',
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 11,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onPrimary,
+                      fontSize: 13,
                     ),
                   ),
                 ],
@@ -1811,27 +1618,26 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF5F5F5),
+                    color: Theme.of(context).colorScheme.surfaceContainerLow,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   clipBehavior: Clip.antiAlias,
                   child: widget.exercise.hasGif
-                      ? Image.network(
-                          widget.exercise.gifUrl!,
+                      ? ExerciseMedia(
+                          imageUrl: widget.exercise.gifUrl!,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Center(
+                          errorWidget: (context, url, error) => Center(
                             child: Text(widget.exercise.exerciseType.icon,
                                 style: const TextStyle(fontSize: 20)),
                           ),
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return const Center(
+                          placeholder: (context, url) {
+                            return Center(
                               child: SizedBox(
                                 width: 20,
                                 height: 20,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  color: AppColors.brandTeal,
+                                  color: Theme.of(context).colorScheme.primary,
                                 ),
                               ),
                             );
@@ -1850,13 +1656,14 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                     children: [
                       Text(
                         widget.exercise.name,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: Colors.black87,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 4),
+                      BestRecordBadge(widget.exercise.id),
                       // Field types chip (tappable to change)
                       GestureDetector(
                         onTap: () => _showFieldSelector(context),
@@ -1864,25 +1671,34 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF0F0F0),
+                            color: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerLow,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(
-                                _effectiveFields
-                                    .map((f) => f.displayName)
-                                    .join(' · '),
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.grey[700],
+                              Flexible(
+                                child: Text(
+                                  _effectiveFields
+                                      .map((f) => f.displayName)
+                                      .join(' · '),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 4),
                               Icon(PhosphorIconsRegular.caretDown,
-                                  size: 10, color: Colors.grey[500]),
+                                  size: 10,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant),
                             ],
                           ),
                         ),
@@ -1892,8 +1708,9 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                 ),
                 // Menu button
                 IconButton(
-                  icon: const Icon(PhosphorIconsRegular.dotsThree,
-                      color: Colors.black38, size: 22),
+                  icon: Icon(PhosphorIconsRegular.dotsThree,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      size: 22),
                   onPressed: () => _showExerciseMenu(context),
                   padding: EdgeInsets.zero,
                   constraints:
@@ -1905,8 +1722,9 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                     _isCollapsed
                         ? PhosphorIconsRegular.caretDown
                         : PhosphorIconsRegular.check,
-                    color:
-                        _isCollapsed ? Colors.black38 : const Color(0xFF007AFF),
+                    color: _isCollapsed
+                        ? Theme.of(context).colorScheme.onSurfaceVariant
+                        : Theme.of(context).colorScheme.primary,
                     size: 22,
                   ),
                   onPressed: _toggleCollapsed,
@@ -1931,6 +1749,10 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                     child: _buildColumnHeaders(_effectiveFields),
                   ),
 
+                  if (widget.log.exerciseType == 'cardio' ||
+                      widget.exercise.exerciseType == ExerciseType.cardio)
+                    CardioDetailsButton(exercise: widget.log),
+                  PreviousSets(exerciseId: widget.exercise.id),
                   // Sets List
                   ...widget.log.sets.asMap().entries.map((entry) {
                     final index = entry.key;
@@ -1946,42 +1768,52 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                         return await showDialog<bool>(
                               context: context,
                               builder: (dialogContext) => AlertDialog(
-                                backgroundColor: Colors.white,
+                                backgroundColor:
+                                    Theme.of(context).colorScheme.surface,
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
+                                  borderRadius: BorderRadius.circular(24),
                                 ),
                                 title: const Text(
                                   'Delete Set?',
                                   style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                                 content: Text(
                                   'Remove set ${index + 1} from ${widget.exercise.name}?',
-                                  style: const TextStyle(
-                                      fontSize: 15, color: Colors.black54),
+                                  style: TextStyle(
+                                      fontSize: 15,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant),
                                 ),
                                 actions: [
                                   TextButton(
                                     onPressed: () =>
                                         Navigator.pop(dialogContext, false),
-                                    child: const Text(
+                                    child: Text(
                                       'Cancel',
-                                      style: TextStyle(color: Colors.black54),
+                                      style: TextStyle(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurfaceVariant),
                                     ),
                                   ),
                                   TextButton(
                                     onPressed: () =>
                                         Navigator.pop(dialogContext, true),
                                     style: TextButton.styleFrom(
-                                      backgroundColor:
-                                          Colors.red.withValues(alpha: 0.1),
+                                      backgroundColor: Theme.of(context)
+                                          .colorScheme
+                                          .error
+                                          .withValues(alpha: 0.1),
                                     ),
-                                    child: const Text(
+                                    child: Text(
                                       'Delete',
                                       style: TextStyle(
-                                        color: Colors.red,
+                                        color:
+                                            Theme.of(context).colorScheme.error,
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
@@ -1999,23 +1831,28 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                         padding: const EdgeInsets.only(right: 20),
                         margin: const EdgeInsets.symmetric(vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.red,
+                          color: Theme.of(context).colorScheme.errorContainer,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
                             Text(
                               'Delete',
                               style: TextStyle(
-                                color: Colors.white,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onErrorContainer,
                                 fontWeight: FontWeight.w600,
                                 fontSize: 14,
                               ),
                             ),
                             SizedBox(width: 8),
                             Icon(PhosphorIconsBold.trash,
-                                color: Colors.white, size: 20),
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onErrorContainer,
+                                size: 20),
                           ],
                         ),
                       ),
@@ -2039,30 +1876,37 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                   // Compact Action Buttons Row
                   Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8F8F8),
+                      color: Theme.of(context).colorScheme.surfaceContainerLow,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
                       children: [
                         // Add Set button
                         Expanded(
-                          flex: 3,
+                          flex: 1,
                           child: GestureDetector(
                             onTap: () => notifier.addSet(widget.exercise.id),
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 14),
-                              child: const Row(
+                              child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Icon(PhosphorIconsRegular.plusCircle,
-                                      color: AppColors.brandTeal, size: 18),
+                                      color:
+                                          Theme.of(context).colorScheme.primary,
+                                      size: 18),
                                   SizedBox(width: 8),
-                                  Text(
-                                    'Add Set',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.black87,
+                                  Flexible(
+                                    child: Text(
+                                      'Add Set',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurface,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -2071,10 +1915,14 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                           ),
                         ),
                         // Divider
-                        Container(width: 1, height: 24, color: Colors.black12),
+                        Container(
+                            width: 1,
+                            height: 24,
+                            color:
+                                Theme.of(context).colorScheme.outlineVariant),
                         // Super Set button
                         Expanded(
-                          flex: 2,
+                          flex: 1,
                           child: GestureDetector(
                             onTap: () {
                               _showSuperSetOptions(
@@ -2082,18 +1930,25 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                             },
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 14),
-                              child: const Row(
+                              child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Icon(PhosphorIconsRegular.arrowsClockwise,
-                                      color: Color(0xFF007AFF), size: 18),
+                                      color:
+                                          Theme.of(context).colorScheme.primary,
+                                      size: 18),
                                   SizedBox(width: 6),
-                                  Text(
-                                    'Super Set',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.black87,
+                                  Flexible(
+                                    child: Text(
+                                      'Super Set',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurface,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -2102,7 +1957,11 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                           ),
                         ),
                         // Divider
-                        Container(width: 1, height: 24, color: Colors.black12),
+                        Container(
+                            width: 1,
+                            height: 24,
+                            color:
+                                Theme.of(context).colorScheme.outlineVariant),
                         // Mark all complete button
                         GestureDetector(
                           onTap: () {
@@ -2116,9 +1975,11 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 16, vertical: 14),
-                            child: const Icon(
+                            child: Icon(
                               PhosphorIconsBold.checks,
-                              color: Color(0xFFB0B0B0),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
                               size: 20,
                             ),
                           ),
@@ -2262,6 +2123,7 @@ class _SetRowState extends State<_SetRow> {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
+          SetRecordBadge(widget.exerciseId, widget.setIndex),
           _SetTypeBadge(
             setNumber: widget.setNumber,
             isWarmup: widget.isWarmup,
@@ -2272,35 +2134,29 @@ class _SetRowState extends State<_SetRow> {
             child: _buildDynamicInputFields(context, notifier, settings),
           ),
           const SizedBox(width: 8),
-          GestureDetector(
-            onTap: () {
+          IconButton(
+            tooltip:
+                widget.set.isCompleted ? 'Mark set incomplete' : 'Complete set',
+            onPressed: () {
               final wasCompleted = widget.set.isCompleted;
               notifier.toggleSetCompletion(widget.exerciseId, widget.setIndex);
               if (!wasCompleted && !_isLastSetOfBlock(context)) {
                 settings.startRestTimer();
               }
             },
-            child: Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: widget.set.isCompleted
-                    ? AppColors.brandTeal
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: widget.set.isCompleted
-                      ? AppColors.brandTeal
-                      : const Color(0xFFD8D8D8),
-                  width: 1.5,
-                ),
-              ),
-              child: widget.set.isCompleted
-                  ? const Icon(PhosphorIconsBold.check,
-                      color: Colors.white, size: 14)
-                  : Icon(PhosphorIconsRegular.check,
-                      color: Colors.grey[300], size: 14),
+            style: IconButton.styleFrom(
+              backgroundColor: widget.set.isCompleted
+                  ? AppDesign.of(context).successContainer
+                  : Theme.of(context).colorScheme.surfaceContainerLow,
+              foregroundColor: widget.set.isCompleted
+                  ? AppDesign.of(context).onSuccessContainer
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
             ),
+            icon: Icon(
+                widget.set.isCompleted
+                    ? PhosphorIconsBold.check
+                    : PhosphorIconsRegular.check,
+                size: 18),
           ),
         ],
       ),
@@ -2321,7 +2177,7 @@ class _SetRowState extends State<_SetRow> {
             Container(
               width: 1,
               height: 24,
-              color: const Color(0xFFE0E0E0),
+              color: Theme.of(context).colorScheme.outlineVariant,
               margin: EdgeInsets.symmetric(horizontal: fieldCount > 2 ? 6 : 10),
             ),
           Expanded(
@@ -2337,7 +2193,21 @@ class _SetRowState extends State<_SetRow> {
       SettingsNotifier settings, bool isMetric, int fieldCount) {
     final controller = _controllers[field]!;
     final focusNode = _focusNodes[field]!;
-    final suffix = field.getSuffix(isMetric);
+    final suffix = field == SetFieldType.weight
+        ? (widget.set.weightUnit ??
+            (widget.set.weight == null ? settings.weightSuffix : '?'))
+        : field == SetFieldType.distance
+            ? (widget.set.distanceUnit ??
+                (widget.set.distance == null
+                    ? (settings.userSettings.distanceUnit == DistanceUnit.miles
+                        ? 'mi'
+                        : 'km')
+                    : '?'))
+            : field == SetFieldType.speed
+                ? (settings.userSettings.distanceUnit == DistanceUnit.miles
+                    ? 'mph'
+                    : 'km/h')
+                : field.getSuffix(isMetric);
 
     switch (field) {
       case SetFieldType.weight:
@@ -2354,6 +2224,8 @@ class _SetRowState extends State<_SetRow> {
                   widget.exerciseId,
                   widget.setIndex,
                   weight: weight,
+                  clearWeight: weight == null,
+                  weightUnit: widget.set.weightUnit ?? settings.weightSuffix,
                 );
           },
         );
@@ -2372,6 +2244,7 @@ class _SetRowState extends State<_SetRow> {
                   widget.exerciseId,
                   widget.setIndex,
                   reps: reps,
+                  clearReps: reps == null,
                 );
           },
         );
@@ -2407,6 +2280,10 @@ class _SetRowState extends State<_SetRow> {
                   widget.exerciseId,
                   widget.setIndex,
                   distance: distance,
+                  distanceUnit: widget.set.distanceUnit ??
+                      (settings.userSettings.distanceUnit == DistanceUnit.miles
+                          ? 'mi'
+                          : 'km'),
                 );
           },
         );
@@ -2497,7 +2374,7 @@ class _SetRowState extends State<_SetRow> {
             style: TextStyle(
               fontSize: fontSize,
               fontWeight: FontWeight.w500,
-              color: Colors.black87,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
             decoration: InputDecoration(
               border: InputBorder.none,
@@ -2510,7 +2387,7 @@ class _SetRowState extends State<_SetRow> {
               hintStyle: TextStyle(
                 fontSize: fontSize,
                 fontWeight: FontWeight.w500,
-                color: Colors.black38,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             onChanged: onChanged,
@@ -2522,7 +2399,7 @@ class _SetRowState extends State<_SetRow> {
             style: TextStyle(
               fontSize: suffixSize,
               fontWeight: FontWeight.w400,
-              color: Colors.grey[400],
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ],
@@ -2544,7 +2421,8 @@ class _SetRowState extends State<_SetRow> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Icon(PhosphorIconsRegular.timer,
-            size: iconSize, color: Colors.grey[400]),
+            size: iconSize,
+            color: Theme.of(context).colorScheme.onSurfaceVariant),
         const SizedBox(width: 2),
         IntrinsicWidth(
           child: TextField(
@@ -2555,7 +2433,7 @@ class _SetRowState extends State<_SetRow> {
             style: TextStyle(
               fontSize: fontSize,
               fontWeight: FontWeight.w500,
-              color: Colors.black87,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
             decoration: InputDecoration(
               border: InputBorder.none,
@@ -2568,7 +2446,7 @@ class _SetRowState extends State<_SetRow> {
               hintStyle: TextStyle(
                 fontSize: fontSize,
                 fontWeight: FontWeight.w500,
-                color: Colors.black38,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             onChanged: onChanged,
@@ -2598,17 +2476,19 @@ class _SetTypeBadge extends StatelessWidget {
         height: 24,
         decoration: BoxDecoration(
           color: isCompleted
-              ? AppColors.brandTeal
-              : AppColors.brandTeal.withValues(alpha: 0.1),
+              ? AppDesign.of(context).successContainer
+              : Theme.of(context).colorScheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(4),
         ),
         child: Center(
           child: Text(
             'W',
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: isCompleted ? Colors.white : AppColors.brandTeal,
+              color: isCompleted
+                  ? AppDesign.of(context).onSuccessContainer
+                  : AppDesign.of(context).success,
             ),
           ),
         ),
@@ -2623,7 +2503,9 @@ class _SetTypeBadge extends StatelessWidget {
         style: TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w500,
-          color: isCompleted ? AppColors.brandTeal : const Color(0xFF9CA3AF),
+          color: isCompleted
+              ? AppDesign.of(context).success
+              : Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ),
     );
@@ -2660,9 +2542,9 @@ class _NumberInputSheetState extends State<_NumberInputSheet> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       child: SafeArea(
         child: Column(
@@ -2674,7 +2556,7 @@ class _NumberInputSheetState extends State<_NumberInputSheet> {
               height: 4,
               margin: const EdgeInsets.only(top: 12),
               decoration: BoxDecoration(
-                color: Colors.grey[300],
+                color: Theme.of(context).colorScheme.outlineVariant,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -2688,7 +2570,7 @@ class _NumberInputSheetState extends State<_NumberInputSheet> {
                     widget.title,
                     style: TextStyle(
                       fontSize: 15,
-                      color: Colors.grey[500],
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -2700,10 +2582,10 @@ class _NumberInputSheetState extends State<_NumberInputSheet> {
                     children: [
                       Text(
                         _currentValue.isEmpty ? '0' : _currentValue,
-                        style: const TextStyle(
-                          fontSize: 56,
+                        style: TextStyle(
+                          fontSize: 32,
                           fontWeight: FontWeight.w600,
-                          color: Colors.black87,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                       if (widget.unit.isNotEmpty) ...[
@@ -2712,7 +2594,8 @@ class _NumberInputSheetState extends State<_NumberInputSheet> {
                           widget.unit,
                           style: TextStyle(
                             fontSize: 24,
-                            color: Colors.grey[400],
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -2770,16 +2653,17 @@ class _NumberInputSheetState extends State<_NumberInputSheet> {
                           child: Container(
                             height: 56,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFFFF0F0),
+                              color:
+                                  Theme.of(context).colorScheme.errorContainer,
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Center(
+                            child: Center(
                               child: Text(
                                 'C',
                                 style: TextStyle(
                                   fontSize: 22,
                                   fontWeight: FontWeight.w600,
-                                  color: Color(0xFFE57373),
+                                  color: Theme.of(context).colorScheme.error,
                                 ),
                               ),
                             ),
@@ -2795,14 +2679,18 @@ class _NumberInputSheetState extends State<_NumberInputSheet> {
                           child: Container(
                             height: 56,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF5F5F5),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerLow,
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Center(
+                            child: Center(
                               child: Icon(
                                 PhosphorIconsRegular.backspace,
                                 size: 24,
-                                color: Colors.black54,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
                               ),
                             ),
                           ),
@@ -2817,11 +2705,9 @@ class _NumberInputSheetState extends State<_NumberInputSheet> {
                     child: ElevatedButton(
                       onPressed: _submit,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.brandTeal,
-                        foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(999),
                         ),
                         elevation: 0,
                       ),
@@ -2849,16 +2735,16 @@ class _NumberInputSheetState extends State<_NumberInputSheet> {
       child: Container(
         height: 56,
         decoration: BoxDecoration(
-          color: const Color(0xFFF8F8F8),
+          color: Theme.of(context).colorScheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Center(
           child: Text(
             number,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w500,
-              color: Colors.black87,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),
@@ -2970,47 +2856,6 @@ class _RenameWorkoutDialogState extends State<_RenameWorkoutDialog> {
   }
 }
 
-class _StatItem extends StatelessWidget {
-  final IconData icon;
-  final String value;
-  final String label;
-  final Color color;
-
-  const _StatItem({
-    required this.icon,
-    required this.value,
-    required this.label,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Icon(icon, color: color, size: 22),
-        const SizedBox(height: 6),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: Colors.grey[600],
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 void _showSuperSetOptions(
     BuildContext context, WorkoutNotifier notifier, String exerciseId) {
   final exercise = notifier.currentWorkout?.exercises
@@ -3056,9 +2901,9 @@ void _showSuperSetManagement(
 
   showModalBottomSheet(
     context: context,
-    backgroundColor: Colors.white,
+    backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
     ),
     builder: (context) => _SuperSetManagementSheet(
       superSet: superSet,
@@ -3233,14 +3078,19 @@ class _SuperSetExercisePickerScreenState
           vertical: isCompact ? 8 : 10,
         ),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.brandTeal : Colors.white,
-          borderRadius: BorderRadius.circular(10),
+          color: isSelected
+              ? Theme.of(context).colorScheme.primaryContainer
+              : Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(999),
           border: Border.all(
-            color: isSelected ? AppColors.brandTeal : const Color(0xFFE0E0E0),
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.outlineVariant,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
+              color:
+                  Theme.of(context).colorScheme.shadow.withValues(alpha: 0.03),
               blurRadius: 4,
               offset: const Offset(0, 1),
             ),
@@ -3250,17 +3100,20 @@ class _SuperSetExercisePickerScreenState
           mainAxisSize: MainAxisSize.min,
           children: [
             if (isSelected) ...[
-              const Icon(PhosphorIconsBold.check,
-                  size: 14, color: Colors.white),
+              Icon(PhosphorIconsBold.check,
+                  size: 14,
+                  color: Theme.of(context).colorScheme.onPrimaryContainer),
               const SizedBox(width: 6),
             ],
             Flexible(
               child: Text(
                 exercise.name,
                 style: TextStyle(
-                  fontSize: isCompact ? 12 : 13,
+                  fontSize: 13,
                   fontWeight: FontWeight.w500,
-                  color: isSelected ? Colors.white : Colors.black87,
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.onPrimaryContainer
+                      : Theme.of(context).colorScheme.onSurface,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -3288,15 +3141,20 @@ class _SuperSetExercisePickerScreenState
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFE8F5F3) : Colors.white,
+          color: isSelected
+              ? Theme.of(context).colorScheme.primaryContainer
+              : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? AppColors.brandTeal : Colors.transparent,
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary
+                : Colors.transparent,
             width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
+              color:
+                  Theme.of(context).colorScheme.shadow.withValues(alpha: 0.03),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),
@@ -3309,14 +3167,19 @@ class _SuperSetExercisePickerScreenState
               height: 40,
               decoration: BoxDecoration(
                 color: isSelected
-                    ? AppColors.brandTeal.withValues(alpha: 0.15)
-                    : const Color(0xFFF5F5F5),
+                    ? Theme.of(context)
+                        .colorScheme
+                        .primary
+                        .withValues(alpha: 0.15)
+                    : Theme.of(context).colorScheme.surfaceContainerLow,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
                 PhosphorIconsBold.barbell,
                 size: 20,
-                color: isSelected ? AppColors.brandTeal : Colors.black54,
+                color: isSelected
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(width: 12),
@@ -3329,15 +3192,17 @@ class _SuperSetExercisePickerScreenState
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: isSelected ? AppColors.brandTeal : Colors.black87,
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     '${exercise.muscleGroup} • ${exercise.equipment}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.black45,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -3347,16 +3212,20 @@ class _SuperSetExercisePickerScreenState
               width: 24,
               height: 24,
               decoration: BoxDecoration(
-                color: isSelected ? AppColors.brandTeal : Colors.transparent,
+                color: isSelected
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.transparent,
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: isSelected ? AppColors.brandTeal : Colors.black26,
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
                   width: 2,
                 ),
               ),
               child: isSelected
-                  ? const Icon(PhosphorIconsBold.check,
-                      color: Colors.white, size: 14)
+                  ? Icon(PhosphorIconsBold.check,
+                      color: Theme.of(context).colorScheme.onPrimary, size: 14)
                   : null,
             ),
           ],
@@ -3371,21 +3240,26 @@ class _SuperSetExercisePickerScreenState
         _suggestedExercises.isNotEmpty || _sameMuscleExercises.isNotEmpty;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F8F8),
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF8F8F8),
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(PhosphorIconsRegular.x,
-              color: Colors.black87, size: 22),
+          tooltip: 'Close',
+          style: IconButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            shape: const CircleBorder(),
+          ),
+          icon: Icon(PhosphorIconsRegular.x,
+              color: Theme.of(context).colorScheme.onSurface, size: 22),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Create Super Set',
           style: TextStyle(
             fontSize: 17,
             fontWeight: FontWeight.w600,
-            color: Colors.black87,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
         centerTitle: true,
@@ -3399,19 +3273,19 @@ class _SuperSetExercisePickerScreenState
                   Navigator.pop(context);
                 },
                 style: TextButton.styleFrom(
-                  backgroundColor: AppColors.brandTeal,
+                  backgroundColor: Theme.of(context).colorScheme.primary,
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(999),
                   ),
                 ),
                 child: Text(
                   'Done (${_selectedExercises.length})',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                    color: Theme.of(context).colorScheme.onPrimary,
                   ),
                 ),
               ),
@@ -3426,13 +3300,13 @@ class _SuperSetExercisePickerScreenState
               margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFE8F5F3),
+                color: Theme.of(context).colorScheme.primaryContainer,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 children: [
-                  const Icon(PhosphorIconsBold.arrowsClockwise,
-                      color: AppColors.brandTeal, size: 18),
+                  Icon(PhosphorIconsBold.arrowsClockwise,
+                      color: Theme.of(context).colorScheme.primary, size: 18),
                   const SizedBox(width: 8),
                   Expanded(
                     child: SingleChildScrollView(
@@ -3444,15 +3318,18 @@ class _SuperSetExercisePickerScreenState
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: AppColors.brandTeal.withValues(alpha: 0.2),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
                               _currentExercise?.name ?? 'Current',
-                              style: const TextStyle(
-                                fontSize: 12,
+                              style: TextStyle(
+                                fontSize: 13,
                                 fontWeight: FontWeight.w600,
-                                color: AppColors.brandTeal,
+                                color: Theme.of(context).colorScheme.primary,
                               ),
                             ),
                           ),
@@ -3466,7 +3343,8 @@ class _SuperSetExercisePickerScreenState
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
+                                    color:
+                                        Theme.of(context).colorScheme.surface,
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Row(
@@ -3474,15 +3352,20 @@ class _SuperSetExercisePickerScreenState
                                     children: [
                                       Text(
                                         exercise.name,
-                                        style: const TextStyle(
-                                          fontSize: 12,
+                                        style: TextStyle(
+                                          fontSize: 13,
                                           fontWeight: FontWeight.w500,
-                                          color: Colors.black87,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurface,
                                         ),
                                       ),
                                       const SizedBox(width: 4),
-                                      const Icon(PhosphorIconsBold.x,
-                                          size: 12, color: Colors.black45),
+                                      Icon(PhosphorIconsBold.x,
+                                          size: 12,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurfaceVariant),
                                     ],
                                   ),
                                 ),
@@ -3500,9 +3383,9 @@ class _SuperSetExercisePickerScreenState
           // Main content
           Expanded(
             child: _isLoading
-                ? const Center(
+                ? Center(
                     child: CircularProgressIndicator(
-                      color: AppColors.brandTeal,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                   )
                 : _allExercises.isEmpty
@@ -3513,14 +3396,18 @@ class _SuperSetExercisePickerScreenState
                             Icon(
                               PhosphorIconsRegular.barbell,
                               size: 48,
-                              color: Colors.grey[400],
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
                             ),
                             const SizedBox(height: 12),
                             Text(
                               'No exercises found',
                               style: TextStyle(
                                 fontSize: 16,
-                                color: Colors.grey[600],
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -3553,14 +3440,14 @@ class _SuperSetExercisePickerScreenState
                 Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE3F2FD),
+                    color: Theme.of(context).colorScheme.primaryContainer,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(PhosphorIconsBold.lightningA,
-                      size: 16, color: Color(0xFF1976D2)),
+                  child: Icon(PhosphorIconsBold.lightningA,
+                      size: 16, color: Theme.of(context).colorScheme.primary),
                 ),
                 const SizedBox(width: 10),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -3569,14 +3456,14 @@ class _SuperSetExercisePickerScreenState
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
-                          color: Colors.black87,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                       Text(
                         'Opposite muscle groups for balanced training',
                         style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.black45,
+                          fontSize: 13,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -3602,30 +3489,30 @@ class _SuperSetExercisePickerScreenState
                 Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFF3E0),
+                    color: AppDesign.of(context).warningContainer,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(PhosphorIconsBold.fire,
-                      size: 16, color: Color(0xFFE65100)),
+                  child: Icon(PhosphorIconsBold.fire,
+                      size: 16, color: AppDesign.of(context).warning),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Compound Set',
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
-                          color: Colors.black87,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                       Text(
                         'Same muscle ($_currentMuscleGroup) for intensity',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.black45,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -3651,22 +3538,24 @@ class _SuperSetExercisePickerScreenState
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 14),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE0E0E0)),
+                border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(PhosphorIconsRegular.magnifyingGlass,
-                      size: 18, color: Colors.black54),
+                      size: 18,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant),
                   SizedBox(width: 8),
                   Text(
                     'Browse All Exercises',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: Colors.black54,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -3688,17 +3577,17 @@ class _SuperSetExercisePickerScreenState
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: GestureDetector(
               onTap: () => setState(() => _showAllExercises = false),
-              child: const Row(
+              child: Row(
                 children: [
                   Icon(PhosphorIconsRegular.arrowLeft,
-                      size: 16, color: AppColors.brandTeal),
+                      size: 16, color: Theme.of(context).colorScheme.primary),
                   SizedBox(width: 6),
                   Text(
                     'Back to Suggestions',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.brandTeal,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
                 ],
@@ -3711,11 +3600,14 @@ class _SuperSetExercisePickerScreenState
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .shadow
+                      .withValues(alpha: 0.04),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -3725,11 +3617,14 @@ class _SuperSetExercisePickerScreenState
               controller: _searchController,
               onChanged: (value) => setState(() => _searchQuery = value),
               style: const TextStyle(fontSize: 15),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: 'Search exercises...',
-                hintStyle: TextStyle(color: Colors.black38, fontSize: 15),
+                hintStyle: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 15),
                 prefixIcon: Icon(PhosphorIconsRegular.magnifyingGlass,
-                    color: Colors.black38, size: 20),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    size: 20),
                 border: InputBorder.none,
                 contentPadding:
                     EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -3756,12 +3651,14 @@ class _SuperSetExercisePickerScreenState
                     padding:
                         const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
-                      color: isSelected ? AppColors.brandTeal : Colors.white,
-                      borderRadius: BorderRadius.circular(18),
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.primaryContainer
+                          : Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(999),
                       border: Border.all(
                         color: isSelected
-                            ? AppColors.brandTeal
-                            : const Color(0xFFE0E0E0),
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.outlineVariant,
                       ),
                     ),
                     child: Text(
@@ -3769,7 +3666,9 @@ class _SuperSetExercisePickerScreenState
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
-                        color: isSelected ? Colors.white : Colors.black87,
+                        color: isSelected
+                            ? Theme.of(context).colorScheme.onPrimaryContainer
+                            : Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                   ),
@@ -3838,12 +3737,12 @@ class _SuperSetManagementSheetState extends State<_SuperSetManagementSheet> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
+          Text(
             'Manage Super Set',
             style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 20),
@@ -3865,17 +3764,19 @@ class _SuperSetManagementSheetState extends State<_SuperSetManagementSheet> {
                   key: ValueKey(exerciseId),
                   leading: Text(
                     '${index + 1}',
-                    style: const TextStyle(
-                      color: AppColors.brandTeal,
-                      fontWeight: FontWeight.bold,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   title: Text(
                     _getExerciseNameById(context, exerciseId),
-                    style: const TextStyle(color: Colors.black87),
+                    style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface),
                   ),
                   trailing: IconButton(
-                    icon: const Icon(PhosphorIconsRegular.x, color: Colors.red),
+                    icon: Icon(PhosphorIconsRegular.x,
+                        color: Theme.of(context).colorScheme.error),
                     onPressed: () => widget.onRemoveFromSuperSet(exerciseId),
                   ),
                 );
@@ -3887,8 +3788,9 @@ class _SuperSetManagementSheetState extends State<_SuperSetManagementSheet> {
             width: double.infinity,
             child: TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Done',
-                  style: TextStyle(color: AppColors.brandTeal)),
+              child: Text('Done',
+                  style:
+                      TextStyle(color: Theme.of(context).colorScheme.primary)),
             ),
           ),
         ],
@@ -3910,162 +3812,93 @@ class _GlobalRestTimerOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final timer = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(settings.isPaused ? 'Paused' : 'Rest timer',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: colors.onPrimaryContainer)),
+        Text(settings.formatRestTime(settings.currentRestSeconds),
+            style: Theme.of(context)
+                .textTheme
+                .headlineLarge
+                ?.copyWith(color: colors.onPrimaryContainer)),
+      ],
+    );
+    final controls = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        TextButton(
+          onPressed: () => settings.adjustRestTime(-15),
+          style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              foregroundColor: colors.onPrimaryContainer,
+              backgroundColor: colors.surface),
+          child: const Text('−15'),
+        ),
+        TextButton(
+          onPressed: () => settings.adjustRestTime(15),
+          style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              foregroundColor: colors.onPrimaryContainer,
+              backgroundColor: colors.surface),
+          child: const Text('+15'),
+        ),
+        IconButton(
+          tooltip: settings.isPaused ? 'Resume rest timer' : 'Pause rest timer',
+          onPressed: () {
+            if (settings.isPaused) {
+              settings.resumeRestTimer();
+            } else {
+              settings.pauseRestTimer();
+            }
+          },
+          style: IconButton.styleFrom(backgroundColor: colors.surface),
+          icon: Icon(settings.isPaused
+              ? PhosphorIconsBold.play
+              : PhosphorIconsBold.pause),
+        ),
+        IconButton(
+          tooltip: 'Stop rest timer',
+          onPressed: onDismiss,
+          style: IconButton.styleFrom(
+              backgroundColor: colors.errorContainer,
+              foregroundColor: colors.onErrorContainer),
+          icon: const Icon(PhosphorIconsBold.x),
+        ),
+      ],
+    );
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.brandTeal.withValues(alpha: 0.95),
-            AppColors.info.withValues(alpha: 0.95),
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.brandTeal.withValues(alpha: 0.3),
-            blurRadius: 12,
-            offset: const Offset(0, -4),
-          ),
-        ],
+        color: colors.primaryContainer,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: SafeArea(
         top: false,
         bottom: false,
-        child: Row(
-          children: [
-            // Timer icon
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(22),
-              ),
-              child: const Icon(
-                PhosphorIconsBold.timer,
-                color: Colors.white,
-                size: 22,
-              ),
-            ),
+        child: LayoutBuilder(builder: (context, constraints) {
+          final stacked = constraints.maxWidth < 350 ||
+              MediaQuery.textScalerOf(context).scale(15) > 20;
+          if (stacked) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [timer, const SizedBox(height: 8), controls],
+            );
+          }
+          return Row(children: [
+            Expanded(child: timer),
             const SizedBox(width: 12),
-            // Timer display
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    settings.isPaused ? 'PAUSED' : 'REST TIMER',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white.withValues(alpha: 0.8),
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    settings.formatRestTime(settings.currentRestSeconds),
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // -15s button
-            GestureDetector(
-              onTap: () => settings.adjustRestTime(-15),
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: const Center(
-                  child: Text(
-                    '-15',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            // +15s button
-            GestureDetector(
-              onTap: () => settings.adjustRestTime(15),
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: const Center(
-                  child: Text(
-                    '+15',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Pause/Resume button
-            GestureDetector(
-              onTap: () {
-                if (settings.isPaused) {
-                  settings.resumeRestTimer();
-                } else {
-                  settings.pauseRestTimer();
-                }
-              },
-              child: Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(22),
-                ),
-                child: Icon(
-                  settings.isPaused
-                      ? PhosphorIconsBold.play
-                      : PhosphorIconsBold.pause,
-                  color: AppColors.brandTeal,
-                  size: 20,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Stop/Dismiss button
-            GestureDetector(
-              onTap: onDismiss,
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: const Icon(
-                  PhosphorIconsBold.x,
-                  color: Colors.white,
-                  size: 16,
-                ),
-              ),
-            ),
-          ],
-        ),
+            controls,
+          ]);
+        }),
       ),
     );
   }
