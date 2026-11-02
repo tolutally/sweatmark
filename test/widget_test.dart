@@ -1,28 +1,44 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
+import 'package:provider/provider.dart';
+import 'package:sweatmark/state/workout_notifier.dart';
+import 'package:sweatmark/state/settings_notifier.dart';
+import 'logging/home_test.dart' show Workouts, Settings;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sweatmark/models/workout_model.dart';
+import 'package:sweatmark/screens/workout_summary_screen.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: Center(child: Text('0')))));
-
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  testWidgets('saved summary never asks the user to save the workout again',
+      (tester) async {
+    final workout = WorkoutLog(
+        workoutName: 'Push day',
+        timestamp: DateTime(2026),
+        durationSeconds: 60,
+        exercises: [
+          WorkoutExerciseLog(exerciseId: 'press', exerciseName: 'Press', sets: [
+            WorkoutSet(weight: 50, weightUnit: 'kg', reps: 5, isCompleted: true)
+          ])
+        ]);
+    await tester.pumpWidget(MultiProvider(
+        providers: [
+          ChangeNotifierProvider<WorkoutNotifier>(create: (_) => Workouts()),
+          ChangeNotifierProvider<SettingsNotifier>(create: (_) => Settings()),
+        ],
+        child: MaterialApp(
+            home: WorkoutSummaryScreen(completedWorkout: workout))));
+    expect(find.text('S W E A T M A R K'), findsOneWidget);
+    expect(find.text('Push day'), findsOneWidget);
+    await tester.tap(find.byTooltip('Workout options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Workout notes'));
+    await tester.pumpAndSettle();
+    expect(find.text('Save notes'), findsOneWidget);
+    Navigator.of(tester.element(find.text('Workout notes').last)).pop();
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('50 kg × 5'), 180);
+    expect(find.text('50 kg × 5'), findsOneWidget);
+    expect(find.text('Finish & save'), findsNothing);
+    expect(find.text('Save workout'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 }
