@@ -51,4 +51,6 @@ Personal testing internal group created with automatic distribution disabled; on
 - 148 Flutter, 8 Functions and 3 import-script tests passed on the committed state.
 - Signed archive build/ios/archive/SweatMark-11.xcarchive verified as 1.4.0 (11); app bundle 130 MB before App Store compression.
 - Command-line export could not use the Xcode account; uploaded from Xcode Organizer (App Store Connect → Upload). Status: Uploaded to Apple.
-- Pending: Apple processing, export-compliance answer (owner confirmation required), assignment to the Personal testing group. No public review.
+- Apple processing completed. The owner answered export compliance (standard encryption).
+- Added to the internal Personal testing group (1 tester); status Testing, expires in 90 days. No public review.
+- Open: the updated Apple Developer Program License Agreement awaits the Account Holder's acceptance.
