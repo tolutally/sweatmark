@@ -44,3 +44,11 @@ Personal testing internal group created with automatic distribution disabled; on
 - No backend schema changes or Firebase deployment needed. Autofill and unfinished-set warning remain separate work.
 - Upload completed successfully; App Store Connect shows 1.3.3 (10) Processing. Awaiting Apple processing and group assignment.
 - Apple processing completed. Build 10 now Missing Compliance. Standard encryption selected; France answer remains unsubmitted. Await user confirmation to answer No/save (prior automatic review requires explicit approval), then assign to Personal testing. Screenshot /tmp/sweatmark-build10-compliance.png.
+
+## November 1, 2026 — Focused logging rewrite / 1.4.0 (11)
+
+- Contents: merged rewrite (PR #1) — offline-durable logging, account isolation, redesigned Home/History/Workout details/share card, readable names for older logs, bundled ExerciseGymGifsDB catalog (1,323 exercises) and media (Git LFS, ~93 MB).
+- 148 Flutter, 8 Functions and 3 import-script tests passed on the committed state.
+- Signed archive build/ios/archive/SweatMark-11.xcarchive verified as 1.4.0 (11); app bundle 130 MB before App Store compression.
+- Command-line export could not use the Xcode account; uploaded from Xcode Organizer (App Store Connect → Upload). Status: Uploaded to Apple.
+- Pending: Apple processing, export-compliance answer (owner confirmation required), assignment to the Personal testing group. No public review.
