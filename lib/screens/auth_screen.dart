@@ -13,6 +13,8 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
+  ColorScheme get _colors => Theme.of(context).colorScheme;
+  AppDesign get _design => AppDesign.of(context);
   bool _isSignUp = true;
   bool _obscurePassword = true;
   bool _isSocialLoading = false;
@@ -32,20 +34,22 @@ class _AuthScreenState extends State<AuthScreen> {
     final authNotifier = context.watch<AuthNotifier>();
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(
+      value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
-        statusBarBrightness: Brightness.light,
+        statusBarIconBrightness: Theme.of(context).brightness == Brightness.dark
+            ? Brightness.light
+            : Brightness.dark,
+        statusBarBrightness: Theme.of(context).brightness,
       ),
       child: Scaffold(
-        backgroundColor: AppColors.neutral50,
+        backgroundColor: _colors.surfaceContainerLow,
         body: SafeArea(
           child: SingleChildScrollView(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: Column(
                 children: [
-                  const SizedBox(height: 60),
+                  const SizedBox(height: 32),
                   _buildLogo(),
                   const SizedBox(height: 24),
                   _buildHeader(),
@@ -68,11 +72,11 @@ class _AuthScreenState extends State<AuthScreen> {
       width: 100,
       height: 100,
       decoration: BoxDecoration(
-        color: AppColors.brandNavy,
+        color: _colors.onSurface,
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: AppColors.brandTeal.withValues(alpha: 0.35),
+            color: _colors.primary.withValues(alpha: 0.35),
             blurRadius: 24,
             offset: const Offset(0, 10),
           ),
@@ -92,21 +96,23 @@ class _AuthScreenState extends State<AuthScreen> {
   Widget _buildHeader() {
     return Column(
       children: [
-        const Text(
+        Text(
           'SweatMark',
           style: TextStyle(
-            fontSize: 32,
-            fontWeight: FontWeight.w800,
-            color: AppColors.neutral900,
+            fontSize: 27,
+            fontWeight: FontWeight.w600,
+            color: _colors.onSurface,
             letterSpacing: -0.5,
           ),
         ),
         const SizedBox(height: 8),
         Text(
-          _isSignUp ? 'Create your account to get started' : 'Welcome back! Sign in to continue',
-          style: const TextStyle(
+          _isSignUp
+              ? 'Create your account to get started'
+              : 'Welcome back! Sign in to continue',
+          style: TextStyle(
             fontSize: 15,
-            color: AppColors.neutral500,
+            color: _colors.onSurfaceVariant,
           ),
         ),
       ],
@@ -117,11 +123,11 @@ class _AuthScreenState extends State<AuthScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        color: _colors.surface,
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: _colors.shadow.withValues(alpha: 0.04),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -135,50 +141,51 @@ class _AuthScreenState extends State<AuthScreen> {
             // Tab switcher
             _buildTabSwitcher(),
             const SizedBox(height: 24),
-            
+
             // Email field
-            const Text(
+            Text(
               'Email',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: AppColors.neutral600,
+                color: _colors.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 8),
             TextFormField(
               controller: _emailController,
-              style: const TextStyle(
-                color: AppColors.neutral900,
+              style: TextStyle(
+                color: _colors.onSurface,
                 fontSize: 15,
               ),
               decoration: InputDecoration(
                 hintText: 'you@example.com',
-                hintStyle: const TextStyle(color: AppColors.neutral400),
-                prefixIcon: const Icon(
+                hintStyle: TextStyle(color: _colors.onSurfaceVariant),
+                prefixIcon: Icon(
                   Icons.email_outlined,
-                  color: AppColors.neutral400,
+                  color: _colors.onSurfaceVariant,
                   size: 20,
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.neutral200),
+                  borderSide: BorderSide(color: _colors.outlineVariant),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.brandTeal, width: 1.5),
+                  borderSide: BorderSide(color: _colors.primary, width: 1.5),
                 ),
                 errorBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.error),
+                  borderSide: BorderSide(color: _colors.error),
                 ),
                 focusedErrorBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.error, width: 1.5),
+                  borderSide: BorderSide(color: _colors.error, width: 1.5),
                 ),
                 filled: true,
-                fillColor: AppColors.neutral50,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                fillColor: _colors.surfaceContainerLow,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               ),
               keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.next,
@@ -193,59 +200,64 @@ class _AuthScreenState extends State<AuthScreen> {
               },
             ),
             const SizedBox(height: 16),
-            
+
             // Password field
-            const Text(
+            Text(
               'Password',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: AppColors.neutral600,
+                color: _colors.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 8),
             TextFormField(
               controller: _passwordController,
               obscureText: _obscurePassword,
-              style: const TextStyle(
-                color: AppColors.neutral900,
+              style: TextStyle(
+                color: _colors.onSurface,
                 fontSize: 15,
               ),
               decoration: InputDecoration(
-                hintText: _isSignUp ? 'Min. 6 characters' : 'Enter your password',
-                hintStyle: const TextStyle(color: AppColors.neutral400),
-                prefixIcon: const Icon(
+                hintText:
+                    _isSignUp ? 'Min. 6 characters' : 'Enter your password',
+                hintStyle: TextStyle(color: _colors.onSurfaceVariant),
+                prefixIcon: Icon(
                   Icons.lock_outline,
-                  color: AppColors.neutral400,
+                  color: _colors.onSurfaceVariant,
                   size: 20,
                 ),
                 suffixIcon: IconButton(
-                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                  onPressed: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
                   icon: Icon(
-                    _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                    color: AppColors.neutral400,
+                    _obscurePassword
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    color: _colors.onSurfaceVariant,
                     size: 20,
                   ),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.neutral200),
+                  borderSide: BorderSide(color: _colors.outlineVariant),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.brandTeal, width: 1.5),
+                  borderSide: BorderSide(color: _colors.primary, width: 1.5),
                 ),
                 errorBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.error),
+                  borderSide: BorderSide(color: _colors.error),
                 ),
                 focusedErrorBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.error, width: 1.5),
+                  borderSide: BorderSide(color: _colors.error, width: 1.5),
                 ),
                 filled: true,
-                fillColor: AppColors.neutral50,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                fillColor: _colors.surfaceContainerLow,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               ),
               textInputAction: TextInputAction.done,
               validator: (value) {
@@ -259,37 +271,39 @@ class _AuthScreenState extends State<AuthScreen> {
               },
               onFieldSubmitted: (_) => _submitForm(authNotifier),
             ),
-            
+
             // Forgot Password link (only show on Sign In)
             if (!_isSignUp) ...[
               const SizedBox(height: 12),
               Align(
                 alignment: Alignment.centerRight,
                 child: GestureDetector(
-                  onTap: authNotifier.isLoading ? null : () => _showForgotPasswordDialog(authNotifier),
-                  child: const Text(
+                  onTap: authNotifier.isLoading
+                      ? null
+                      : () => _showForgotPasswordDialog(authNotifier),
+                  child: Text(
                     'Forgot Password?',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.brandTeal,
+                      color: _colors.primary,
                     ),
                   ),
                 ),
               ),
             ],
             const SizedBox(height: 24),
-            
+
             // Submit button
             _buildSubmitButton(authNotifier),
-            
-            // Divider with OR
-            const SizedBox(height: 24),
-            _buildDivider(),
-            const SizedBox(height: 24),
-            
-            // Social sign-in buttons
-            _buildSocialButtons(authNotifier),
+
+            // Enable only after both OAuth providers are configured and tested.
+            if (const bool.fromEnvironment('ENABLE_SOCIAL_SIGN_IN')) ...[
+              const SizedBox(height: 24),
+              _buildDivider(),
+              const SizedBox(height: 24),
+              _buildSocialButtons(authNotifier),
+            ],
           ],
         ),
       ),
@@ -298,10 +312,10 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Widget _buildTabSwitcher() {
     return Container(
-      height: 44,
+      constraints: const BoxConstraints(minHeight: 48),
       decoration: BoxDecoration(
-        color: AppColors.neutral100,
-        borderRadius: BorderRadius.circular(12),
+        color: _colors.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(28),
       ),
       child: Row(
         children: [
@@ -309,14 +323,18 @@ class _AuthScreenState extends State<AuthScreen> {
             child: GestureDetector(
               onTap: () => setState(() => _isSignUp = true),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
+                duration: MediaQuery.disableAnimationsOf(context)
+                    ? Duration.zero
+                    : const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
-                  color: _isSignUp ? Colors.white : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
+                  color:
+                      _isSignUp ? _colors.primaryContainer : Colors.transparent,
+                  borderRadius: BorderRadius.circular(28),
                   boxShadow: _isSignUp
                       ? [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.06),
+                            color: _colors.shadow.withValues(alpha: 0.06),
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           ),
@@ -328,9 +346,11 @@ class _AuthScreenState extends State<AuthScreen> {
                   child: Text(
                     'Sign Up',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: _isSignUp ? AppColors.neutral900 : AppColors.neutral500,
+                      color: _isSignUp
+                          ? _colors.onSurface
+                          : _colors.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -341,14 +361,19 @@ class _AuthScreenState extends State<AuthScreen> {
             child: GestureDetector(
               onTap: () => setState(() => _isSignUp = false),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
+                duration: MediaQuery.disableAnimationsOf(context)
+                    ? Duration.zero
+                    : const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
-                  color: !_isSignUp ? Colors.white : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
+                  color: !_isSignUp
+                      ? _colors.primaryContainer
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(28),
                   boxShadow: !_isSignUp
                       ? [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.06),
+                            color: _colors.shadow.withValues(alpha: 0.06),
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           ),
@@ -360,9 +385,11 @@ class _AuthScreenState extends State<AuthScreen> {
                   child: Text(
                     'Sign In',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: !_isSignUp ? AppColors.neutral900 : AppColors.neutral500,
+                      color: !_isSignUp
+                          ? _colors.onSurface
+                          : _colors.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -375,34 +402,36 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Widget _buildSubmitButton(AuthNotifier authNotifier) {
-    return SizedBox(
+    return Container(
       width: double.infinity,
-      height: 52,
+      constraints: const BoxConstraints(minHeight: 52),
       child: ElevatedButton(
-        onPressed: authNotifier.isLoading ? null : () => _submitForm(authNotifier),
+        onPressed:
+            authNotifier.isLoading ? null : () => _submitForm(authNotifier),
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.brandTeal,
-          foregroundColor: AppColors.brandNavy,
-          disabledBackgroundColor: AppColors.brandTeal.withValues(alpha: 0.6),
           elevation: 0,
           shadowColor: Colors.transparent,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(28),
           ),
         ),
         child: authNotifier.isLoading
-            ? const SizedBox(
+            ? SizedBox(
                 width: 22,
                 height: 22,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
-                  color: Colors.white,
+                  color: Theme.of(context)
+                      .elevatedButtonTheme
+                      .style
+                      ?.foregroundColor
+                      ?.resolve({WidgetState.disabled}),
                 ),
               )
             : Text(
                 _isSignUp ? 'Create Account' : 'Sign In',
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -416,24 +445,24 @@ class _AuthScreenState extends State<AuthScreen> {
         Expanded(
           child: Container(
             height: 1,
-            color: AppColors.neutral200,
+            color: _colors.outlineVariant,
           ),
         ),
-        const Padding(
+        Padding(
           padding: EdgeInsets.symmetric(horizontal: 16),
           child: Text(
             'OR',
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: AppColors.neutral400,
+              color: _colors.onSurfaceVariant,
             ),
           ),
         ),
         Expanded(
           child: Container(
             height: 1,
-            color: AppColors.neutral200,
+            color: _colors.outlineVariant,
           ),
         ),
       ],
@@ -442,21 +471,21 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Widget _buildSocialButtons(AuthNotifier authNotifier) {
     final isLoading = authNotifier.isLoading || _isSocialLoading;
-    
+
     return Column(
       children: [
         // Google Sign-In Button
-        SizedBox(
+        Container(
           width: double.infinity,
-          height: 52,
+          constraints: const BoxConstraints(minHeight: 52),
           child: OutlinedButton(
             onPressed: isLoading ? null : () => _signInWithGoogle(authNotifier),
             style: OutlinedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: AppColors.neutral800,
-              side: const BorderSide(color: AppColors.neutral200),
+              backgroundColor: _colors.surface,
+              foregroundColor: _colors.onSurface,
+              side: BorderSide(color: _colors.outlineVariant),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(28),
               ),
             ),
             child: Row(
@@ -466,10 +495,10 @@ class _AuthScreenState extends State<AuthScreen> {
                   'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
                   width: 20,
                   height: 20,
-                  errorBuilder: (context, error, stackTrace) => const Icon(
+                  errorBuilder: (context, error, stackTrace) => Icon(
                     Icons.g_mobiledata,
                     size: 24,
-                    color: AppColors.neutral800,
+                    color: _colors.onSurface,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -484,22 +513,23 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           ),
         ),
-        
+
         // Apple Sign-In Button (iOS only)
         if (Platform.isIOS) ...[
           const SizedBox(height: 12),
-          SizedBox(
+          Container(
             width: double.infinity,
-            height: 52,
+            constraints: const BoxConstraints(minHeight: 52),
             child: ElevatedButton(
-              onPressed: isLoading ? null : () => _signInWithApple(authNotifier),
+              onPressed:
+                  isLoading ? null : () => _signInWithApple(authNotifier),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.black,
                 foregroundColor: Colors.white,
-                disabledBackgroundColor: Colors.black.withValues(alpha: 0.6),
+                disabledBackgroundColor: _colors.shadow.withValues(alpha: 0.6),
                 elevation: 0,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(28),
                 ),
               ),
               child: Row(
@@ -535,38 +565,42 @@ class _AuthScreenState extends State<AuthScreen> {
             Container(
               width: 8,
               height: 8,
-              decoration: const BoxDecoration(
-                color: AppColors.success,
+              decoration: BoxDecoration(
+                color: _design.success,
                 shape: BoxShape.circle,
               ),
             ),
             const SizedBox(width: 8),
-            const Text(
+            Flexible(
+                child: Text(
               'Your workouts sync across all devices',
+              textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,
-                color: AppColors.neutral500,
+                color: _colors.onSurfaceVariant,
               ),
-            ),
+            )),
           ],
         ),
         const SizedBox(height: 8),
-        const Row(
+        Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               Icons.lock_outline,
               size: 14,
-              color: AppColors.neutral400,
+              color: _colors.onSurfaceVariant,
             ),
             SizedBox(width: 6),
-            Text(
+            Flexible(
+                child: Text(
               'Secured with Firebase Authentication',
+              textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 12,
-                color: AppColors.neutral400,
+                fontSize: 13,
+                color: _colors.onSurfaceVariant,
               ),
-            ),
+            )),
           ],
         ),
       ],
@@ -591,10 +625,12 @@ class _AuthScreenState extends State<AuthScreen> {
             _isSignUp
                 ? 'Failed to create account. Email may already be in use.'
                 : 'Failed to sign in. Please check your credentials.',
+            style: TextStyle(color: _colors.onErrorContainer),
           ),
-          backgroundColor: AppColors.error,
+          backgroundColor: _colors.errorContainer,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
         ),
       );
     }
@@ -602,19 +638,21 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<void> _signInWithGoogle(AuthNotifier authNotifier) async {
     setState(() => _isSocialLoading = true);
-    
+
     final success = await authNotifier.signInWithGoogle();
-    
+
     if (!mounted) return;
     setState(() => _isSocialLoading = false);
-    
+
     if (!success) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Failed to sign in with Google. Please try again.'),
-          backgroundColor: AppColors.error,
+          content: Text('Failed to sign in with Google. Please try again.',
+              style: TextStyle(color: _colors.onErrorContainer)),
+          backgroundColor: _colors.errorContainer,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
         ),
       );
     }
@@ -622,79 +660,83 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<void> _signInWithApple(AuthNotifier authNotifier) async {
     setState(() => _isSocialLoading = true);
-    
+
     final success = await authNotifier.signInWithApple();
-    
+
     if (!mounted) return;
     setState(() => _isSocialLoading = false);
-    
+
     if (!success) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Failed to sign in with Apple. Please try again.'),
-          backgroundColor: AppColors.error,
+          content: Text('Failed to sign in with Apple. Please try again.',
+              style: TextStyle(color: _colors.onErrorContainer)),
+          backgroundColor: _colors.errorContainer,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
         ),
       );
     }
   }
 
   void _showForgotPasswordDialog(AuthNotifier authNotifier) {
-    final resetEmailController = TextEditingController(text: _emailController.text);
-    
+    final resetEmailController =
+        TextEditingController(text: _emailController.text);
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: _colors.surface,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(24),
         ),
-        title: const Text(
+        title: Text(
           'Reset Password',
           style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: AppColors.neutral900,
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            color: _colors.onSurface,
           ),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Enter your email and we\'ll send you a link to reset your password.',
               style: TextStyle(
-                fontSize: 14,
-                color: AppColors.neutral600,
+                fontSize: 15,
+                color: _colors.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: resetEmailController,
-              style: const TextStyle(
-                color: AppColors.neutral900,
+              style: TextStyle(
+                color: _colors.onSurface,
                 fontSize: 15,
               ),
               decoration: InputDecoration(
                 hintText: 'you@example.com',
-                hintStyle: const TextStyle(color: AppColors.neutral400),
-                prefixIcon: const Icon(
+                hintStyle: TextStyle(color: _colors.onSurfaceVariant),
+                prefixIcon: Icon(
                   Icons.email_outlined,
-                  color: AppColors.neutral400,
+                  color: _colors.onSurfaceVariant,
                   size: 20,
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.neutral200),
+                  borderSide: BorderSide(color: _colors.outlineVariant),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.brandTeal, width: 1.5),
+                  borderSide: BorderSide(color: _colors.primary, width: 1.5),
                 ),
                 filled: true,
-                fillColor: AppColors.neutral50,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                fillColor: _colors.surfaceContainerLow,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               ),
               keyboardType: TextInputType.emailAddress,
             ),
@@ -703,10 +745,10 @@ class _AuthScreenState extends State<AuthScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
+            child: Text(
               'Cancel',
               style: TextStyle(
-                color: AppColors.neutral600,
+                color: _colors.onSurfaceVariant,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -717,40 +759,47 @@ class _AuthScreenState extends State<AuthScreen> {
               if (email.isEmpty || !email.contains('@')) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: const Text('Please enter a valid email address.'),
-                    backgroundColor: AppColors.error,
+                    content: Text('Please enter a valid email address.',
+                        style: TextStyle(color: _colors.onErrorContainer)),
+                    backgroundColor: _colors.errorContainer,
                     behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(28)),
                   ),
                 );
                 return;
               }
-              
+
               Navigator.of(context).pop();
               final messenger = ScaffoldMessenger.of(context);
-              
+
               final success = await authNotifier.sendPasswordResetEmail(email);
-              
+
               if (!mounted) return;
-              
+
               messenger.showSnackBar(
                 SnackBar(
                   content: Text(
                     success
                         ? 'Password reset email sent! Check your inbox.'
                         : 'Failed to send reset email. Please try again.',
+                    style: TextStyle(
+                        color: success
+                            ? _design.onSuccessContainer
+                            : _colors.onErrorContainer),
                   ),
-                  backgroundColor: success ? AppColors.success : AppColors.error,
+                  backgroundColor: success
+                      ? _design.successContainer
+                      : _colors.errorContainer,
                   behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(28)),
                 ),
               );
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.brandTeal,
-              foregroundColor: AppColors.brandNavy,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(28),
               ),
             ),
             child: const Text(

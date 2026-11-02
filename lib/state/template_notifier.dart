@@ -1,9 +1,10 @@
+import 'session_notifier.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/template_model.dart';
 import '../services/template_service.dart';
 
-class TemplateNotifier extends ChangeNotifier {
+class TemplateNotifier extends SessionNotifier {
   final TemplateService _templateService = TemplateService();
   
   List<WorkoutTemplate> _templates = [];

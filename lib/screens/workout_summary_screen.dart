@@ -1,21 +1,21 @@
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
-import 'package:image_gallery_saver/image_gallery_saver.dart';
-import '../state/workout_notifier.dart';
-import '../state/auth_notifier.dart';
+import '../widgets/exercise_media.dart';
+import '../models/template_model.dart';
 import '../models/workout_model.dart';
-import '../services/pr_service.dart';
+import '../models/workout_result.dart';
+import '../state/exercise_db_notifier.dart';
+import '../state/settings_notifier.dart';
+import '../state/template_notifier.dart';
+import '../state/workout_notifier.dart';
 import '../theme/app_theme.dart';
+import 'workout_share_screen.dart';
 
+/// This screen only presents a workout that has already been committed locally.
 class WorkoutSummaryScreen extends StatefulWidget {
   final WorkoutLog? completedWorkout;
   final int? elapsedSeconds;
   final String? workoutName;
-  
   const WorkoutSummaryScreen({
     super.key,
     this.completedWorkout,
@@ -28,599 +28,540 @@ class WorkoutSummaryScreen extends StatefulWidget {
 }
 
 class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
-  final TextEditingController _notesController = TextEditingController();
-  final bool _showEnergyBanner = true;
-  final GlobalKey _shareKey = GlobalKey();
-  
-  // Store workout data locally to prevent crashes if notifier state changes
-  WorkoutLog? _workout;
-  int _duration = 0;
-  String _workoutName = 'My Workout';
-  List<String> _prExercises = []; // Track which exercises achieved PRs
+  late final notes =
+      TextEditingController(text: widget.completedWorkout?.notes ?? '');
+  bool busy = false;
+  bool routineSaved = false;
 
-  @override
-  void initState() {
-    super.initState();
-    // Capture workout data immediately before any async operations can reset it
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initializeWorkoutData();
-    });
-  }
-  
-  void _initializeWorkoutData() {
-    final notifier = context.read<WorkoutNotifier>();
-    setState(() {
-      _workout = widget.completedWorkout ?? notifier.currentWorkout;
-      _duration = widget.elapsedSeconds ?? notifier.elapsedSeconds;
-      _workoutName = widget.workoutName ?? notifier.workoutName;
-      
-      // Calculate PRs for this workout
-      if (_workout != null) {
-        final prService = PRService();
-        _prExercises = prService.detectPersonalRecords(_workout!, notifier.workoutHistory);
-      }
-    });
-  }
+  ColorScheme get colors => Theme.of(context).colorScheme;
+  bool get dark => Theme.of(context).brightness == Brightness.dark;
+  Color get panel => dark ? colors.surfaceContainer : AppColors.referencePanel;
 
   @override
   void dispose() {
-    _notesController.dispose();
+    notes.dispose();
     super.dispose();
   }
 
-  void _updateWorkoutName(String newName) {
-    setState(() {
-      _workoutName = newName;
-    });
+  void _message(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
-  String _formatDuration(int seconds) {
-    final minutes = seconds ~/ 60;
-    final secs = seconds % 60;
-    if (minutes > 0) {
-      return '${minutes}m ${secs}s';
-    }
-    return '${secs}s';
-  }
-
-  String _formatClockTime(DateTime time) {
-    final hour = time.hour % 12 == 0 ? 12 : time.hour % 12;
-    final minute = time.minute.toString().padLeft(2, '0');
-    return '$hour:$minute';
-  }
-
-  String _bestSetLabel(WorkoutExerciseLog log) {
-    // Pick the set with the highest weight*reps, fallback to first set
-    if (log.sets.isEmpty) return '';
-    final sets = [...log.sets];
-    sets.sort((a, b) {
-      final av = (a.weight ?? 0) * (a.reps ?? 1);
-      final bv = (b.weight ?? 0) * (b.reps ?? 1);
-      return bv.compareTo(av);
-    });
-    final set = sets.first;
-    if (set.weight != null && set.reps != null) {
-      return '${set.weight!.toStringAsFixed(0)} lb • ${set.reps} reps';
-    }
-    if (set.distance != null && set.speed != null) {
-      return '${set.distance} km • ${set.speed} km/h';
-    }
-    if (set.distance != null && set.durationSeconds != null) {
-      final mins = (set.durationSeconds! ~/ 60).toString().padLeft(1, '0');
-      final secs = (set.durationSeconds! % 60).toString().padLeft(2, '0');
-      return '$mins:$secs • ${set.distance} km';
-    }
-    if (set.reps != null) {
-      return '${set.reps} reps';
-    }
-    return '';
-  }
-
-  Future<void> _saveSummaryAsImage() async {
+  Future<void> _saveNotes(WorkoutLog workout) async {
+    setState(() => busy = true);
     try {
-      final boundary = _shareKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null) return;
-
-      final pixelRatio = View.of(context).devicePixelRatio;
-      final image = await boundary.toImage(pixelRatio: pixelRatio);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) return;
-
-      final pngBytes = byteData.buffer.asUint8List();
-      final result = await ImageGallerySaver.saveImage(
-        pngBytes,
-        name: 'workout_summary_${DateTime.now().millisecondsSinceEpoch}',
-      );
-
-      final success = (result['isSuccess'] as bool?) ?? false;
-      if (!mounted) return;
-
-      // Clear any existing snackbars first to prevent stacking
-      ScaffoldMessenger.of(context).clearSnackBars();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(success ? 'Saved to photos 🎉' : 'Unable to save image'),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-          // Position it well above the bottom button to prevent blocking interaction
-          margin: const EdgeInsets.only(bottom: 140, left: 20, right: 20),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).clearSnackBars();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Save failed: $e'),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 3),
-          margin: const EdgeInsets.only(bottom: 140, left: 20, right: 20),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
+      await context
+          .read<WorkoutNotifier>()
+          .updateWorkoutHistoryNotes(workout, notes.text);
+      _message('Notes saved');
+    } catch (_) {
+      _message('Could not save notes. Please try again.');
+    } finally {
+      if (mounted) setState(() => busy = false);
     }
   }
 
-  void _showRenameDialog(BuildContext context) {
-    final controller = TextEditingController(text: _workoutName);
-    showDialog(
+  Future<void> _saveRoutine(WorkoutLog workout) async {
+    setState(() => busy = true);
+    try {
+      final result = await context.read<TemplateNotifier>().createTemplate(
+            name: workout.workoutName,
+            exercises: workout.exercises
+                .map((exercise) => TemplateExercise(
+                      id: exercise.exerciseId,
+                      name: exercise.displayName,
+                      targetSets: exercise.sets
+                          .where(
+                              (set) => set.isCompleted && !set.isSuperSetRest)
+                          .length
+                          .clamp(1, 100),
+                    ))
+                .toList(),
+          );
+      if (!mounted) return;
+      setState(() => routineSaved = result != null);
+      _message(result != null
+          ? 'Routine saved'
+          : 'Routine could not be saved. Try again when online.');
+    } catch (_) {
+      _message('Could not save this routine. Please try again.');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> _share(WorkoutResultData data) async {
+    setState(() => busy = true);
+    try {
+      await showWorkoutShare(context, data);
+    } catch (_) {
+      _message('Could not open the share preview. Please try again.');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  String _fallbackDuration() {
+    final seconds = widget.elapsedSeconds;
+    if (seconds == null || seconds <= 0) return 'Duration not recorded';
+    if (seconds < 60) return '${seconds}s';
+    final minutes = seconds ~/ 60;
+    return minutes < 60 ? '$minutes min' : '${minutes ~/ 60}h ${minutes % 60}m';
+  }
+
+  Future<void> _showNotes(WorkoutLog workout) async {
+    await showModalBottomSheet<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Rename Workout'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'Workout name'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.fromLTRB(
+            20, 4, 20, 20 + MediaQuery.viewInsetsOf(sheetContext).bottom),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text('Workout notes',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
           ),
-          TextButton(
-            onPressed: () {
-              if (controller.text.trim().isNotEmpty) {
-                _updateWorkoutName(controller.text.trim());
-              }
-              Navigator.pop(dialogContext);
-            },
-            child: const Text('Save'),
+          const SizedBox(height: 14),
+          TextField(
+            controller: notes,
+            autofocus: true,
+            maxLines: 4,
+            decoration: const InputDecoration(hintText: 'How did it feel?'),
           ),
-        ],
-      ),
-    ).then((_) {
-      controller.dispose();
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Use local state instead of notifier to prevent crashes
-    final workout = _workout;
-
-    if (workout == null) {
-      return const Scaffold(
-        backgroundColor: Color(0xFFF5F5F5),
-        body: Center(
-          child: CircularProgressIndicator(
-            color: AppColors.brandTeal,
-          ),
-        ),
-      );
-    }
-
-    // Calculate stats
-    double totalWeight = 0;
-    int pointsEarned = 32;
-    int caloriesBurned = 63;
-
-    for (var exercise in workout.exercises) {
-      for (var set in exercise.sets) {
-        if (set.weight != null && set.reps != null) {
-          totalWeight += (set.weight! * set.reps!);
-        }
-      }
-    }
-
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
-        statusBarBrightness: Brightness.light,
-      ),
-      child: Scaffold(
-        body: RepaintBoundary(
-          key: _shareKey,
-          child: Stack(
-            children: [
-              // Background hero
-              Container(
-                decoration: BoxDecoration(
-                  image: DecorationImage(
-                    image: const AssetImage('assets/icon.png'),
-                    fit: BoxFit.cover,
-                    colorFilter: ColorFilter.mode(
-                      Colors.black.withValues(alpha: 0.25),
-                      BlendMode.darken,
-                    ),
-                  ),
-                ),
-              ),
-              // Gradient overlay
-              Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0xAA000000),
-                      Color(0x00FFFFFF),
-                      Color(0x00FFFFFF),
-                    ],
-                    stops: [0.0, 0.35, 0.65],
-                  ),
-                ),
-              ),
-              SafeArea(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Top bar
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      child: Row(
-                        children: [
-                          Text(
-                            _formatClockTime(DateTime.now()),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const Spacer(),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Row(
-                              children: [
-                                Icon(PhosphorIconsBold.calendarCheck, color: Colors.white, size: 16),
-                                SizedBox(width: 4),
-                                Text('SWEATMARK', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Title block
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  _workoutName,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 36,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              IconButton(
-                                onPressed: () => _showRenameDialog(context),
-                                icon: const Icon(PhosphorIconsRegular.pencilSimple, color: Colors.white70, size: 18),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              const Icon(PhosphorIconsRegular.clock, color: Colors.white70, size: 16),
-                              const SizedBox(width: 6),
-                              Text(
-                                _formatDuration(_duration),
-                                style: const TextStyle(color: Colors.white70, fontSize: 15),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Cards
-                    Expanded(
-                      child: Container(
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFF7F8FC),
-                          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-                        ),
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-                          child: Column(
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _SummaryCard(
-                                      title: 'Points earned',
-                                      value: '$pointsEarned',
-                                      icon: PhosphorIconsBold.sealCheck,
-                                      iconColor: const Color(0xFF34C759),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  const Expanded(
-                                    child: _SummaryCard(
-                                      title: 'Streak',
-                                      value: '0 days',
-                                      icon: PhosphorIconsBold.trendUp,
-                                      iconColor: Color(0xFF1DD3C3),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _SummaryCard(
-                                      title: 'Energy',
-                                      value: '$caloriesBurned cal',
-                                      icon: PhosphorIconsBold.fire,
-                                      iconColor: AppColors.error,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: _SummaryCard(
-                                      title: 'Total Weight',
-                                      value: '${totalWeight.toStringAsFixed(0)} lb',
-                                      icon: PhosphorIconsBold.barbell,
-                                      iconColor: const Color(0xFFFFA000),
-                                    ),
-                                  ),
-                                ],
-                              ),
-
-                              const SizedBox(height: 16),
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                  '${workout.exercises.length} Exercises',
-                                  style: const TextStyle(
-                                    color: Color(0xFF1DA1F2),
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              ...workout.exercises.map((e) {
-                                final name = e.exerciseName ?? 'Exercise';
-                                final best = _bestSetLabel(e);
-                                final isPR = _prExercises.contains(name);
-                                return Container(
-                                  margin: const EdgeInsets.only(bottom: 10),
-                                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 40,
-                                        height: 40,
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFF1F4F8),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: const Icon(PhosphorIconsBold.mountains, size: 18, color: Colors.black54),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              name,
-                                              style: const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w600,
-                                                color: Colors.black,
-                                              ),
-                                            ),
-                                            if (best.isNotEmpty)
-                                              Text(
-                                                best,
-                                                style: const TextStyle(
-                                                  fontSize: 13,
-                                                  color: Colors.black54,
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      ),
-                                      if (isPR)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.warningSoft,
-                                            borderRadius: BorderRadius.circular(10),
-                                          ),
-                                          child: const Text(
-                                            'PR',
-                                            style: TextStyle(
-                                              color: AppColors.warning,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                );
-                              }).toList(),
-                              const SizedBox(height: 100),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        bottomNavigationBar: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 10,
-                offset: const Offset(0, -2),
-              ),
-            ],
-          ),
-          child: SafeArea(
-            child: ElevatedButton(
-              onPressed: () async {
-                final notifier = context.read<WorkoutNotifier>();
-                final userId = context.read<AuthNotifier>().user?.uid;
-                
-                // Use local workout data with updated name
-                if (_workout != null) {
-                  final workoutToSave = WorkoutLog(
-                    workoutName: _workoutName,
-                    timestamp: _workout!.timestamp,
-                    durationSeconds: _duration,
-                    exercises: _workout!.exercises,
-                    superSets: _workout!.superSets,
-                    notes: _notesController.text,
-                    isTestData: false,
-                  );
-                  await notifier.finishWorkoutWithData(
-                    workoutToSave, 
-                    _duration, 
-                    _notesController.text,
-                    userId,
-                  );
-                } else {
-                  // Fallback to old method
-                  notifier.updateWorkoutNotes(_notesController.text);
-                  await notifier.finishWorkout(userId);
-                }
-
-                if (context.mounted) {
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.black,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
-                ),
-              ),
-              child: const Text(
-                'Done',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: busy
+                  ? null
+                  : () async {
+                      Navigator.of(sheetContext).pop();
+                      await _saveNotes(workout);
+                    },
+              child: const Text('Save notes'),
             ),
           ),
-        ),
-        floatingActionButton: FloatingActionButton(
-          backgroundColor: Colors.white,
-          onPressed: _saveSummaryAsImage,
-          child:
-              const Icon(PhosphorIconsBold.shareNetwork, color: Colors.black),
-        ),
+        ]),
       ),
     );
   }
-}
 
-class _SummaryCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final IconData icon;
-  final Color iconColor;
+  String _ordinal(int value) {
+    final mod100 = value % 100;
+    if (mod100 >= 11 && mod100 <= 13) return '${value}th';
+    return switch (value % 10) {
+      1 => '${value}st',
+      2 => '${value}nd',
+      3 => '${value}rd',
+      _ => '${value}th',
+    };
+  }
 
-  const _SummaryCard({
-    required this.title,
-    required this.value,
-    required this.icon,
-    required this.iconColor,
-  });
+  int _workoutNumber(WorkoutLog workout, List<WorkoutLog> history) {
+    final eligible = <String, WorkoutLog>{
+      for (final entry in history)
+        if (!entry.isTestData &&
+            !entry.timestamp.isAfter(workout.timestamp) &&
+            entry.exercises.any((exercise) => exercise.sets
+                .any((set) => set.isCompleted && !set.isSuperSetRest)))
+          entry.id: entry,
+      workout.id: workout,
+    };
+    return eligible.length;
+  }
+
+  Widget _hero(WorkoutResultData? data, int workoutNumber) {
+    final workout = widget.completedWorkout;
+    String? image;
+    for (final exercise in data?.exercises ?? const <WorkoutResultExercise>[]) {
+      if (exercise.imageUrl != null && exercise.imageUrl!.isNotEmpty) {
+        image = exercise.imageUrl;
+        break;
+      }
+    }
+    return SizedBox(
+      height: 350,
+      child: Stack(fit: StackFit.expand, children: [
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: dark
+                  ? const [Color(0xFF3D2D55), Color(0xFF7D5278)]
+                  : const [Color(0xFFD7C9FA), Color(0xFFF3B5C8)],
+            ),
+          ),
+        ),
+        if (image != null)
+          ExerciseMedia(
+            imageUrl: image,
+            fit: BoxFit.cover,
+            alignment: Alignment.topCenter,
+            color: const Color(0xFFB26089).withValues(alpha: .40),
+            colorBlendMode: BlendMode.srcATop,
+            errorWidget: (_, __, ___) => const SizedBox.shrink(),
+          ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.transparent,
+                colors.surface.withValues(alpha: .34),
+                colors.surface,
+              ],
+              stops: const [.15, .62, 1],
+            ),
+          ),
+        ),
+        Positioned(
+          left: 28,
+          right: 20,
+          top: MediaQuery.paddingOf(context).top + 22,
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Expanded(
+              child: Text('S W E A T M A R K',
+                  style: TextStyle(
+                      fontSize: 11,
+                      letterSpacing: 2.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.ink)),
+            ),
+            if (workout != null)
+              PopupMenuButton<String>(
+                tooltip: 'Workout options',
+                padding: EdgeInsets.zero,
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.white.withValues(alpha: .64),
+                  foregroundColor: AppColors.ink,
+                  minimumSize: const Size(42, 42),
+                ),
+                onSelected: (value) {
+                  if (value == 'notes') _showNotes(workout);
+                  if (value == 'routine') _saveRoutine(workout);
+                },
+                itemBuilder: (_) => [
+                  const PopupMenuItem(
+                      value: 'notes', child: Text('Workout notes')),
+                  PopupMenuItem(
+                    value: 'routine',
+                    enabled: !routineSaved,
+                    child: Text(
+                        routineSaved ? 'Routine saved' : 'Save as routine'),
+                  ),
+                ],
+                icon: const Icon(Icons.more_horiz_rounded, size: 23),
+              ),
+          ]),
+        ),
+        Positioned(
+          left: 28,
+          right: 24,
+          bottom: 34,
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(workout?.workoutName ?? widget.workoutName ?? 'Workout',
+                style: TextStyle(
+                    color: colors.onSurface,
+                    fontSize: 38,
+                    height: 1.03,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -1.35)),
+            const SizedBox(height: 15),
+            Wrap(spacing: 20, runSpacing: 9, children: [
+              _heroFact(Icons.schedule_rounded,
+                  data?.durationLabel ?? _fallbackDuration()),
+              _heroFact(Icons.drag_indicator_rounded,
+                  'Your ${_ordinal(workoutNumber)} workout'),
+            ]),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  Widget _heroFact(IconData icon, String label) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 19, color: colors.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Text(label,
+              style: TextStyle(
+                  color: colors.onSurface,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600)),
+        ],
+      );
+
+  Widget _metric(String value, String label, IconData icon, Color accent) =>
+      Container(
+        height: 172,
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 17),
+        decoration: BoxDecoration(
+          color: dark ? colors.surfaceContainer : Colors.white,
+          borderRadius: BorderRadius.circular(34),
+          boxShadow: dark
+              ? null
+              : [
+                  BoxShadow(
+                      color: const Color(0xFF292334).withValues(alpha: .045),
+                      blurRadius: 25,
+                      offset: const Offset(0, 10)),
+                ],
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(
+              child: Text(label,
+                  style: TextStyle(
+                      fontSize: 14,
+                      height: 1.2,
+                      color: accent,
+                      fontWeight: FontWeight.w600)),
+            ),
+            Container(
+              width: 43,
+              height: 43,
+              decoration: BoxDecoration(
+                  color: accent.withValues(alpha: .14), shape: BoxShape.circle),
+              child: Icon(icon, size: 21, color: accent),
+            ),
+          ]),
+          const Spacer(),
+          Text(value,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  color: colors.onSurface,
+                  fontSize: value.length > 12 ? 25 : 31,
+                  height: 1.05,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: -.8)),
+        ]),
+      );
+
+  Widget _metrics(WorkoutResultData data) =>
+      LayoutBuilder(builder: (_, constraints) {
+        final single = constraints.maxWidth < 300 ||
+            MediaQuery.textScalerOf(context).scale(1) > 1.65;
+        final width =
+            single ? constraints.maxWidth : (constraints.maxWidth - 10) / 2;
+        final metrics = [
+          _metric('${data.completedSets}', 'Completed sets',
+              Icons.done_all_rounded, const Color(0xFF6741B2)),
+          _metric(
+              '${data.streakWeeks} ${data.streakWeeks == 1 ? 'week' : 'weeks'}',
+              'Weekly streak',
+              Icons.trending_up_rounded,
+              const Color(0xFF6741B2)),
+          _metric('${data.newRecordCount}', 'New PRs',
+              Icons.emoji_events_outlined, AppColors.coral),
+          _metric(data.volumeLabel, 'Lifting volume',
+              Icons.fitness_center_rounded, const Color(0xFF6741B2)),
+        ];
+        return Wrap(spacing: 10, runSpacing: 10, children: [
+          for (final metric in metrics) SizedBox(width: width, child: metric),
+        ]);
+      });
+
+  Widget _exercise(WorkoutResultExercise exercise) {
+    final image = exercise.imageUrl;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        Container(
+            width: 38,
+            height: 38,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+                color: Colors.white, borderRadius: BorderRadius.circular(10)),
+            child: image != null && image.isNotEmpty
+                ? ExerciseMedia(
+                    imageUrl: image,
+                    fit: BoxFit.contain,
+                    placeholder: (_, __) => Icon(Icons.fitness_center_outlined,
+                        color: colors.onSurfaceVariant, size: 18),
+                    errorWidget: (_, __, ___) => Icon(
+                        Icons.fitness_center_outlined,
+                        color: colors.onSurfaceVariant,
+                        size: 18))
+                : Icon(Icons.fitness_center_outlined,
+                    color: colors.onSurfaceVariant, size: 18)),
+        const SizedBox(width: 10),
+        Expanded(
+            child: Text(exercise.name,
+                style: const TextStyle(
+                    fontSize: 15, height: 1.25, fontWeight: FontWeight.w600))),
+        const SizedBox(width: 10),
+        Flexible(
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Flexible(
+              child: Text(exercise.resultLabel,
+                  textAlign: TextAlign.end,
+                  style: TextStyle(
+                      fontSize: 14,
+                      height: 1.25,
+                      color: colors.onSurface,
+                      fontWeight: FontWeight.w600)),
+            ),
+            if (exercise.isNewRecord || exercise.isBaseline) ...[
+              const SizedBox(width: 7),
+              Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                  decoration: BoxDecoration(
+                      color: exercise.isNewRecord
+                          ? AppColors.coral
+                          : AppColors.paleLavender,
+                      borderRadius: BorderRadius.circular(7)),
+                  child: Text(exercise.isNewRecord ? 'PR' : 'BEST',
+                      style: TextStyle(
+                          color: exercise.isNewRecord
+                              ? Colors.white
+                              : const Color(0xFF6741B2),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700))),
+            ],
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  Widget _footer(WorkoutResultData? data) => SafeArea(
+      top: false,
+      minimum: const EdgeInsets.fromLTRB(26, 8, 26, 18),
+      child: Row(children: [
+        const Spacer(),
+        SizedBox(
+            width: 168,
+            height: 58,
+            child: FilledButton(
+                style: FilledButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    backgroundColor: Colors.transparent,
+                    foregroundColor: AppColors.ink,
+                    shadowColor: const Color(0x668B6EE8),
+                    elevation: 8),
+                onPressed: busy
+                    ? null
+                    : () => Navigator.of(context)
+                        .popUntil((route) => route.isFirst),
+                child: Ink(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(30),
+                    gradient: const LinearGradient(
+                        colors: [AppColors.lavender, Color(0xFFC7B8FA)]),
+                  ),
+                  child: const Center(
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.check_rounded, size: 27, color: AppColors.ink),
+                      SizedBox(width: 10),
+                      Text('Done',
+                          style: TextStyle(
+                              color: AppColors.ink,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600)),
+                    ]),
+                  ),
+                ))),
+        const Spacer(),
+        IconButton(
+            tooltip: 'Share workout',
+            style: IconButton.styleFrom(
+                backgroundColor: dark ? colors.surfaceContainer : Colors.white,
+                foregroundColor: colors.onSurface,
+                side: BorderSide(color: colors.outlineVariant),
+                minimumSize: const Size(58, 58)),
+            onPressed: data == null || busy ? null : () => _share(data),
+            icon: const Icon(Icons.ios_share_rounded, size: 23)),
+      ]));
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: iconColor, size: 20),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              color: Colors.black,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Colors.black54,
-            ),
-          ),
-        ],
-      ),
+    final workout = widget.completedWorkout;
+    final workouts = context.watch<WorkoutNotifier>();
+    final settings = context.watch<SettingsNotifier>();
+    final data = workout == null
+        ? null
+        : WorkoutResultData.fromWorkout(
+            workout: workout,
+            history: workouts.workoutHistory,
+            records: workouts.personalRecords,
+            weightUnit: settings.weightSuffix,
+            distanceUnit: settings.distanceSuffix,
+            weeklyGoals: settings.userSettings.weeklyGoals,
+            catalogNames: <String, String>{
+              for (final e
+                  in context.watch<ExerciseDbNotifier?>()?.exercises ?? [])
+                e.id: e.name
+            },
+          );
+    return Scaffold(
+      backgroundColor: dark ? colors.surface : const Color(0xFFF5F5F8),
+      extendBody: true,
+      body: Stack(children: [
+        ListView(
+          padding: const EdgeInsets.only(bottom: 132),
+          children: [
+            _hero(
+                data,
+                workout == null
+                    ? 1
+                    : _workoutNumber(workout, workouts.workoutHistory)),
+            if (data != null) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: _metrics(data),
+              ),
+              const SizedBox(height: 48),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Expanded(
+                          child: Text(
+                              '${data.exerciseCount} ${data.exerciseCount == 1 ? 'Exercise' : 'Exercises'}',
+                              style: const TextStyle(
+                                  color: Color(0xFF6741B2),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600)),
+                        ),
+                        const Text('Best Set',
+                            style: TextStyle(
+                                color: Color(0xFF6741B2),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600)),
+                      ]),
+                      const SizedBox(height: 12),
+                      if (data.exercises.isEmpty)
+                        Text('No completed exercise sets.',
+                            style: TextStyle(
+                                fontSize: 14, color: colors.onSurfaceVariant)),
+                      for (final exercise in data.exercises)
+                        _exercise(exercise),
+                      const SizedBox(height: 26),
+                      if (workout != null)
+                        Center(
+                          child: Text('Saved · ${data.dateLabel}',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: colors.onSurfaceVariant)),
+                        ),
+                    ]),
+              ),
+            ],
+          ],
+        ),
+        Positioned(left: 0, right: 0, bottom: 0, child: _footer(data)),
+      ]),
     );
   }
 }

@@ -1,85 +1,137 @@
+import '../data/exercise_catalog.dart';
 import '../models/workout_model.dart';
-import '../data/exercise_data.dart';
+
+/// Immutable snapshot: never retain mutable draft sets in a record.
+class PersonalRecord {
+  final String exerciseId, exerciseName, workoutId, kind;
+  final int setIndex, reps;
+  final double? weightKg;
+  final DateTime timestamp;
+  final PersonalRecord? previous;
+
+  /// Shared by the same movement logged under an older ID; see
+  /// [ExerciseCatalog.canonicalId].
+  final String? canonicalId;
+  const PersonalRecord(
+      {required this.exerciseId,
+      required this.exerciseName,
+      required this.workoutId,
+      required this.kind,
+      required this.setIndex,
+      required this.reps,
+      required this.weightKg,
+      required this.timestamp,
+      this.previous,
+      this.canonicalId});
+  String get key => '${canonicalId ?? exerciseId}/$kind';
+  String get celebrationId =>
+      '$workoutId/$key/${weightKg?.toStringAsFixed(5)}/$reps';
+  bool get isBaseline => previous == null;
+  String label(String unit) {
+    if (weightKg == null) return '$reps reps';
+    final weight = weightKg! * (unit == 'lb' ? 2.2046226218 : 1);
+    final value = weight.toStringAsFixed(1).replaceFirst(RegExp(r'\.0$'), '');
+    return '$value $unit × $reps';
+  }
+}
 
 class PRService {
-  /// Detect personal records by comparing current workout against history
-  /// Returns list of exercise names that achieved new PRs
-  List<String> detectPersonalRecords(WorkoutLog currentWorkout, List<WorkoutLog> history) {
-    final List<String> newPRs = [];
-    
-    // Track best 1RM per exercise from history
-    final Map<String, double> historicalBest = {};
-    
-    // Calculate historical bests (excluding current workout and test data)
-    for (final workout in history) {
-      if (workout.id == currentWorkout.id || workout.isTestData) continue;
-      
-      for (final exerciseLog in workout.exercises) {
-        final best1RM = _calculateBest1RM(exerciseLog.sets);
-        
-        if (best1RM > 0) {
-          if (!historicalBest.containsKey(exerciseLog.exerciseId) || 
-              best1RM > historicalBest[exerciseLog.exerciseId]!) {
-            historicalBest[exerciseLog.exerciseId] = best1RM;
-          }
-        }
+  static int compare(double? weight, int reps, double? oldWeight, int oldReps) {
+    final delta = (weight ?? 0) - (oldWeight ?? 0);
+    return delta.abs() <= 0.00001
+        ? reps.compareTo(oldReps)
+        : delta.sign.toInt();
+  }
+
+  static WorkoutSet? bestSet(Iterable<WorkoutSet> sets) {
+    final eligible = sets
+        .where((s) =>
+            s.isCompleted &&
+            !s.isSuperSetRest &&
+            s.weightKg != null &&
+            s.weightKg!.isFinite &&
+            s.weightKg! > 0 &&
+            (s.reps ?? 0) > 0)
+        .toList();
+    eligible.sort((a, b) => compare(b.weightKg, b.reps!, a.weightKg, a.reps!));
+    return eligible.isEmpty ? null : eligible.first;
+  }
+
+  /// One final best per exercise/type/workout, ordered chronologically.
+  static List<PersonalRecord> records(Iterable<WorkoutLog> history) {
+    final workouts = history.where((w) => !w.isTestData).toList()
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    final best = <String, PersonalRecord>{};
+    final result = <PersonalRecord>[];
+    for (final workout in workouts) {
+      for (final record in forWorkout(workout, best)) {
+        result.add(record);
+        best[record.key] = record;
       }
     }
-    
-    // Check current workout for new PRs
-    for (final exerciseLog in currentWorkout.exercises) {
-      final current1RM = _calculateBest1RM(exerciseLog.sets);
-      
-      if (current1RM > 0) {
-        // Use stored name first, fallback to library lookup
-        final exerciseName = exerciseLog.exerciseName ?? _getExerciseName(exerciseLog.exerciseId);
-        
-        // If no history exists, it's a PR (first time doing this exercise)
-        if (!historicalBest.containsKey(exerciseLog.exerciseId)) {
-          if (exerciseName != null) {
-            newPRs.add(exerciseName);
-          }
-        } 
-        // If current exceeds historical best, it's a PR
-        else if (current1RM > historicalBest[exerciseLog.exerciseId]!) {
-          if (exerciseName != null) {
-            newPRs.add(exerciseName);
-          }
+    return result;
+  }
+
+  static Map<String, PersonalRecord> bests(Iterable<WorkoutLog> history) => {
+        for (final record in records(history)) record.key: record,
+      };
+
+  static List<PersonalRecord> forWorkout(
+      WorkoutLog workout, Map<String, PersonalRecord> best) {
+    if (workout.isTestData) return [];
+    final candidates = <String, PersonalRecord>{};
+    for (final exercise in workout.exercises) {
+      if (exercise.exerciseType == 'cardio' ||
+          exercise.exerciseType == 'timedHold' ||
+          '${exercise.exerciseName} ${exercise.equipment}'
+              .toLowerCase()
+              .contains('assist')) continue;
+      for (var i = 0; i < exercise.sets.length; i++) {
+        final set = exercise.sets[i];
+        if (!set.isCompleted || set.isSuperSetRest || (set.reps ?? 0) <= 0)
+          continue;
+        double? kg;
+        String kind;
+        if (set.weight != null && (!set.weight!.isFinite || set.weight! < 0))
+          continue;
+        if ((set.weight ?? 0) > 0) {
+          kg = set.weightKg;
+          if (kg == null ||
+              !kg.isFinite ||
+              kg <= 0 ||
+              !['kg', 'lb'].contains(set.weightUnit)) continue;
+          kind = 'weighted';
+        } else if (exercise.exerciseType == 'bodyweightReps') {
+          kind = 'bodyweight';
+        } else {
+          continue;
         }
+        final canonical = ExerciseCatalog.canonicalId(exercise.exerciseId,
+            name: exercise.exerciseName);
+        final key = '$canonical/$kind';
+        final old = candidates[key] ?? best[key];
+        if (old != null && compare(kg, set.reps!, old.weightKg, old.reps) <= 0)
+          continue;
+        candidates[key] = PersonalRecord(
+            exerciseId: exercise.exerciseId,
+            exerciseName: exercise.displayName,
+            workoutId: workout.id,
+            kind: kind,
+            setIndex: i,
+            reps: set.reps!,
+            weightKg: kg,
+            timestamp: workout.timestamp,
+            previous: best[key],
+            canonicalId: canonical);
       }
     }
-    
-    return newPRs;
+    return candidates.values.toList();
   }
-  
-  /// Calculate best estimated 1RM from a list of sets using Epley formula
-  /// Formula: weight × (1 + reps/30)
-  double _calculateBest1RM(List<WorkoutSet> sets) {
-    double best1RM = 0;
-    
-    for (final set in sets) {
-      if (set.weight != null && set.reps != null && set.weight! > 0 && set.reps! > 0) {
-        // Epley formula for 1RM estimation
-        final estimated1RM = set.weight! * (1 + set.reps! / 30.0);
-        
-        if (estimated1RM > best1RM) {
-          best1RM = estimated1RM;
-        }
-      }
-    }
-    
-    return best1RM;
-  }
-  
-  /// Get exercise name from exercise ID
-  String? _getExerciseName(String exerciseId) {
-    try {
-      final exercise = EXERCISE_LIBRARY.firstWhere(
-        (e) => e['id'] == exerciseId,
-      );
-      return exercise['name'] as String?;
-    } catch (e) {
-      return null;
-    }
-  }
+
+  List<String> detectPersonalRecords(
+          WorkoutLog workout, List<WorkoutLog> history) =>
+      forWorkout(workout, bests(history.where((w) => w.id != workout.id)))
+          .where((r) => !r.isBaseline)
+          .map((r) => r.exerciseName)
+          .toList();
 }

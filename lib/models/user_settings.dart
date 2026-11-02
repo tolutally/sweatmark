@@ -1,15 +1,19 @@
 /// User preference settings for units and display
 class UserSettings {
+  final Map<String, int> weeklyGoals;
   final DistanceUnit distanceUnit;
   final WeightUnit weightUnit;
 
   const UserSettings({
+    this.weeklyGoals = const {},
     this.distanceUnit = DistanceUnit.miles,
     this.weightUnit = WeightUnit.lb,
   });
 
   factory UserSettings.fromJson(Map<String, dynamic> json) {
     return UserSettings(
+      weeklyGoals: (json['weeklyGoals'] as Map? ?? {}).map(
+          (k, v) => MapEntry(k.toString(), (v as num).toInt().clamp(1, 14))),
       distanceUnit: DistanceUnit.values.firstWhere(
         (e) => e.name == json['distanceUnit'],
         orElse: () => DistanceUnit.miles,
@@ -22,15 +26,18 @@ class UserSettings {
   }
 
   Map<String, dynamic> toJson() => {
+        'weeklyGoals': weeklyGoals,
         'distanceUnit': distanceUnit.name,
         'weightUnit': weightUnit.name,
       };
 
   UserSettings copyWith({
+    Map<String, int>? weeklyGoals,
     DistanceUnit? distanceUnit,
     WeightUnit? weightUnit,
   }) {
     return UserSettings(
+      weeklyGoals: weeklyGoals ?? this.weeklyGoals,
       distanceUnit: distanceUnit ?? this.distanceUnit,
       weightUnit: weightUnit ?? this.weightUnit,
     );
@@ -55,12 +62,12 @@ class UserSettings {
     if (durationSeconds == null || distance == null || distance == 0) {
       return '--';
     }
-    
+
     // Calculate pace in seconds per unit
     final paceSeconds = durationSeconds / distance;
     final minutes = (paceSeconds / 60).floor();
     final seconds = (paceSeconds % 60).round();
-    
+
     final suffix = distanceUnit == DistanceUnit.miles ? '/mi' : '/km';
     return '$minutes:${seconds.toString().padLeft(2, '0')}$suffix';
   }
@@ -68,11 +75,11 @@ class UserSettings {
   /// Format duration as mm:ss or h:mm:ss
   static String formatDuration(int? seconds) {
     if (seconds == null) return '--';
-    
+
     final hours = seconds ~/ 3600;
     final minutes = (seconds % 3600) ~/ 60;
     final secs = seconds % 60;
-    
+
     if (hours > 0) {
       return '$hours:${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
     }
@@ -82,9 +89,9 @@ class UserSettings {
   /// Parse duration string (mm:ss or h:mm:ss) to seconds
   static int? parseDuration(String input) {
     final parts = input.split(':').map((p) => int.tryParse(p)).toList();
-    
+
     if (parts.any((p) => p == null)) return null;
-    
+
     if (parts.length == 2) {
       // mm:ss
       return parts[0]! * 60 + parts[1]!;
@@ -92,7 +99,7 @@ class UserSettings {
       // h:mm:ss
       return parts[0]! * 3600 + parts[1]! * 60 + parts[2]!;
     }
-    
+
     return null;
   }
 }

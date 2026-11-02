@@ -1,221 +1,210 @@
 import 'package:flutter/material.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphor_icons/phosphor_icons.dart';
 import 'package:provider/provider.dart';
-import '../theme/app_theme.dart';
 import '../screens/home_screen.dart';
-import '../screens/analytics_screen.dart';
-import '../screens/recovery_screen.dart';
-import '../screens/profile_screen.dart';
+import '../screens/stats_screen.dart';
+import '../screens/library_screen.dart';
+import '../screens/workout_history_screen.dart';
 import '../screens/active_workout_screen.dart';
 import '../state/workout_notifier.dart';
 import '../state/navigation/tab_navigation_notifier.dart';
+import '../theme/app_theme.dart';
 
 class AppShell extends StatelessWidget {
   const AppShell({super.key});
 
-  static const List<Widget> _screens = [
-    HomeScreen(),
-    AnalyticsScreen(),
-    RecoveryScreen(),
-    ProfileScreen(),
-  ];
-
   @override
   Widget build(BuildContext context) {
-    final tabController = context.watch<TabNavigationNotifier>();
-    final currentIndex = tabController.currentIndex;
+    final navigation = context.watch<TabNavigationNotifier>();
+    final workout = context.watch<WorkoutNotifier>();
+    final colors = Theme.of(context).colorScheme;
+    void openWorkout() {
+      if (!workout.isWorkoutActive) workout.startWorkout();
+      Navigator.push(context,
+          MaterialPageRoute(builder: (_) => const ActiveWorkoutScreen()));
+    }
 
     return Scaffold(
-      body: Stack(
-        children: [
-          IndexedStack(
-            index: currentIndex,
-            children: _screens,
-          ),
-          const _ActiveWorkoutIndicator(),
+      body: IndexedStack(
+        index: navigation.currentIndex.clamp(0, 3),
+        children: const [
+          HomeScreen(),
+          LibraryScreen(),
+          WorkoutHistoryScreen(),
+          StatsScreen()
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        indicatorColor: AppColors.brandTeal.withValues(alpha: 0.18),
-        height: 60,
-        selectedIndex: currentIndex,
-        onDestinationSelected: tabController.goTo,
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(PhosphorIconsRegular.house, color: AppColors.neutral400),
-            selectedIcon:
-                Icon(PhosphorIconsFill.house, color: AppColors.brandTeal),
-            label: 'Home',
+      bottomNavigationBar: Column(mainAxisSize: MainAxisSize.min, children: [
+        if (workout.isWorkoutActive && navigation.currentIndex != 0)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Material(
+              color: colors.primaryContainer,
+              borderRadius: BorderRadius.circular(24),
+              clipBehavior: Clip.antiAlias,
+              child: ListTile(
+                leading: Icon(PhosphorIconsFill.play,
+                    color: colors.onPrimaryContainer),
+                textColor: colors.onPrimaryContainer,
+                title: Text(
+                    'Resume ${workout.currentWorkout?.workoutName ?? 'workout'}'),
+                onTap: openWorkout,
+              ),
+            ),
           ),
-          NavigationDestination(
-            icon:
-                Icon(PhosphorIconsRegular.chartBar, color: AppColors.neutral400),
-            selectedIcon:
-                Icon(PhosphorIconsFill.chartBar, color: AppColors.brandTeal),
-            label: 'Analytics',
-          ),
-          NavigationDestination(
-            icon: Icon(PhosphorIconsRegular.heartbeat,
-                color: AppColors.neutral400),
-            selectedIcon:
-                Icon(PhosphorIconsFill.heartbeat, color: AppColors.brandTeal),
-            label: 'Recovery',
-          ),
-          NavigationDestination(
-            icon: Icon(PhosphorIconsRegular.user, color: AppColors.neutral400),
-            selectedIcon:
-                Icon(PhosphorIconsFill.user, color: AppColors.brandTeal),
-            label: 'Profile',
-          ),
-        ],
-      ),
+        AppNavigationDock(
+          selectedIndex: navigation.currentIndex,
+          onSelected: navigation.goTo,
+          onWorkoutPressed: openWorkout,
+          isWorkoutActive: workout.isWorkoutActive,
+        ),
+      ]),
     );
   }
 }
 
-class _ActiveWorkoutIndicator extends StatefulWidget {
-  const _ActiveWorkoutIndicator();
+/// Reference dock: edge-to-edge ink surface and a raised lavender action.
+class AppNavigationDock extends StatelessWidget {
+  const AppNavigationDock({
+    super.key,
+    required this.selectedIndex,
+    required this.onSelected,
+    required this.onWorkoutPressed,
+    this.isWorkoutActive = false,
+  });
 
-  @override
-  State<_ActiveWorkoutIndicator> createState() => _ActiveWorkoutIndicatorState();
-}
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+  final VoidCallback onWorkoutPressed;
+  final bool isWorkoutActive;
 
-class _ActiveWorkoutIndicatorState extends State<_ActiveWorkoutIndicator> {
-  Offset _position = Offset.zero;
-  bool _initialized = false;
+  Widget _destination(BuildContext context, int index, String label,
+      IconData icon, IconData activeIcon) {
+    final selected = selectedIndex == index;
+    return Expanded(
+      child: Semantics(
+        selected: selected,
+        button: true,
+        label: label,
+        child: Tooltip(
+          message: label,
+          excludeFromSemantics: true,
+          child: InkWell(
+            key: ValueKey('navigation-${label.toLowerCase()}'),
+            onTap: () => onSelected(index),
+            splashColor: AppColors.lavender.withValues(alpha: .15),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 78),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(2, 16, 2, 14),
+                child: ExcludeSemantics(
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(selected ? activeIcon : icon,
+                        size: 21,
+                        color: selected
+                            ? AppColors.paleLavender
+                            : AppColors.referenceMuted),
+                    const SizedBox(height: 10),
+                    Text(label,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            fontSize: 12,
+                            height: 1.25,
+                            fontWeight: FontWeight.w400,
+                            color: selected
+                                ? AppColors.paleLavender
+                                : const Color(0xFF9C9BAF))),
+                  ]),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<WorkoutNotifier>(
-      builder: (context, notifier, _) {
-        final workout = notifier.currentWorkout;
-        if (!notifier.isWorkoutActive || workout == null) {
-          return const SizedBox.shrink();
-        }
-
-        final exerciseCount = workout.exercises.length;
-        final screenSize = MediaQuery.of(context).size;
-        final bottomPadding = MediaQuery.of(context).padding.bottom;
-        
-        // Initialize position to bottom center on first build
-        if (!_initialized) {
-          _position = Offset(
-            16, // left padding
-            screenSize.height - bottomPadding - kBottomNavigationBarHeight - 70,
-          );
-          _initialized = true;
-        }
-
-        return Positioned(
-          left: _position.dx,
-          top: _position.dy,
-          child: GestureDetector(
-            onPanUpdate: (details) {
-              setState(() {
-                _position = Offset(
-                  (_position.dx + details.delta.dx).clamp(0, screenSize.width - 200),
-                  (_position.dy + details.delta.dy).clamp(100, screenSize.height - bottomPadding - 80),
-                );
-              });
-            },
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: Material(
-                key: const ValueKey('active_workout_indicator'),
-                elevation: 6,
-                borderRadius: BorderRadius.circular(12),
-                clipBehavior: Clip.antiAlias,
-                color: AppColors.brandNavy,
-                child: InkWell(
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const ActiveWorkoutScreen(),
+    final action = isWorkoutActive ? 'Resume workout' : 'Start workout';
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
+    return Stack(
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 20),
+          child: Material(
+            key: const ValueKey('navigation-surface'),
+            color: AppColors.ink,
+            borderRadius:
+                const BorderRadius.vertical(bottom: Radius.circular(32)),
+            clipBehavior: Clip.antiAlias,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(8, 0, 8, bottomInset),
+              child:
+                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                _destination(context, 0, 'Home', PhosphorIconsRegular.house,
+                    PhosphorIconsFill.house),
+                _destination(
+                    context,
+                    2,
+                    'History',
+                    PhosphorIconsRegular.clipboardText,
+                    PhosphorIconsFill.clipboardText),
+                const SizedBox(width: 80),
+                _destination(
+                    context,
+                    1,
+                    'Browse',
+                    PhosphorIconsRegular.folderSimple,
+                    PhosphorIconsFill.folderSimple),
+                _destination(context, 3, 'Stats', PhosphorIconsRegular.chartBar,
+                    PhosphorIconsFill.chartBar),
+              ]),
+            ),
+          ),
+        ),
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: Tooltip(
+              message: action,
+              child: Semantics(
+                button: true,
+                label: action,
+                child: Material(
+                  key: const ValueKey('navigation-workout-action'),
+                  color: AppColors.paleLavender,
+                  shape: const CircleBorder(),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: onWorkoutPressed,
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Container(
+                        width: 52,
+                        height: 52,
+                        decoration: const BoxDecoration(
+                            color: AppColors.lavender, shape: BoxShape.circle),
+                        child: ExcludeSemantics(
+                          child: Icon(
+                              isWorkoutActive
+                                  ? PhosphorIconsFill.play
+                                  : PhosphorIconsRegular.plus,
+                              size: 23,
+                              color: Colors.white),
+                        ),
                       ),
-                    );
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            gradient: AppGradients.primary,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            PhosphorIconsBold.play,
-                            color: AppColors.brandNavyDeep,
-                            size: 16,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              workout.workoutName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
-                            Text(
-                              '$exerciseCount exercise${exerciseCount == 1 ? '' : 's'}',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.65),
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(width: 14),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              _formatDuration(notifier.elapsedSeconds),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
-                              ),
-                            ),
-                            const Text(
-                              'Active',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
                     ),
                   ),
                 ),
               ),
             ),
           ),
-        );
-      },
+        ),
+      ],
     );
   }
-}
-
-String _formatDuration(int seconds) {
-  final minutes = seconds ~/ 60;
-  final remainingSeconds = seconds % 60;
-  return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
 }

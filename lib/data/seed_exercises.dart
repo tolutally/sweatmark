@@ -2,6 +2,20 @@ import '../models/exercise_model.dart';
 
 /// Seed exercises to populate the global library in Firestore.
 final List<Exercise> seedExercises = [
+  Exercise(
+    id: 'ex_hip_adduction_machine',
+    name: 'Hip Adduction Machine (Inner Thigh)',
+    muscleGroup: 'upper legs',
+    equipment: 'machine',
+    exerciseType: ExerciseType.weightedStrength,
+  ),
+  Exercise(
+    id: 'ex_hip_abduction_machine',
+    name: 'Hip Abduction Machine (Outer Hip)',
+    muscleGroup: 'upper legs',
+    equipment: 'machine',
+    exerciseType: ExerciseType.weightedStrength,
+  ),
   // CHEST
   Exercise(
     id: 'ex_bench_press',

@@ -1,11 +1,11 @@
+import 'session_notifier.dart';
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import '../data/exercise_db_repository.dart';
 import '../models/exercise_model.dart';
 
 /// State notifier for ExerciseDB browsing and search.
 /// Handles debounced search, caching, and saved exercises.
-class ExerciseDbNotifier extends ChangeNotifier {
+class ExerciseDbNotifier extends SessionNotifier {
   final ExerciseDbRepository _repository;
 
   ExerciseDbNotifier(this._repository);
@@ -162,7 +162,8 @@ class ExerciseDbNotifier extends ChangeNotifier {
         query: _currentQuery.length >= _minSearchLength ? _currentQuery : null,
         bodyPart: _currentBodyPart,
         equipment: _currentEquipment,
-        limit: 500,
+        // The bundled catalog is ~1,300 items; return all matches.
+        limit: 5000,
       );
 
       // Check if this request is still current (not superseded)

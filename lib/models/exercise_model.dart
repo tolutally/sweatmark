@@ -72,13 +72,13 @@ extension SetFieldTypeExtension on SetFieldType {
 enum ExerciseType {
   /// Weight + Reps (barbell, dumbbell, cable, machine, kettlebell)
   weightedStrength,
-  
+
   /// Reps only with optional +weight toggle (push-ups, pull-ups, dips)
   bodyweightReps,
-  
+
   /// Duration only in mm:ss (plank, wall sit, dead hang)
   timedHold,
-  
+
   /// Time + Distance with auto-calculated pace (treadmill, bike, rowing)
   cardio,
 }
@@ -134,13 +134,13 @@ class Exercise {
   final String? instructions;
   final String? videoUrl;
   final String? difficulty;
-  
+
   // ExerciseDB integration fields
-  final String? gifUrl;       // ExerciseDB animated GIF URL
-  final String? externalId;   // ExerciseDB ID for deduplication
-  final String source;        // 'local' | 'exercisedb' | 'custom'
+  final String? gifUrl; // ExerciseDB animated GIF URL
+  final String? externalId; // ExerciseDB ID for deduplication
+  final String source; // 'local' | 'exercisedb' | 'custom'
   final List<String>? secondaryMuscles; // Additional muscles targeted
-  
+
   // Exercise type for determining input fields
   final ExerciseType exerciseType;
 

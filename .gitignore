@@ -45,3 +45,6 @@ app.*.map.json
 /android/app/release
 ios/build/
 **/build/
+
+# Private backups of deployed cloud source and configuration
+/backups/

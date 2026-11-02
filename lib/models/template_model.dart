@@ -155,11 +155,15 @@ class WorkoutSchedule {
         orElse: () => RepeatFrequency.weekly,
       ),
       customIntervalDays: map['customIntervalDays'],
-      weekDays: map['weekDays'] != null ? List<int>.from(map['weekDays']) : null,
-      startDate: map['startDate'] != null ? DateTime.parse(map['startDate']) : null,
+      weekDays:
+          map['weekDays'] != null ? List<int>.from(map['weekDays']) : null,
+      startDate:
+          map['startDate'] != null ? DateTime.parse(map['startDate']) : null,
       endDate: map['endDate'] != null ? DateTime.parse(map['endDate']) : null,
       hasReminder: map['hasReminder'] ?? false,
-      reminderTime: map['reminderTime'] != null ? DateTime.parse(map['reminderTime']) : null,
+      reminderTime: map['reminderTime'] != null
+          ? DateTime.parse(map['reminderTime'])
+          : null,
       isActive: map['isActive'] ?? true,
     );
   }
@@ -192,7 +196,7 @@ class WorkoutSchedule {
     if (endDate != null && from.isAfter(endDate!)) return null;
 
     DateTime next = from;
-    
+
     if (startDate != null && from.isBefore(startDate!)) {
       next = startDate!;
     }
@@ -220,7 +224,8 @@ class WorkoutSchedule {
             next = next.add(Duration(days: nextWeekday - currentWeekday));
           } else {
             // Move to next week, first scheduled day
-            next = next.add(Duration(days: 7 - currentWeekday + weekDays!.first));
+            next =
+                next.add(Duration(days: 7 - currentWeekday + weekDays!.first));
           }
         } else {
           next = next.add(const Duration(days: 7));
@@ -366,10 +371,12 @@ class WorkoutTemplate {
       collectionId: map['collectionId'],
       createdAt: map['createdAt'] is Timestamp
           ? (map['createdAt'] as Timestamp).toDate()
-          : DateTime.parse(map['createdAt'] ?? DateTime.now().toIso8601String()),
+          : DateTime.parse(
+              map['createdAt'] ?? DateTime.now().toIso8601String()),
       updatedAt: map['updatedAt'] is Timestamp
           ? (map['updatedAt'] as Timestamp).toDate()
-          : DateTime.parse(map['updatedAt'] ?? DateTime.now().toIso8601String()),
+          : DateTime.parse(
+              map['updatedAt'] ?? DateTime.now().toIso8601String()),
       timesUsed: map['timesUsed'] ?? 0,
     );
   }
@@ -451,10 +458,12 @@ class TemplateCollection {
       ),
       createdAt: map['createdAt'] is Timestamp
           ? (map['createdAt'] as Timestamp).toDate()
-          : DateTime.parse(map['createdAt'] ?? DateTime.now().toIso8601String()),
+          : DateTime.parse(
+              map['createdAt'] ?? DateTime.now().toIso8601String()),
       updatedAt: map['updatedAt'] is Timestamp
           ? (map['updatedAt'] as Timestamp).toDate()
-          : DateTime.parse(map['updatedAt'] ?? DateTime.now().toIso8601String()),
+          : DateTime.parse(
+              map['updatedAt'] ?? DateTime.now().toIso8601String()),
       templateCount: map['templateCount'] ?? 0,
     );
   }

@@ -5,6 +5,7 @@ import {onSchedule} from "firebase-functions/v2/scheduler";
 import {defineSecret} from "firebase-functions/params";
 import {setGlobalOptions} from "firebase-functions/v2";
 import * as admin from "firebase-admin";
+import {authorizeAdminHttp, requireAdmin, requireUser, searchInput, exerciseIdInput, consumeExerciseQuota} from "./security";
 
 // Set global options for all functions
 setGlobalOptions({region: "us-east1"});
@@ -70,11 +71,9 @@ export const searchExercises = onCall(
     memory: "256MiB",
   },
   async (request) => {
-    // Authentication optional - exercises are public data
-    // Log auth status for monitoring
-    console.log(`Search request from ${request.auth ? 'authenticated' : 'unauthenticated'} user`);
-
-    const {query, bodyPart, equipment, limit = 30} = request.data;
+    const caller = requireUser(request);
+    const {query, bodyPart, equipment, limit} = searchInput(request.data);
+    await consumeExerciseQuota(caller.uid);
 
     // Try to serve from Firestore cache first
     let cachedResults: admin.firestore.QuerySnapshot | null = null;
@@ -216,13 +215,9 @@ export const getExerciseById = onCall(
     memory: "256MiB",
   },
   async (request) => {
-    // Authentication optional - exercises are public data
-    console.log(`Get exercise by ID from ${request.auth ? 'authenticated' : 'unauthenticated'} user`);
-
-    const {externalId} = request.data;
-    if (!externalId) {
-      throw new HttpsError("invalid-argument", "externalId is required");
-    }
+    const caller = requireUser(request);
+    const externalId = exerciseIdInput(request.data, "externalId");
+    await consumeExerciseQuota(caller.uid);
 
     // Check cache first
     const exerciseRef = db.collection("exercisedb_exercises").doc(externalId);
@@ -338,13 +333,7 @@ export const adminDownloadAllExercises = onRequest(
     cors: false,
   },
   async (req, res) => {
-    const adminSecret = req.query.secret || req.body?.secret;
-    if (adminSecret !== "sweatmark_admin_2024") {
-      res.status(403).json({error: "Forbidden"});
-      return;
-    }
-
-    console.log("🚀 Starting FULL exercise download with pagination");
+    if (!await authorizeAdminHttp(req, res)) return;
 
     const apiKey = rapidApiKey.value();
     if (!apiKey) {
@@ -457,12 +446,9 @@ export const downloadAllExercisesComplete = onCall(
     memory: "1GiB",
   },
   async (request) => {
-    // Require authentication
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "Must be authenticated");
-    }
+    const caller = await requireAdmin(request);
 
-    console.log(`🚀 Starting FULL exercise download for user: ${request.auth.uid}`);
+    console.log(`🚀 Starting FULL exercise download for user: ${caller.uid}`);
 
     const apiKey = rapidApiKey.value();
     if (!apiKey) {
@@ -602,7 +588,7 @@ export const downloadAllExercisesComplete = onCall(
 
 /**
  * Admin callable function to trigger exercise download
- * Can be called from the Flutter app by an authenticated user
+ * Requires a verified administrator account
  */
 export const triggerExerciseDownload = onCall(
   {
@@ -611,12 +597,9 @@ export const triggerExerciseDownload = onCall(
     memory: "1GiB",
   },
   async (request) => {
-    // Require authentication
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "User must be authenticated");
-    }
+    const caller = await requireAdmin(request);
 
-    console.log(`Exercise download triggered by user: ${request.auth.uid}`);
+    console.log(`Exercise download triggered by user: ${caller.uid}`);
 
     const searchTerms = [
       // Body parts - Primary
@@ -707,35 +690,20 @@ export const triggerExerciseDownload = onCall(
 
 /**
  * ADMIN: Bulk download ALL exercises from ExerciseDB
- * This endpoint is publicly accessible but requires API key in Authorization header
+ * Requires a verified Firebase ID token with the admin custom claim
  */
 export const bulkDownloadExercises = onRequest(
   {
     secrets: [rapidApiKey],
     timeoutSeconds: 540,
     memory: "1GiB",
-    invoker: "public", // Public endpoint with API key auth
+    // Preserve existing invoker IAM; application authorization requires an admin token.
   },
   async (req, res) => {
-    if (req.method !== "POST") {
-      res.status(405).send("Method not allowed. Use POST.");
-      return;
-    }
-
-    // Check for API key in X-API-Key header OR Authorization header
-    const xApiKey = req.headers["x-api-key"] as string;
-    const authHeader = req.headers.authorization;
+    if (!await authorizeAdminHttp(req, res)) return;
     const apiKey = rapidApiKey.value();
-
     if (!apiKey) {
-      res.status(500).send("API key not configured");
-      return;
-    }
-
-    // Accept API key in either header format
-    const providedKey = xApiKey || (authHeader?.replace("Bearer ", "") || "");
-    if (providedKey !== apiKey) {
-      res.status(401).send("Unauthorized - invalid API key");
+      res.status(500).json({error: "API key not configured"});
       return;
     }
 
@@ -881,26 +849,13 @@ export const downloadAllExercises = onRequest(
     secrets: [rapidApiKey],
     timeoutSeconds: 540,
     memory: "1GiB",
-    invoker: "public",
+    // Preserve existing invoker IAM; application authorization requires an admin token.
   },
   async (req, res) => {
-    if (req.method !== "POST") {
-      res.status(405).send("Method not allowed. Use POST.");
-      return;
-    }
-
-    const xApiKey = req.headers["x-api-key"] as string;
-    const authHeader = req.headers.authorization;
+    if (!await authorizeAdminHttp(req, res)) return;
     const apiKey = rapidApiKey.value();
-
     if (!apiKey) {
-      res.status(500).send("API key not configured");
-      return;
-    }
-
-    const providedKey = xApiKey || (authHeader?.replace("Bearer ", "") || "");
-    if (providedKey !== apiKey) {
-      res.status(401).send("Unauthorized - invalid API key");
+      res.status(500).json({error: "API key not configured"});
       return;
     }
 
@@ -1008,8 +963,7 @@ export const downloadAllExercises = onRequest(
  * Get count of cached exercises
  */
 export const getCacheStats = onCall(async (request) => {
-  // Authentication optional
-  console.log(`Cache stats request from ${request.auth ? 'authenticated' : 'unauthenticated'} user`);
+  requireUser(request);
 
   const snapshot = await db.collection("exercisedb_exercises").count().get();
   const count = snapshot.data().count;
@@ -1026,8 +980,7 @@ export const getCacheStats = onCall(async (request) => {
  * Get available body parts
  */
 export const getBodyParts = onCall(async (request) => {
-  // Authentication optional
-  console.log(`Body parts request from ${request.auth ? 'authenticated' : 'unauthenticated'} user`);
+  requireUser(request);
 
   return {
     bodyParts: [
@@ -1041,8 +994,7 @@ export const getBodyParts = onCall(async (request) => {
  * Get available equipment
  */
 export const getEquipmentList = onCall(async (request) => {
-  // Authentication optional
-  console.log(`Equipment list request from ${request.auth ? 'authenticated' : 'unauthenticated'} user`);
+  requireUser(request);
 
   return {
     equipment: [
@@ -1324,85 +1276,10 @@ export const scheduleStreakReminders = onSchedule(
     region: "us-east1",
   },
   async () => {
-    console.log("Running streak reminder scheduler");
+    // Retired: weekly goals have no countdown, urgency, or loss notifications.
+    // Keep the deployed function name compatible until scheduled cleanup.
+    return;
 
-    try {
-      const usersSnapshot = await db.collection("users").get();
-
-      const notifications: Array<Promise<void>> = [];
-
-      for (const userDoc of usersSnapshot.docs) {
-        const userId = userDoc.id;
-        const streakRef = db.collection("users").doc(userId).collection("streak").doc("data");
-        const streakDoc = await streakRef.get();
-
-        if (!streakDoc.exists) continue;
-
-        const streakData = streakDoc.data() as StreakData;
-        const graceDeadline = streakData.graceDeadline?.toDate();
-
-        if (!graceDeadline) continue;
-
-        const now = new Date();
-        const hoursUntilDeadline = (graceDeadline.getTime() - now.getTime()) / (1000 * 60 * 60);
-
-        // Send notifications at 6hrs, 3hrs, and 1hr before deadline
-        let shouldSendNotification = false;
-        let notificationTitle = "";
-        let notificationBody = "";
-
-        if (hoursUntilDeadline <= 6 && hoursUntilDeadline > 5) {
-          shouldSendNotification = true;
-          notificationTitle = "⏰ Streak Reminder";
-          notificationBody = `6 hours left to maintain your ${streakData.current}-day streak!`;
-        } else if (hoursUntilDeadline <= 3 && hoursUntilDeadline > 2) {
-          shouldSendNotification = true;
-          notificationTitle = "🔥 Streak Alert";
-          notificationBody = `Only 3 hours left! Don't break your ${streakData.current}-day streak.`;
-        } else if (hoursUntilDeadline <= 1 && hoursUntilDeadline > 0) {
-          shouldSendNotification = true;
-          notificationTitle = "⚠️ Final Warning";
-          notificationBody = `Last hour! Complete a workout to save your ${streakData.current}-day streak.`;
-        }
-
-        if (shouldSendNotification) {
-          // Get user's FCM token
-          const profileDoc = await db
-            .collection("users")
-            .doc(userId)
-            .collection("profile")
-            .doc("data")
-            .get();
-
-          const fcmToken = profileDoc.data()?.fcmToken;
-
-          if (fcmToken) {
-            notifications.push(
-              admin.messaging().send({
-                token: fcmToken,
-                notification: {
-                  title: notificationTitle,
-                  body: notificationBody,
-                },
-                data: {
-                  type: "streak_reminder",
-                  hoursRemaining: hoursUntilDeadline.toFixed(1),
-                },
-              }).then(() => {
-                console.log(`Notification sent to user ${userId}`);
-              }).catch((error) => {
-                console.error(`Failed to send notification to ${userId}:`, error);
-              })
-            );
-          }
-        }
-      }
-
-      await Promise.all(notifications);
-      console.log(`Processed ${usersSnapshot.size} users for streak reminders`);
-    } catch (error) {
-      console.error("Error in streak reminder scheduler:", error);
-    }
   }
 );
 
@@ -1422,12 +1299,7 @@ export const downloadFromGymFit = onRequest(
     cors: true,
   },
   async (req, res) => {
-    // Simple auth check
-    const secret = req.query.secret;
-    if (secret !== "sweatmark_admin_2024") {
-      res.status(401).json({error: "Unauthorized"});
-      return;
-    }
+    if (!await authorizeAdminHttp(req, res)) return;
 
     const apiKey = "d00e13bfe2mshc9670e0851f041fp17f504jsn603615b24850";
     const apiHost = "gym-fit.p.rapidapi.com";
@@ -1616,11 +1488,9 @@ export const refreshGymFitImage = onCall(
     timeoutSeconds: 30,
   },
   async (request) => {
-    const exerciseId = request.data.exerciseId;
-
-    if (!exerciseId) {
-      throw new HttpsError("invalid-argument", "exerciseId is required");
-    }
+    const caller = requireUser(request);
+    const exerciseId = exerciseIdInput(request.data, "exerciseId", true);
+    await consumeExerciseQuota(caller.uid);
 
     // Extract the GymFit ID from our doc ID format (gymfit_xxx)
     const gymfitId = exerciseId.replace("gymfit_", "");
@@ -1680,12 +1550,7 @@ export const refreshAllGymFitImages = onRequest(
     memory: "512MiB",
   },
   async (req, res) => {
-    // Simple secret check
-    const secret = req.query.secret;
-    if (secret !== "sweatmark_admin_2024") {
-      res.status(403).json({ error: "Unauthorized" });
-      return;
-    }
+    if (!await authorizeAdminHttp(req, res)) return;
 
     const apiKey = "d00e13bfe2mshc9670e0851f041fp17f504jsn603615b24850";
     const apiHost = "gym-fit.p.rapidapi.com";

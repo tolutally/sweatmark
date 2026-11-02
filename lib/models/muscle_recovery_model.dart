@@ -92,7 +92,8 @@ class MuscleRecovery {
     return MuscleRecovery(
       muscleGroup: json['muscleGroup'] as String,
       fatigue: (json['fatigue'] as num?)?.toDouble() ?? 0.0,
-      lastUpdatedAt: json['lastUpdatedAt'] as int? ?? DateTime.now().millisecondsSinceEpoch,
+      lastUpdatedAt: json['lastUpdatedAt'] as int? ??
+          DateTime.now().millisecondsSinceEpoch,
     );
   }
 
@@ -109,7 +110,7 @@ class MuscleRecovery {
       final lastTrained = timestamp is Timestamp
           ? timestamp.toDate()
           : DateTime.parse(data['lastTrainedDate'] as String);
-      
+
       return MuscleRecovery(
         muscleGroup: data['muscleGroup'] as String,
         fatigue: 35.0, // Default medium strain
@@ -122,7 +123,8 @@ class MuscleRecovery {
     return MuscleRecovery(
       muscleGroup: data['muscleGroup'] as String,
       fatigue: (data['fatigue'] as num?)?.toDouble() ?? 0.0,
-      lastUpdatedAt: data['lastUpdatedAt'] as int? ?? DateTime.now().millisecondsSinceEpoch,
+      lastUpdatedAt: data['lastUpdatedAt'] as int? ??
+          DateTime.now().millisecondsSinceEpoch,
     );
   }
 

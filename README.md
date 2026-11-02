@@ -1,5 +1,7 @@
 # SweatMark 🏋️
 
+> **Maintainer handoff:** Read [CLAUDE_HANDOFF.md](CLAUDE_HANDOFF.md) before continuing work. It contains the current product scope, design rules, architecture, persistence guarantees, release state, verification status, and working-tree warnings. This README predates the current logging-first rewrite and should not be used as the implementation specification.
+
 A high-fidelity mobile workout application built with Flutter featuring an ultra-modern dark mode design.
 
 ## Features

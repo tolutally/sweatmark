@@ -60,11 +60,11 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyCrz7FbtFxT0n7bCkC2tKtR513yNP6IvqM',
-    appId: '1:529973334654:ios:2b35f10468755e6ac93e2f',
+    appId: '1:529973334654:ios:cf2aca1a1d905c3cc93e2f',
     messagingSenderId: '529973334654',
     projectId: 'sweatmark-v1',
     storageBucket: 'sweatmark-v1.firebasestorage.app',
-    iosBundleId: 'com.tt.sweatmark',
+    iosBundleId: 'com.peniwyse.sweatmark.ios001',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(

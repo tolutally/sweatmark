@@ -1,377 +1,30 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/foundation.dart';
 import '../models/exercise_model.dart';
+import 'exercise_catalog.dart';
+import 'exercise_data.dart';
 
-/// Repository for interacting with ExerciseDB exercises stored in Firestore.
-/// Reads directly from the exercisedb_exercises collection (cached from Cloud Functions).
+/// Exercise catalog access. Browsing and search use the bundled catalog;
+/// Firestore is used only for a user's saved exercises.
 class ExerciseDbRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // In-memory cache for exercises (loaded once per app session)
   List<Exercise>? _allExercises;
-  bool _isLoading = false;
 
-  /// Infer muscle group from exercise name
-  String _inferMuscleGroup(String name) {
-    final lowerName = name.toLowerCase();
-
-    // Chest exercises
-    if (lowerName.contains('chest') ||
-        lowerName.contains('pec') ||
-        lowerName.contains('bench press') ||
-        lowerName.contains('push up') ||
-        lowerName.contains('pushup') ||
-        lowerName.contains('fly') ||
-        lowerName.contains('dip')) {
-      return 'chest';
-    }
-
-    // Back exercises
-    if (lowerName.contains('back') ||
-        lowerName.contains('lat') ||
-        lowerName.contains('row') ||
-        lowerName.contains('pull up') ||
-        lowerName.contains('pullup') ||
-        lowerName.contains('chin up') ||
-        lowerName.contains('pulldown') ||
-        lowerName.contains('deadlift')) {
-      return 'back';
-    }
-
-    // Shoulder exercises
-    if (lowerName.contains('shoulder') ||
-        lowerName.contains('delt') ||
-        lowerName.contains('overhead press') ||
-        lowerName.contains('military press') ||
-        lowerName.contains('lateral raise') ||
-        lowerName.contains('front raise') ||
-        lowerName.contains('shrug')) {
-      return 'shoulders';
-    }
-
-    // Biceps
-    if (lowerName.contains('bicep') ||
-        lowerName.contains('curl') && !lowerName.contains('leg')) {
-      return 'upper arms';
-    }
-
-    // Triceps
-    if (lowerName.contains('tricep') ||
-        lowerName.contains('pushdown') ||
-        lowerName.contains('skull crusher') ||
-        lowerName.contains('kickback') ||
-        lowerName.contains('extension') && lowerName.contains('arm')) {
-      return 'upper arms';
-    }
-
-    // Upper legs (quads, hamstrings, glutes)
-    if (lowerName.contains('squat') ||
-        lowerName.contains('lunge') ||
-        lowerName.contains('leg press') ||
-        lowerName.contains('leg extension') ||
-        lowerName.contains('leg curl') ||
-        lowerName.contains('hamstring') ||
-        lowerName.contains('quad') ||
-        lowerName.contains('glute') ||
-        lowerName.contains('hip thrust') ||
-        lowerName.contains('thigh')) {
-      return 'upper legs';
-    }
-
-    // Lower legs (calves)
-    if (lowerName.contains('calf') ||
-        lowerName.contains('calves') ||
-        lowerName.contains('tibialis')) {
-      return 'lower legs';
-    }
-
-    // Core/Abs
-    if (lowerName.contains('ab') ||
-        lowerName.contains('core') ||
-        lowerName.contains('crunch') ||
-        lowerName.contains('plank') ||
-        lowerName.contains('sit up') ||
-        lowerName.contains('situp') ||
-        lowerName.contains('oblique') ||
-        lowerName.contains('russian twist')) {
-      return 'waist';
-    }
-
-    // Forearms
-    if (lowerName.contains('forearm') ||
-        lowerName.contains('wrist curl') ||
-        lowerName.contains('grip')) {
-      return 'lower arms';
-    }
-
-    // Cardio
-    if (lowerName.contains('cardio') ||
-        lowerName.contains('run') ||
-        lowerName.contains('jog') ||
-        lowerName.contains('cycling') ||
-        lowerName.contains('jump') ||
-        lowerName.contains('burpee')) {
-      return 'cardio';
-    }
-
-    // Neck
-    if (lowerName.contains('neck')) {
-      return 'neck';
-    }
-
-    return 'General';
-  }
-
-  /// Infer equipment from exercise name
-  String _inferEquipment(String name) {
-    final lowerName = name.toLowerCase();
-
-    // Barbell exercises
-    if (lowerName.contains('barbell') ||
-        lowerName.contains('bench press') ||
-        lowerName.contains('deadlift') ||
-        lowerName.contains('squat') && !lowerName.contains('bodyweight') ||
-        lowerName.contains('overhead press') ||
-        lowerName.contains('military press') ||
-        lowerName.contains('barbell row') ||
-        lowerName.contains('clean') ||
-        lowerName.contains('snatch')) {
-      return 'barbell';
-    }
-
-    // Dumbbell exercises
-    if (lowerName.contains('dumbbell') || lowerName.contains('db ')) {
-      return 'dumbbell';
-    }
-
-    // Cable exercises
-    if (lowerName.contains('cable') ||
-        lowerName.contains('pulldown') ||
-        lowerName.contains('pushdown') ||
-        lowerName.contains('crossover') ||
-        lowerName.contains('face pull')) {
-      return 'cable';
-    }
-
-    // Machine exercises
-    if (lowerName.contains('machine') ||
-        lowerName.contains('leg press') ||
-        lowerName.contains('leg extension') ||
-        lowerName.contains('leg curl') ||
-        lowerName.contains('pec deck') ||
-        lowerName.contains('smith') ||
-        lowerName.contains('hack squat') ||
-        lowerName.contains('seated row')) {
-      return 'machine';
-    }
-
-    // Kettlebell exercises
-    if (lowerName.contains('kettlebell') ||
-        lowerName.contains('kb ') ||
-        lowerName.contains('swing')) {
-      return 'kettlebell';
-    }
-
-    // Resistance band exercises
-    if (lowerName.contains('band') || lowerName.contains('resistance')) {
-      return 'band';
-    }
-
-    // EZ bar exercises
-    if (lowerName.contains('ez bar') ||
-        lowerName.contains('ez-bar') ||
-        lowerName.contains('preacher curl')) {
-      return 'ez barbell';
-    }
-
-    // Body weight exercises
-    if (lowerName.contains('bodyweight') ||
-        lowerName.contains('body weight') ||
-        lowerName.contains('push up') ||
-        lowerName.contains('pushup') ||
-        lowerName.contains('pull up') ||
-        lowerName.contains('pullup') ||
-        lowerName.contains('chin up') ||
-        lowerName.contains('chinup') ||
-        lowerName.contains('dip') ||
-        lowerName.contains('plank') ||
-        lowerName.contains('crunch') ||
-        lowerName.contains('sit up') ||
-        lowerName.contains('situp') ||
-        lowerName.contains('lunge') ||
-        lowerName.contains('burpee') ||
-        lowerName.contains('squat jump') ||
-        lowerName.contains('mountain climber')) {
-      return 'body weight';
-    }
-
-    // Default - try to be smart about common patterns
-    if (lowerName.contains('curl') && !lowerName.contains('leg')) {
-      return 'dumbbell'; // Most curls are dumbbell
-    }
-
-    if (lowerName.contains('raise')) {
-      return 'dumbbell'; // Most raises are dumbbell
-    }
-
-    if (lowerName.contains('fly') || lowerName.contains('flye')) {
-      return 'dumbbell'; // Most flies are dumbbell
-    }
-
-    return 'body weight'; // Default to body weight
-  }
-
-  /// Infer exercise type from name, equipment, and muscle group
-  ExerciseType _inferExerciseType(
-      String name, String equipment, String muscleGroup) {
-    final lowerName = name.toLowerCase();
-    final lowerEquipment = equipment.toLowerCase();
-    final lowerMuscle = muscleGroup.toLowerCase();
-
-    // Cardio exercises - check muscle group first
-    if (lowerMuscle == 'cardio' ||
-        lowerName.contains('treadmill') ||
-        lowerName.contains('cycling') ||
-        lowerName.contains('bike') ||
-        lowerName.contains('rowing') ||
-        lowerName.contains('elliptical') ||
-        lowerName.contains('stair') ||
-        lowerName.contains('run') ||
-        lowerName.contains('jog') ||
-        lowerName.contains('sprint')) {
-      return ExerciseType.cardio;
-    }
-
-    // Timed hold exercises - bodyweight + specific patterns
-    if (lowerEquipment == 'body weight' || lowerEquipment == 'bodyweight') {
-      if (lowerName.contains('plank') ||
-          lowerName.contains('hold') ||
-          lowerName.contains('hang') ||
-          lowerName.contains('wall sit') ||
-          lowerName.contains('l-sit') ||
-          lowerName.contains('bridge') && lowerName.contains('hold') ||
-          lowerName.contains('hollow') ||
-          lowerName.contains('superman') && !lowerName.contains('push')) {
-        return ExerciseType.timedHold;
-      }
-
-      // Bodyweight reps exercises
-      return ExerciseType.bodyweightReps;
-    }
-
-    // Weighted strength - default for barbell, dumbbell, cable, machine, kettlebell
-    return ExerciseType.weightedStrength;
-  }
-
-  /// Load all exercises from Firestore cache
+  /// Loads the bundled catalog once per session. The old Firestore
+  /// `exercisedb_exercises` cache is no longer read by the app.
   Future<List<Exercise>> _loadAllExercises() async {
-    if (_allExercises != null && _allExercises!.isNotEmpty) {
-      return _allExercises!;
-    }
-
-    if (_isLoading) {
-      // Wait for loading to complete
-      while (_isLoading) {
-        await Future.delayed(const Duration(milliseconds: 100));
-      }
-      return _allExercises ?? [];
-    }
-
-    _isLoading = true;
-
+    if (_allExercises != null) return _allExercises!;
     try {
-      print('📚 Loading ALL exercises from Firestore cache...');
-
-      // Fetch all exercises using pagination to ensure we get everything
-      List<Exercise> allExercises = [];
-      DocumentSnapshot? lastDoc;
-      const int batchSize = 500;
-
-      while (true) {
-        Query query =
-            _firestore.collection('exercisedb_exercises').limit(batchSize);
-
-        if (lastDoc != null) {
-          query = query.startAfterDocument(lastDoc);
-        }
-
-        final snapshot = await query.get();
-
-        if (snapshot.docs.isEmpty) {
-          break;
-        }
-
-        print('📦 Fetched batch of ${snapshot.docs.length} exercises...');
-
-        for (final doc in snapshot.docs) {
-          final data = doc.data() as Map<String, dynamic>;
-          final name = data['name'] ?? '';
-
-          // Get muscle group - use stored value if not "General", otherwise infer from name
-          String muscleGroup =
-              data['muscleGroup'] ?? data['bodyPart'] ?? 'General';
-          if (muscleGroup == 'General' && name.isNotEmpty) {
-            muscleGroup = _inferMuscleGroup(name);
-          }
-
-          // Get equipment - use stored value if not "Various", otherwise infer from name
-          String equipment = data['equipment'] ?? 'Various';
-          if ((equipment == 'Various' || equipment.isEmpty) &&
-              name.isNotEmpty) {
-            equipment = _inferEquipment(name);
-          }
-
-          // Infer exercise type from name, equipment, and muscle group
-          final exerciseType = _inferExerciseType(name, equipment, muscleGroup);
-
-          // Handle instructions - can be String or List<String> from different sources
-          String? instructions;
-          final rawInstructions = data['instructions'];
-          if (rawInstructions is String) {
-            instructions = rawInstructions;
-          } else if (rawInstructions is List && rawInstructions.isNotEmpty) {
-            instructions = rawInstructions.join('\n');
-          }
-
-          allExercises.add(Exercise(
-            id: data['id'] ?? doc.id,
-            name: name,
-            muscleGroup: muscleGroup,
-            equipment: equipment,
-            icon: data['icon'] ?? '💪',
-            instructions: instructions,
-            gifUrl: data['gifUrl'],
-            externalId: data['externalId'] ?? doc.id,
-            source: data['source'] ?? 'exercisedb',
-            secondaryMuscles: data['secondaryMuscles'] != null
-                ? List<String>.from(data['secondaryMuscles'])
-                : null,
-            exerciseType: exerciseType,
-          ));
-        }
-
-        lastDoc = snapshot.docs.last;
-
-        // If we got less than batchSize, we've reached the end
-        if (snapshot.docs.length < batchSize) {
-          break;
-        }
-      }
-
-      _allExercises = allExercises;
-
-      // Sort by name
-      _allExercises!.sort((a, b) => a.name.compareTo(b.name));
-
-      print('✅ Loaded ${_allExercises!.length} total exercises');
-      return _allExercises!;
+      _allExercises = await ExerciseCatalog.load();
     } catch (e) {
-      print('❌ Error loading exercises from Firestore: $e');
-      _allExercises = [];
-      return [];
-    } finally {
-      _isLoading = false;
+      debugPrint('Could not load the bundled exercise catalog: $e');
+      _allExercises =
+          EXERCISE_LIBRARY.map((json) => Exercise.fromJson(json)).toList();
     }
+    return _allExercises!;
   }
 
   /// Search exercises by name, body part, or equipment
@@ -574,7 +227,8 @@ class ExerciseDbRepository {
           (e) => e.externalId == exerciseId || e.id == exerciseId,
         );
         if (index != -1) {
-          _allExercises![index] = _allExercises![index].copyWith(gifUrl: imageUrl);
+          _allExercises![index] =
+              _allExercises![index].copyWith(gifUrl: imageUrl);
         }
       }
 
@@ -645,7 +299,10 @@ class ExerciseDbRepository {
       );
 
       if (onProgress != null) {
-        onProgress('Downloading all exercises (this may take several minutes)...', 1, 2);
+        onProgress(
+            'Downloading all exercises (this may take several minutes)...',
+            1,
+            2);
       }
 
       final result = await callable.call();
@@ -669,7 +326,7 @@ class ExerciseDbRepository {
       };
     } catch (e) {
       print('Error calling downloadAllExercisesComplete: $e');
-      
+
       // Fallback: try the old method with individual search terms
       return await _populateExerciseDatabaseFallback(
         onProgress: onProgress,
