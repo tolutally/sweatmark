@@ -1,0 +1,4 @@
+# Bundled exercise demonstrations (~92 MB) are stored in Git LFS.
+# Regenerate with scripts/build_exercise_media.py; see
+# docs/EXERCISE_LIBRARY_MIGRATION.md.
+assets/exercises/media/*.webp filter=lfs diff=lfs merge=lfs -text
