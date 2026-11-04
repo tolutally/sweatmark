@@ -1,7 +1,7 @@
 name: sweatmark
 description: A high-fidelity fitness application.
 publish_to: 'none'
-version: 1.4.0+11
+version: 1.4.1+12
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
