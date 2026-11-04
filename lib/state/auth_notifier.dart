@@ -1,3 +1,4 @@
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -21,7 +22,7 @@ class AuthNotifier extends ChangeNotifier {
   User? get user => _user;
   bool get isAuthenticated => _user != null && !(_user?.isAnonymous ?? true);
   bool get isLoading => _isLoading;
-  
+
   /// Check if user has a verified email (for extra security if needed)
   bool get hasVerifiedEmail => _user?.emailVerified ?? false;
 
@@ -33,10 +34,10 @@ class AuthNotifier extends ChangeNotifier {
     notifyListeners();
 
     final credential = await _firebaseService.signUpWithEmail(email, password);
-    
+
     _isLoading = false;
     notifyListeners();
-    
+
     return credential != null;
   }
 
@@ -46,10 +47,10 @@ class AuthNotifier extends ChangeNotifier {
     notifyListeners();
 
     final credential = await _firebaseService.signInWithEmail(email, password);
-    
+
     _isLoading = false;
     notifyListeners();
-    
+
     return credential != null;
   }
 
@@ -66,42 +67,45 @@ class AuthNotifier extends ChangeNotifier {
     notifyListeners();
 
     final success = await _firebaseService.sendPasswordResetEmail(email);
-    
+
     _isLoading = false;
     notifyListeners();
-    
+
     return success;
   }
 
-  /// Sign in with Google
-  Future<bool> signInWithGoogle() async {
+  /// Sign in with Google. Null means the person closed Google's sheet.
+  Future<bool?> signInWithGoogle() async {
     _isLoading = true;
     notifyListeners();
 
-    final credential = await _firebaseService.signInWithGoogle();
-    
-    _isLoading = false;
-    notifyListeners();
-    
-    return credential != null;
+    try {
+      return await _firebaseService.signInWithGoogle() != null;
+    } on SignInCancelled {
+      return null;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
-  /// Sign in with Apple
-  Future<bool> signInWithApple() async {
+  /// Sign in with Apple. Null means the person closed Apple's sheet.
+  Future<bool?> signInWithApple() async {
     _isLoading = true;
     notifyListeners();
-
-    final credential = await _firebaseService.signInWithApple();
-    
-    _isLoading = false;
-    notifyListeners();
-    
-    return credential != null;
+    try {
+      return await _firebaseService.signInWithApple() != null;
+    } on SignInWithAppleAuthorizationException {
+      return null;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
+
   @override
   void dispose() {
     _authSubscription.cancel();
     super.dispose();
   }
-
 }
