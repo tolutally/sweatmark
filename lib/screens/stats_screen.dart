@@ -6,11 +6,14 @@ import '../models/exercise_model.dart';
 import '../models/monthly_stats.dart';
 import '../models/user_settings.dart';
 import '../models/workout_model.dart';
+import '../services/apple_health_service.dart';
 import '../services/pr_service.dart';
+import '../state/auth_notifier.dart';
 import '../state/exercise_db_notifier.dart';
 import '../state/settings_notifier.dart';
 import '../state/workout_notifier.dart';
 import '../theme/app_theme.dart';
+import '../widgets/apple_health_activity.dart';
 import '../widgets/personal_records.dart';
 import 'exercise_progress_screen.dart';
 import 'workout_detail_screen.dart';
@@ -336,6 +339,23 @@ class _StatsScreenState extends State<StatsScreen> {
                               child: section)
                       ]))
                 ])));
+  }
+
+  /// Movement from Apple Health for the selected period, up to now.
+  Widget _healthSection(DateTime now, UserSettings settings) {
+    final start =
+        _year ? DateTime(_month.year) : DateTime(_month.year, _month.month);
+    final next = _year
+        ? DateTime(_month.year + 1)
+        : DateTime(_month.year, _month.month + 1);
+    // Keep "now" stable within a minute so rebuilds do not refetch.
+    final cap = DateTime(now.year, now.month, now.day, now.hour, now.minute);
+    return AppleHealthActivity(
+      uid: context.watch<AuthNotifier?>()?.user?.uid,
+      start: start,
+      end: next.isAfter(cap) ? cap : next,
+      miles: settings.distanceUnit == DistanceUnit.miles,
+    );
   }
 
   Widget _tile(String title, String value, String subtitle, IconData icon,
@@ -1051,6 +1071,10 @@ class _StatsScreenState extends State<StatsScreen> {
                       color: panel,
                       padding: 13,
                       radius: 30),
+                  if (AppleHealthService.instance.isAvailable) ...[
+                    const SizedBox(height: 18),
+                    _healthSection(now, settings),
+                  ],
                   const SizedBox(height: 18),
                   _entries(data, catalog, limit: 3),
                   const SizedBox(height: 16),

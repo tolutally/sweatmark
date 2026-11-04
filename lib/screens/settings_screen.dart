@@ -4,6 +4,7 @@ import 'package:phosphor_icons/phosphor_icons.dart';
 import 'package:provider/provider.dart';
 import '../models/user_settings.dart';
 import '../models/weekly_progress.dart';
+import '../services/apple_health_service.dart';
 import '../state/auth_notifier.dart';
 import '../state/settings_notifier.dart';
 import '../theme/app_theme.dart';
@@ -17,6 +18,35 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final _goalKey = GlobalKey();
+  final _health = AppleHealthService.instance;
+  bool _healthOn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final uid = context.read<AuthNotifier?>()?.user?.uid;
+    _health.isEnabled(uid).then((on) {
+      if (mounted) setState(() => _healthOn = on);
+    });
+  }
+
+  Future<void> _setHealth(bool on) async {
+    final uid = context.read<AuthNotifier?>()?.user?.uid;
+    if (uid == null) return;
+    if (!on) {
+      await _health.disable(uid);
+      if (mounted) setState(() => _healthOn = false);
+      return;
+    }
+    final granted = await _health.enable(uid);
+    if (!mounted) return;
+    setState(() => _healthOn = granted);
+    if (!granted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              'Allow SweatMark to save workouts in Settings › Health › Data Access & Devices.')));
+    }
+  }
 
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
   Color get _panelColor => _isDark
@@ -345,6 +375,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onChanged: (on) =>
                         _save(() => settings.setHapticFeedbackEnabled(on)),
                   ),
+                  if (_health.isAvailable) ...[
+                    const SizedBox(height: 12),
+                    _preference(
+                      title: 'Apple Health',
+                      description:
+                          'Save finished workouts to Health, and show runs, walks and steps from Health in Stats.',
+                      icon: PhosphorIconsRegular.heartbeat,
+                      iconColor: _isDark ? colors.onSurface : AppColors.ink,
+                      iconBackground: AppColors.lime.withValues(alpha: .45),
+                      activeColor: const Color(0xFF6741B2),
+                      value: _healthOn,
+                      onChanged: _setHealth,
+                    ),
+                  ],
                 ]),
                 padding: 8,
                 radius: 28),
