@@ -53,4 +53,4 @@ Personal testing internal group created with automatic distribution disabled; on
 - Command-line export could not use the Xcode account; uploaded from Xcode Organizer (App Store Connect → Upload). Status: Uploaded to Apple.
 - Apple processing completed. The owner answered export compliance (standard encryption).
 - Added to the internal Personal testing group (1 tester); status Testing, expires in 90 days. No public review.
-- Open: the updated Apple Developer Program License Agreement awaits the Account Holder's acceptance.
+- The Account Holder accepted the updated Apple Developer Program License Agreement on November 1, 2026 (deadline was November 13).
