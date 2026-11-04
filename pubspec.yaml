@@ -1,7 +1,7 @@
 name: sweatmark
 description: A high-fidelity fitness application.
 publish_to: 'none'
-version: 1.4.0+11
+version: 1.4.1+12
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -43,6 +43,7 @@ dependencies:
   
   # Charts for Analytics
   fl_chart: ^0.70.0
+  health: ^13.3.1
 
 dev_dependencies:
   firebase_core_platform_interface: ^6.0.2
@@ -58,6 +59,8 @@ flutter:
     - assets/icon-foreground.png
     - assets/exercises/catalog_v1.json
     - assets/exercises/media/
+    - assets/onboarding/
+    - assets/brand/
     - assets/fonts/general_sans/LICENSE.txt
   fonts:
     - family: General Sans
@@ -79,7 +82,7 @@ flutter_launcher_icons:
   image_path: "assets/icon.png"
 
   # Android adaptive icon
-  adaptive_icon_background: "#0B1530"  # Dark navy background
+  adaptive_icon_background: "#1D1C21"  # Ink background
   adaptive_icon_foreground: "assets/icon-foreground.png"
 
   min_sdk_android: 21

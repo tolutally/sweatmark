@@ -7,6 +7,7 @@ import '../data/exercise_data.dart';
 import '../services/storage_service.dart';
 import '../services/sync_service.dart';
 import '../data/exercise_catalog.dart';
+import '../services/apple_health_service.dart';
 import '../services/pr_service.dart';
 import '../services/recovery_service.dart';
 import '../services/notification_service.dart';
@@ -578,6 +579,9 @@ class WorkoutNotifier extends SessionNotifier {
     // Sync to cloud (with local fallback)
     await _syncService.syncWorkout(userId, finishedWorkout);
     if (isDisposed) return;
+
+    // Optional copy to Apple Health; never blocks or fails the save.
+    unawaited(AppleHealthService.instance.saveWorkout(userId, finishedWorkout));
 
     // Reload history
     await _loadWorkoutHistory();

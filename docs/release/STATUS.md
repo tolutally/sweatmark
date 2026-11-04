@@ -53,4 +53,15 @@ Personal testing internal group created with automatic distribution disabled; on
 - Command-line export could not use the Xcode account; uploaded from Xcode Organizer (App Store Connect → Upload). Status: Uploaded to Apple.
 - Apple processing completed. The owner answered export compliance (standard encryption).
 - Added to the internal Personal testing group (1 tester); status Testing, expires in 90 days. No public review.
-- Open: the updated Apple Developer Program License Agreement awaits the Account Holder's acceptance.
+- The Account Holder accepted the updated Apple Developer Program License Agreement on November 1, 2026 (deadline was November 13).
+
+## November 4, 2026 — Sign-in redesign and Apple Health / 1.4.1 (12)
+
+- Contents: intro pages, Apple and Google sign-in, separate sign-in and sign-up screens, Apple Health (save workouts; show Health workouts and steps in Stats), new icon, app name SweatMark.
+- 155 Flutter tests passed on the committed state.
+- HealthKit enabled on the App ID in the developer portal; Xcode regenerated the team profile with HealthKit.
+- Archived from the command line as ios/build/SweatMark-1.4.1-12.xcarchive and uploaded from Xcode Organizer. Only warnings: missing dSYMs for some frameworks.
+- Apple processing completed. The owner answered export compliance (standard encryption).
+- Added to Personal testing (internal) and Family & Friends (external, 4 testers). Submitted for TestFlight Beta App Review, which external groups need. No public App Store review.
+- Not yet checked on a real device: Apple Health read and write, Apple and Google sign-in.
+- Before any public release: add Health data to the App Store privacy answers.

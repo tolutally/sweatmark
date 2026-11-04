@@ -22,6 +22,7 @@ import 'data/exercise_catalog.dart';
 import 'data/exercise_db_repository.dart';
 import 'widgets/app_shell.dart';
 import 'screens/auth_screen.dart';
+import 'screens/onboarding_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
@@ -227,12 +228,47 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final authNotifier = context.watch<AuthNotifier>();
 
-    // Show auth screen if not authenticated
+    // Signed out: the intro pages once per device, then sign-up.
     if (!authNotifier.isAuthenticated) {
-      return const AuthScreen();
+      return const SignedOutFlow();
     }
 
     // Show main app if authenticated
     return const AppShell();
+  }
+}
+
+class SignedOutFlow extends StatefulWidget {
+  const SignedOutFlow({super.key});
+
+  @override
+  State<SignedOutFlow> createState() => _SignedOutFlowState();
+}
+
+class _SignedOutFlowState extends State<SignedOutFlow> {
+  bool? _showIntro;
+
+  @override
+  void initState() {
+    super.initState();
+    OnboardingScreen.hasBeenSeen().then((seen) {
+      if (mounted) setState(() => _showIntro = !seen);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final showIntro = _showIntro;
+    if (showIntro == null) {
+      return ColoredBox(color: Theme.of(context).colorScheme.surface);
+    }
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      child: showIntro
+          ? OnboardingScreen(
+              key: const ValueKey('intro'),
+              onDone: () => setState(() => _showIntro = false))
+          : const AuthScreen(key: ValueKey('auth')),
+    );
   }
 }
