@@ -76,3 +76,6 @@ Personal testing internal group created with automatic distribution disabled; on
 - Signed archive build/ios/archive/SweatMark-13.xcarchive verified as 1.5.0 (13) with HealthKit, Sign in with Apple and push entitlements. Command-line upload again couldn't use the Xcode account; uploaded from Xcode Organizer.
 - Before AI search works: Firestore `_config/ai` must exist with `enabled: true`.
 - Uploaded from Xcode Organizer on November 8, 2026 (warnings only: missing dSYMs for some frameworks). Next: Apple processing, export compliance, then add to Personal testing and Family & Friends.
+- Apple processing completed. The owner answered export compliance (standard encryption).
+- Added to Personal testing (internal) and Family & Friends (external) with a "What to Test" note; submitted for TestFlight Beta App Review. Status: Waiting for Review. No public App Store review.
+- AI search turned on: Firestore `_config/ai` created with `enabled: true`.
