@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 import '../widgets/exercise_media.dart';
+import '../models/exercise_model.dart';
 import '../models/weekly_progress.dart';
 import '../models/workout_model.dart';
 import '../models/workout_result.dart';
@@ -13,6 +14,7 @@ import '../state/workout_notifier.dart';
 import '../theme/app_theme.dart';
 import '../widgets/round_back_button.dart';
 import 'active_workout_screen.dart';
+import 'workout_share_screen.dart';
 
 class WorkoutDetailScreen extends StatelessWidget {
   final WorkoutLog workout;
@@ -278,9 +280,13 @@ class WorkoutDetailScreen extends StatelessWidget {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final workouts = context.watch<WorkoutNotifier>();
     final settings = context.watch<SettingsNotifier>();
-    final catalogNames = <String, String>{
-      for (final e in context.watch<ExerciseDbNotifier?>()?.exercises ?? [])
-        e.id: e.name
+    final catalog = {
+      for (final e in context.watch<ExerciseDbNotifier?>()?.exercises ??
+          const <Exercise>[])
+        e.id: e
+    };
+    final catalogNames = {
+      for (final entry in catalog.entries) entry.key: entry.value.name
     };
     // Edited notes live in history; prefer the stored copy of this workout.
     final current = workouts.workoutHistory
@@ -295,6 +301,7 @@ class WorkoutDetailScreen extends StatelessWidget {
       distanceUnit: settings.distanceSuffix,
       weeklyGoals: settings.userSettings.weeklyGoals,
       catalogNames: catalogNames,
+      catalog: catalog,
     );
     final exercises =
         current.exercises.where((e) => _completed(e).isNotEmpty).toList();
@@ -404,6 +411,14 @@ class WorkoutDetailScreen extends StatelessWidget {
           title: const Text('Workout details',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
           actions: [
+            IconButton(
+              tooltip: 'Share workout',
+              onPressed: () => showWorkoutShare(context, result),
+              style: IconButton.styleFrom(
+                  backgroundColor: panel, minimumSize: const Size(48, 48)),
+              icon: const Icon(PhosphorIconsRegular.export),
+            ),
+            const SizedBox(width: 8),
             Padding(
               padding: const EdgeInsets.only(right: 16),
               child: IconButton(

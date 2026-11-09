@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../widgets/exercise_media.dart';
 import '../models/template_model.dart';
 import '../models/workout_model.dart';
+import '../models/exercise_model.dart';
 import '../models/workout_result.dart';
 import '../state/exercise_db_notifier.dart';
 import '../state/settings_notifier.dart';
@@ -487,6 +488,11 @@ class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
     final workout = widget.completedWorkout;
     final workouts = context.watch<WorkoutNotifier>();
     final settings = context.watch<SettingsNotifier>();
+    final catalog = {
+      for (final e in context.watch<ExerciseDbNotifier?>()?.exercises ??
+          const <Exercise>[])
+        e.id: e
+    };
     final data = workout == null
         ? null
         : WorkoutResultData.fromWorkout(
@@ -496,11 +502,10 @@ class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
             weightUnit: settings.weightSuffix,
             distanceUnit: settings.distanceSuffix,
             weeklyGoals: settings.userSettings.weeklyGoals,
-            catalogNames: <String, String>{
-              for (final e
-                  in context.watch<ExerciseDbNotifier?>()?.exercises ?? [])
-                e.id: e.name
+            catalogNames: {
+              for (final entry in catalog.entries) entry.key: entry.value.name
             },
+            catalog: catalog,
           );
     return Scaffold(
       backgroundColor: dark ? colors.surface : const Color(0xFFF5F5F8),
