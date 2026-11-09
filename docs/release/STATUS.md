@@ -65,3 +65,13 @@ Personal testing internal group created with automatic distribution disabled; on
 - Added to Personal testing (internal) and Family & Friends (external, 4 testers). Submitted for TestFlight Beta App Review, which external groups need. No public App Store review.
 - Not yet checked on a real device: Apple Health read and write, Apple and Google sign-in.
 - Before any public release: add Health data to the App Store privacy answers.
+
+## November 8, 2026 — AI search, Health in Stats, share card / 1.5.0 (13)
+
+- Contents: AI exercise search ("Ask AI" in Library, Claude Haiku 5.5 through the `runAiWorker` function), smarter text search (any word order, plurals, gym shorthand), redesigned share card with top set and muscles, share from saved workouts, timer pauses after 10 minutes idle, Apple Health steps, distance and active energy in Stats, Watch time used when a workout overlaps, cardio source setting (logs, Health or both).
+- 198 Flutter tests and 17 Functions tests passed. Analyzer clean.
+- Fix: the project inherited the organization's "Domain restricted sharing" rule, so no app function could be called (403). The owner set the project to the Google-managed default and gave the seven app callables public invoker access (each still requires sign-in). Admin functions stay private.
+- App callables in `exercise_db_repository.dart` now use region us-east1.
+- All Cloud Functions deployed to sweatmark-v1.
+- Signed archive build/ios/archive/SweatMark-13.xcarchive verified as 1.5.0 (13) with HealthKit, Sign in with Apple and push entitlements. Command-line upload again couldn't use the Xcode account; uploaded from Xcode Organizer.
+- Before AI search works: Firestore `_config/ai` must exist with `enabled: true`.
