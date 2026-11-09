@@ -5,7 +5,16 @@ import '../models/exercise_model.dart';
 import '../theme/app_theme.dart';
 
 class CreateExerciseScreen extends StatefulWidget {
-  const CreateExerciseScreen({super.key});
+  /// Optional starting values, e.g. from an AI search suggestion.
+  final String? initialName;
+  final String? initialMuscleGroup;
+  final String? initialEquipment;
+
+  const CreateExerciseScreen(
+      {super.key,
+      this.initialName,
+      this.initialMuscleGroup,
+      this.initialEquipment});
 
   @override
   State<CreateExerciseScreen> createState() => _CreateExerciseScreenState();
@@ -47,6 +56,56 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
     'Bands',
     'Other'
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController.text = widget.initialName?.trim() ?? '';
+    _selectedMuscleGroup = _matchMuscle(widget.initialMuscleGroup);
+    _selectedEquipment = _matchEquipment(widget.initialEquipment);
+  }
+
+  /// Library muscle names map onto this screen's broader groups.
+  String? _matchMuscle(String? muscle) {
+    final key = muscle?.trim().toLowerCase() ?? '';
+    if (key.isEmpty) return null;
+    for (final group in _muscleGroups) {
+      if (group.toLowerCase() == key) return group;
+    }
+    if (['abs', 'core', 'obliques', 'serratus'].contains(key)) {
+      return 'Abs / Core';
+    }
+    if (['lats', 'upper back', 'lower back', 'traps'].contains(key)) {
+      return 'Back';
+    }
+    if ([
+      'quadriceps',
+      'hamstrings',
+      'glutes',
+      'calves',
+      'adductors',
+      'abductors'
+    ].contains(key)) {
+      return 'Legs';
+    }
+    return null;
+  }
+
+  String? _matchEquipment(String? equipment) {
+    final key = equipment?.trim().toLowerCase() ?? '';
+    if (key.isEmpty) return null;
+    for (final option in _equipment) {
+      if (option.toLowerCase() == key) return option;
+    }
+    if (key.contains('band')) return 'Bands';
+    if (key.contains('body')) return 'Bodyweight';
+    if (key.contains('lever') ||
+        key.contains('smith') ||
+        key.contains('sled')) {
+      return 'Machine';
+    }
+    return 'Other';
+  }
 
   @override
   void dispose() {

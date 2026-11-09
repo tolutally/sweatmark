@@ -8,11 +8,16 @@ import '../services/storage_service.dart';
 import '../state/workout_notifier.dart';
 import '../theme/app_theme.dart';
 import 'create_exercise_screen.dart';
+import '../services/exercise_search.dart';
 import 'exercise_info_screen.dart';
+import '../ai/ai_workers.dart';
 
 class LibraryScreen extends StatefulWidget {
   final bool isPicker;
-  const LibraryScreen({super.key, this.isPicker = false});
+
+  /// AI search helper; replaceable in tests.
+  final AiWorkers? aiWorkers;
+  const LibraryScreen({super.key, this.isPicker = false, this.aiWorkers});
 
   @override
   State<LibraryScreen> createState() => _LibraryScreenState();
@@ -33,6 +38,38 @@ class _LibraryScreenState extends State<LibraryScreen> {
   String? _selectedEquipment;
   List<Exercise> _customExercises = [];
   bool _isLoadingCustomExercises = false;
+
+  // AI search for the current query: asked only when the person taps it.
+  String? _aiQuery;
+  bool _aiLoading = false;
+  ExerciseSearchSuggestions? _aiResult;
+  String? _aiError;
+
+  AiWorkers get _ai => widget.aiWorkers ?? AiWorkers.instance;
+
+  /// Offer AI when a real search finds little in the library.
+  bool _offerAi(int found) => _searchQuery.length >= 3 && found < 3;
+
+  Future<void> _askAi() async {
+    final query = _searchQuery;
+    setState(() {
+      _aiQuery = query;
+      _aiLoading = true;
+      _aiResult = null;
+      _aiError = null;
+    });
+    try {
+      final result = await _ai.searchExercises(query,
+          muscle: _selectedMuscle, equipment: _selectedEquipment);
+      if (!mounted || _aiQuery != query) return;
+      setState(() => _aiResult = result);
+    } on AiUnavailable catch (error) {
+      if (!mounted || _aiQuery != query) return;
+      setState(() => _aiError = error.message);
+    } finally {
+      if (mounted && _aiQuery == query) setState(() => _aiLoading = false);
+    }
+  }
 
   @override
   void initState() {
@@ -69,7 +106,15 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   void _performSearch(String query) {
     final normalized = query.trim();
-    setState(() => _searchQuery = normalized);
+    setState(() {
+      _searchQuery = normalized;
+      if (_aiQuery != normalized) {
+        _aiQuery = null;
+        _aiResult = null;
+        _aiError = null;
+        _aiLoading = false;
+      }
+    });
     final exerciseDbNotifier = context.read<ExerciseDbNotifier>();
     if (normalized.length < 2) {
       // This also cancels a pending remote search. The one-letter filter stays
@@ -80,22 +125,21 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
   }
 
-  List<Exercise> _getFilteredExercises(Iterable<Exercise> exercises) {
-    final query = _searchQuery.toLowerCase();
-    return exercises.where((exercise) {
-      final matchesQuery = query.isEmpty ||
-          exercise.name.toLowerCase().contains(query) ||
-          exercise.muscleGroup.toLowerCase().contains(query) ||
-          exercise.equipment.toLowerCase().contains(query);
-      return matchesQuery &&
-          (_selectedMuscle == null ||
-              exercise.muscleGroup.toLowerCase() ==
-                  _selectedMuscle!.toLowerCase()) &&
-          (_selectedEquipment == null ||
-              exercise.equipment.toLowerCase() ==
-                  _selectedEquipment!.toLowerCase());
-    }).toList()
-      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  List<Exercise> _getFilteredExercises(Iterable<Exercise> exercises,
+      {Set<String> loggedIds = const {}}) {
+    final filtered = exercises.where((exercise) =>
+        (_selectedMuscle == null ||
+            exercise.muscleGroup.toLowerCase() ==
+                _selectedMuscle!.toLowerCase()) &&
+        (_selectedEquipment == null ||
+            exercise.equipment.toLowerCase() ==
+                _selectedEquipment!.toLowerCase()));
+    // Without a query the list stays A to Z; with one, best matches first.
+    if (_searchQuery.isEmpty) {
+      return filtered.toList()
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    }
+    return ExerciseSearch.search(filtered, _searchQuery, loggedIds: loggedIds);
   }
 
   void _clearFilters() => setState(() {
@@ -144,7 +188,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
         .toSet()
         .toList()
       ..sort();
-    final exercises = _getFilteredExercises(byId.values);
+    final loggedIds = {
+      for (final exercise in logged) ...[
+        exercise.exerciseId,
+        ExerciseCatalog.canonicalId(exercise.exerciseId,
+            name: exercise.exerciseName),
+      ]
+    };
+    final exercises = _getFilteredExercises(byId.values, loggedIds: loggedIds);
     final isLoading =
         (exerciseDbNotifier.isLoading || _isLoadingCustomExercises) &&
             exercises.isEmpty;
@@ -259,8 +310,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
                       keyboardDismissBehavior:
                           ScrollViewKeyboardDismissBehavior.onDrag,
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                      itemCount: exercises.length + 1,
+                      itemCount: exercises.length + 2,
                       itemBuilder: (context, index) {
+                        if (index == exercises.length + 1) {
+                          return isLoading || !_offerAi(exercises.length)
+                              ? const SizedBox.shrink()
+                              : _aiSection(byId);
+                        }
                         if (index == 0) {
                           return Column(children: [
                             _customRow(),
@@ -422,9 +478,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
     onChanged(index == 0 ? null : values[index - 1]);
   }
 
-  Future<void> _createExercise() async {
-    final exercise = await Navigator.push<Exercise>(context,
-        MaterialPageRoute(builder: (_) => const CreateExerciseScreen()));
+  Future<void> _createExercise([AiCustomExercise? suggestion]) async {
+    final exercise = await Navigator.push<Exercise>(
+        context,
+        MaterialPageRoute(
+            builder: (_) => CreateExerciseScreen(
+                initialName: suggestion?.name,
+                initialMuscleGroup: suggestion?.muscleGroup,
+                initialEquipment: suggestion?.equipment)));
     if (exercise == null || !mounted) return;
     final custom = exercise.copyWith(source: 'custom');
     try {
@@ -465,7 +526,117 @@ class _LibraryScreenState extends State<LibraryScreen> {
                             fontSize: 15, fontWeight: FontWeight.w500)))
               ]))));
 
-  Widget _buildExerciseRow(Exercise exercise) => Material(
+  /// "Ask AI" when the library search finds little, then its suggestions.
+  Widget _aiSection(Map<String, Exercise> byId) {
+    final result = _aiQuery == _searchQuery ? _aiResult : null;
+    final note =
+        TextStyle(fontSize: 13, height: 1.4, color: _colors.onSurfaceVariant);
+    final suggestions = [
+      for (final match in result?.matches ?? const <AiExerciseMatch>[])
+        if (byId[match.id] != null) (byId[match.id]!, match.reason)
+    ];
+    return Container(
+        margin: const EdgeInsets.only(top: 12),
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+        decoration: BoxDecoration(
+            color: _dark ? _colors.surfaceContainerHigh : _colors.surface,
+            borderRadius: BorderRadius.circular(22)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(
+                width: 32,
+                height: 32,
+                decoration: const BoxDecoration(
+                    color: AppColors.lavender, shape: BoxShape.circle),
+                child: const Icon(Icons.auto_awesome_rounded,
+                    size: 17, color: AppColors.ink)),
+            const SizedBox(width: 10),
+            Expanded(
+                child: Text(
+                    result == null ? 'Can’t find it?' : 'Suggested by AI',
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w600))),
+          ]),
+          const SizedBox(height: 8),
+          if (result == null && !_aiLoading && _aiError == null) ...[
+            Text(
+                'AI can match gym slang, machine names and descriptions to exercises in the library.',
+                style: note),
+            const SizedBox(height: 10),
+            FilledButton.icon(
+                onPressed: _askAi,
+                style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.lavender,
+                    foregroundColor: AppColors.ink,
+                    minimumSize: const Size.fromHeight(46),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14))),
+                icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+                label: const Text('Ask AI')),
+            const SizedBox(height: 6),
+          ],
+          if (_aiLoading)
+            const Padding(
+                padding: EdgeInsets.symmetric(vertical: 14),
+                child: Center(
+                    child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2.4, color: AppColors.lavender)))),
+          if (_aiError != null)
+            Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(_aiError!, style: note)),
+          for (final (exercise, reason) in suggestions)
+            _buildExerciseRow(exercise, reason: reason),
+          if (result != null && result.customExercise != null)
+            _suggestedCustomRow(result.customExercise!),
+          if (result != null &&
+              suggestions.isEmpty &&
+              result.customExercise == null)
+            Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text('AI didn’t find a match either. Try other words.',
+                    style: note)),
+        ]));
+  }
+
+  Widget _suggestedCustomRow(AiCustomExercise suggestion) => Material(
+      color: Colors.transparent,
+      child: InkWell(
+          onTap: () => _createExercise(suggestion),
+          borderRadius: BorderRadius.circular(18),
+          child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(children: [
+                Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                        color: _dark
+                            ? _colors.primaryContainer
+                            : AppColors.paleLavender,
+                        borderRadius: BorderRadius.circular(16)),
+                    child: const Icon(Icons.add_rounded,
+                        color: AppColors.lavender, size: 30)),
+                const SizedBox(width: 14),
+                Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text('Create “${suggestion.name}”',
+                          style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              height: 1.35)),
+                      Text('Not in the library yet. We’ll fill in the details.',
+                          style: TextStyle(
+                              fontSize: 12.5, color: _colors.onSurfaceVariant)),
+                    ])),
+              ]))));
+
+  Widget _buildExerciseRow(Exercise exercise, {String? reason}) => Material(
       color: Colors.transparent,
       child: InkWell(
           borderRadius: BorderRadius.circular(18),
@@ -504,11 +675,21 @@ class _LibraryScreenState extends State<LibraryScreen> {
                             color: _colors.onSurfaceVariant, size: 22)),
                 const SizedBox(width: 14),
                 Expanded(
-                    child: Text(exercise.name,
-                        style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                            height: 1.35))),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text(exercise.name,
+                          style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              height: 1.35)),
+                      if (reason != null && reason.isNotEmpty)
+                        Text(reason,
+                            style: TextStyle(
+                                fontSize: 12.5,
+                                height: 1.35,
+                                color: _colors.onSurfaceVariant)),
+                    ])),
                 const SizedBox(width: 3),
                 IconButton(
                     tooltip: 'Info for ${exercise.name}',

@@ -1651,3 +1651,6 @@ function normalizeGymFitBodyPart(bodyPart: string): string {
   };
   return mapping[normalized] || normalized;
 }
+
+// AI workers (see src/ai/registry.ts)
+export {runAiWorker} from "./ai";
