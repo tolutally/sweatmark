@@ -10,9 +10,11 @@ import '../models/workout_model.dart';
 
 /// Connects SweatMark to Apple Health when the person turns it on in Settings.
 /// It saves finished workouts (time, activity type, known distance; no
-/// calories) and reads workouts and steps recorded elsewhere, such as runs
-/// from an Apple Watch, to show them in Stats. Health data stays on the
-/// device: it is never uploaded or merged into logged workouts.
+/// calories) and reads steps, walking and running distance and active energy
+/// to show in Stats. It also reads the times of workouts other apps or an
+/// Apple Watch recorded, only so a logged workout on the same day can use the
+/// Watch time. Health data stays on the device: it is never uploaded or
+/// merged into logged workouts.
 class AppleHealthService {
   AppleHealthService._();
   static final instance = AppleHealthService._();
@@ -20,8 +22,18 @@ class AppleHealthService {
   final Health _health = Health();
   static const _writeTypes = [HealthDataType.WORKOUT];
   static const _writeAccess = [HealthDataAccess.WRITE];
-  static const _types = [HealthDataType.WORKOUT, HealthDataType.STEPS];
-  static const _access = [HealthDataAccess.READ_WRITE, HealthDataAccess.READ];
+  static const _movementTypes = [
+    HealthDataType.STEPS,
+    HealthDataType.DISTANCE_WALKING_RUNNING,
+    HealthDataType.ACTIVE_ENERGY_BURNED,
+  ];
+  static const _types = [HealthDataType.WORKOUT, ..._movementTypes];
+  static const _access = [
+    HealthDataAccess.READ_WRITE,
+    HealthDataAccess.READ,
+    HealthDataAccess.READ,
+    HealthDataAccess.READ,
+  ];
 
   /// Workouts from these sources are SweatMark's own copies, already counted
   /// in Stats from the logged workout.
@@ -29,11 +41,14 @@ class AppleHealthService {
 
   bool get isAvailable => !kIsWeb && Platform.isIOS;
 
+  /// Bumped whenever Health is turned on or off, so screens read again.
+  final ValueNotifier<int> changes = ValueNotifier(0);
+
   String _enabledKey(String uid) => 'apple_health_enabled_$uid';
   String _savedKey(String uid) => 'apple_health_saved_$uid';
   // Set once the read permission has been asked for, so people who turned
-  // Health on before reading existed are asked again from Stats.
-  String _readKey(String uid) => 'apple_health_read_v1_$uid';
+  // Health on before these types were read are asked again from Stats.
+  String _readKey(String uid) => 'apple_health_read_v2_$uid';
 
   /// Whether Health is on and reading has been asked for.
   Future<bool> canRead(String? uid) async {
@@ -57,7 +72,7 @@ class AppleHealthService {
     }
   }
 
-  /// Asks to save workouts and to read workouts and steps. Returns whether
+  /// Asks to save workouts and to read movement and workout times. Returns whether
   /// Health is on. iOS never says whether reading was allowed; if it was
   /// not, reads simply come back empty.
   Future<bool> enable(String uid) async {
@@ -72,6 +87,7 @@ class AppleHealthService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_enabledKey(uid), granted && canWrite);
       if (granted) await prefs.setBool(_readKey(uid), true);
+      changes.value++;
       return granted && canWrite;
     } catch (error) {
       debugPrint('Apple Health permission failed: $error');
@@ -84,46 +100,76 @@ class AppleHealthService {
       await (await SharedPreferences.getInstance())
           .setBool(_enabledKey(uid), false);
     } catch (_) {}
+    changes.value++;
   }
 
-  /// Workouts recorded by other apps or devices, plus total steps, between
-  /// [start] and [end]. Null when Health is off or reading was not asked for.
+  /// Steps, walking and running distance and active energy between [start]
+  /// and [end], plus the times of workouts other apps or devices recorded.
+  /// Null when Health is off or reading was not asked for.
   Future<HealthSummary?> readActivity(
       String? uid, DateTime start, DateTime end) async {
     if (!await canRead(uid) || !end.isAfter(start)) return null;
     try {
       await _health.configure();
+    } catch (error) {
+      debugPrint('Apple Health read skipped: $error');
+      return HealthSummary();
+    }
+    // Totals use HealthKit statistics, which count overlapping iPhone and
+    // Watch samples once.
+    final totals = <HealthDataType, double>{};
+    try {
+      final points = await _health.getHealthIntervalDataFromTypes(
+          startDate: start,
+          endDate: end,
+          types: const [
+            HealthDataType.DISTANCE_WALKING_RUNNING,
+            HealthDataType.ACTIVE_ENERGY_BURNED,
+          ],
+          interval: 86400);
+      for (final point in points) {
+        final value = point.value;
+        if (value is! NumericHealthValue) continue;
+        final number = value.numericValue.toDouble();
+        if (!number.isFinite || number <= 0) continue;
+        totals[point.type] = (totals[point.type] ?? 0) + number;
+      }
+    } catch (error) {
+      debugPrint('Apple Health totals skipped: $error');
+    }
+    int? steps;
+    try {
+      steps = await _health.getTotalStepsInInterval(start, end);
+    } catch (_) {}
+    final sessions = <HealthActivity>[];
+    try {
       final points = await _health.getHealthDataFromTypes(
           types: const [HealthDataType.WORKOUT],
           startTime: start,
           endTime: end);
-      final activities = <HealthActivity>[];
       final seen = <String>{};
       for (final point in points) {
-        final value = point.value;
-        if (value is! WorkoutHealthValue) continue;
+        if (point.value is! WorkoutHealthValue) continue;
         if (ownSourceIds.contains(point.sourceId) ||
             point.sourceName == 'SweatMark' ||
-            !seen.add(point.uuid)) continue;
-        activities.add(HealthActivity(
-          id: point.uuid,
-          label: HealthSummary.labelFor(value.workoutActivityType.name),
-          start: point.dateFrom,
-          end: point.dateTo,
-          sourceName: point.sourceName,
-          distanceMeters: HealthSummary.meters(
-              value.totalDistance, value.totalDistanceUnit?.name),
-        ));
+            !seen.add(point.uuid)) {
+          continue;
+        }
+        sessions.add(HealthActivity(
+            id: point.uuid,
+            start: point.dateFrom,
+            end: point.dateTo,
+            sourceName: point.sourceName));
       }
-      int? steps;
-      try {
-        steps = await _health.getTotalStepsInInterval(start, end);
-      } catch (_) {}
-      return HealthSummary(activities, steps: steps);
     } catch (error) {
-      debugPrint('Apple Health read skipped: $error');
-      return HealthSummary(const []);
+      debugPrint('Apple Health workout times skipped: $error');
     }
+    return HealthSummary(
+      steps: steps,
+      distanceMeters: totals[HealthDataType.DISTANCE_WALKING_RUNNING],
+      activeKcal: totals[HealthDataType.ACTIVE_ENERGY_BURNED],
+      sessions: sessions,
+    );
   }
 
   /// Saves one finished workout, at most once. Never throws: a Health

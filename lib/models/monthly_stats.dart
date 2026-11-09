@@ -2,6 +2,7 @@ import 'exercise_model.dart';
 import 'workout_model.dart';
 
 /// A local, read-only summary of completed work. Missing units are never guessed.
+/// [durations] replaces a workout's own time, by id, with Apple Watch time.
 class MonthlyStats {
   final List<int> dailyWorkouts;
   final List<int> monthlyWorkouts = List.filled(12, 0);
@@ -9,6 +10,9 @@ class MonthlyStats {
   int workouts = 0;
   int timedWorkouts = 0;
   int totalSeconds = 0;
+
+  /// Workouts whose time came from a same-day Apple Health workout.
+  int watchTimedWorkouts = 0;
   int strengthSets = 0;
   int reps = 0;
   double volumeKg = 0;
@@ -30,7 +34,8 @@ class MonthlyStats {
   factory MonthlyStats.calculate(Iterable<WorkoutLog> history, DateTime month,
       {Map<String, Exercise> catalog = const {},
       DateTime? now,
-      bool year = false}) {
+      bool year = false,
+      Map<String, int> durations = const {}}) {
     final result = MonthlyStats._(year
         ? DateTime.utc(month.year + 1)
             .difference(DateTime.utc(month.year))
@@ -57,9 +62,13 @@ class MonthlyStats {
               .difference(DateTime.utc(date.year))
               .inDays
           : date.day - 1]++;
-      if (workout.durationSeconds > 0) {
+      final watch = durations[workout.id];
+      final seconds =
+          watch != null && watch > 0 ? watch : workout.durationSeconds;
+      if (watch != null && watch > 0) result.watchTimedWorkouts++;
+      if (seconds > 0) {
         result.timedWorkouts++;
-        result.totalSeconds += workout.durationSeconds;
+        result.totalSeconds += seconds;
       }
       var hasCardio = false;
       for (final exercise in entries) {

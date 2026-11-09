@@ -27,6 +27,8 @@ class Workouts extends ChangeNotifier implements WorkoutNotifier {
   @override
   bool get isWorkoutActive => false;
   @override
+  bool get isTimerPaused => false;
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 

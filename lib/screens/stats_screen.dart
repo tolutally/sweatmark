@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../models/exercise_model.dart';
+import '../models/health_activity.dart';
 import '../models/monthly_stats.dart';
 import '../models/user_settings.dart';
 import '../models/workout_model.dart';
@@ -19,7 +20,14 @@ import 'exercise_progress_screen.dart';
 import 'workout_detail_screen.dart';
 
 class StatsScreen extends StatefulWidget {
-  const StatsScreen({super.key});
+  /// Replaceable in tests; default is Apple Health on iPhone.
+  final Future<HealthSummary?> Function(
+      String? uid, DateTime start, DateTime end)? healthReader;
+  final Future<bool> Function(String uid)? healthConnect;
+  final bool? healthAvailable;
+
+  const StatsScreen(
+      {super.key, this.healthReader, this.healthConnect, this.healthAvailable});
   @override
   State<StatsScreen> createState() => _StatsScreenState();
 }
@@ -27,6 +35,82 @@ class StatsScreen extends StatefulWidget {
 class _StatsScreenState extends State<StatsScreen> {
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
   bool _year = false;
+
+  // Apple Health for the shown period, loaded once per period and account.
+  String? _healthKey;
+  HealthSummary? _health;
+  bool _healthLoading = false;
+  bool _connecting = false;
+  // Logged workouts that use a same-day Apple Watch workout's time.
+  Map<String, HealthActivity> _watch = const {};
+
+  bool get _healthAvailable =>
+      widget.healthAvailable ?? AppleHealthService.instance.isAvailable;
+
+  @override
+  void initState() {
+    super.initState();
+    AppleHealthService.instance.changes.addListener(_healthChanged);
+  }
+
+  @override
+  void dispose() {
+    AppleHealthService.instance.changes.removeListener(_healthChanged);
+    super.dispose();
+  }
+
+  // Health was turned on or off elsewhere, such as in Settings.
+  void _healthChanged() {
+    if (mounted) setState(() => _healthKey = null);
+  }
+
+  void _ensureHealth(String? uid, DateTime start, DateTime end) {
+    final key = '$uid|${start.toIso8601String()}|${end.toIso8601String()}';
+    if (key == _healthKey) return;
+    _healthKey = key;
+    _healthLoading = true;
+    final reader =
+        widget.healthReader ?? AppleHealthService.instance.readActivity;
+    reader(uid, start, end).then((summary) {
+      if (!mounted || _healthKey != key) return;
+      setState(() {
+        _health = summary;
+        _healthLoading = false;
+      });
+    }, onError: (Object error) {
+      if (!mounted || _healthKey != key) return;
+      setState(() {
+        _health = null;
+        _healthLoading = false;
+      });
+    });
+  }
+
+  Future<void> _connectHealth(String? uid) async {
+    if (uid == null || _connecting) return;
+    setState(() => _connecting = true);
+    final on =
+        await (widget.healthConnect ?? AppleHealthService.instance.enable)(uid);
+    if (!mounted) return;
+    setState(() {
+      _connecting = false;
+      _healthKey = null; // read again with the new permission
+    });
+    if (!on) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              'Apple Health was not turned on. You can allow it in the Health app under Sharing → Apps.')));
+    }
+  }
+
+  Widget _healthCard(String? uid, UserSettings settings) => AppleHealthActivity(
+        summary: _health,
+        loading: _healthLoading,
+        connecting: _connecting,
+        miles: settings.distanceUnit == DistanceUnit.miles,
+        watchTimed: _watch.length,
+        onConnect: uid == null ? null : () => _connectHealth(uid),
+      );
   String get _period =>
       _year ? '${_month.year}' : DateFormat('MMMM yyyy').format(_month);
   ColorScheme get colors => Theme.of(context).colorScheme;
@@ -193,6 +277,8 @@ class _StatsScreenState extends State<StatsScreen> {
     final exercises = workout.exercises.where((e) =>
         MonthlyStats.isCardio(e, catalog[e.exerciseId]) &&
         e.sets.any((s) => s.isCompleted && !s.isSuperSetRest));
+    final watch = _watch[workout.id];
+    final seconds = watch?.seconds ?? workout.durationSeconds;
     return _surface(
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Material(
@@ -240,12 +326,12 @@ class _StatsScreenState extends State<StatsScreen> {
               child: Divider(height: 1, color: softLavender)),
           _metrics([
             _metric(
-                workout.durationSeconds > 0
-                    ? _time(workout.durationSeconds)
-                    : '—',
-                workout.durationSeconds > 0
-                    ? 'workout time'
-                    : 'Duration not recorded',
+                seconds > 0 ? _time(seconds) : '—',
+                watch != null
+                    ? 'time from ${watch.sourceName}'
+                    : seconds > 0
+                        ? 'workout time'
+                        : 'Duration not recorded',
                 Icons.timer_outlined),
             _metric('$completedSets', 'completed sets',
                 Icons.fitness_center_outlined)
@@ -339,23 +425,6 @@ class _StatsScreenState extends State<StatsScreen> {
                               child: section)
                       ]))
                 ])));
-  }
-
-  /// Movement from Apple Health for the selected period, up to now.
-  Widget _healthSection(DateTime now, UserSettings settings) {
-    final start =
-        _year ? DateTime(_month.year) : DateTime(_month.year, _month.month);
-    final next = _year
-        ? DateTime(_month.year + 1)
-        : DateTime(_month.year, _month.month + 1);
-    // Keep "now" stable within a minute so rebuilds do not refetch.
-    final cap = DateTime(now.year, now.month, now.day, now.hour, now.minute);
-    return AppleHealthActivity(
-      uid: context.watch<AuthNotifier?>()?.user?.uid,
-      start: start,
-      end: next.isAfter(cap) ? cap : next,
-      miles: settings.distanceUnit == DistanceUnit.miles,
-    );
   }
 
   Widget _tile(String title, String value, String subtitle, IconData icon,
@@ -668,7 +737,7 @@ class _StatsScreenState extends State<StatsScreen> {
             padding: 12),
         const SizedBox(height: 14),
         _note(
-            'Includes rest. ${data.timedWorkouts} of ${data.workouts} workouts have recorded durations. Missing durations are excluded from the average.')
+            'Includes rest. ${data.timedWorkouts} of ${data.workouts} workouts have recorded durations. Missing durations are excluded from the average.${data.watchTimedWorkouts > 0 ? ' ${data.watchTimedWorkouts} use Apple Watch time from the same day.' : ''}')
       ]),
       color: panel);
 
@@ -692,11 +761,33 @@ class _StatsScreenState extends State<StatsScreen> {
         e.id: e
     };
     final settings = context.watch<SettingsNotifier>().userSettings;
+    final uid = context.watch<AuthNotifier?>()?.user?.uid;
+    final source = settings.cardioSource;
     final now = DateTime.now();
     final current =
         _month.year == now.year && (_year || _month.month == now.month);
+    final useHealth = _healthAvailable && source.usesHealth;
+    final periodStart =
+        _year ? DateTime(_month.year) : DateTime(_month.year, _month.month);
+    final periodNext = _year
+        ? DateTime(_month.year + 1)
+        : DateTime(_month.year, _month.month + 1);
+    // Keep "now" stable within a minute so rebuilds do not read again.
+    final cap = DateTime(now.year, now.month, now.day, now.hour, now.minute);
+    final periodEnd = periodNext.isAfter(cap) ? cap : periodNext;
+    if (useHealth) _ensureHealth(uid, periodStart, periodEnd);
+    final health = useHealth && !_healthLoading ? _health : null;
+    _watch = health == null
+        ? const {}
+        : health.watchTimes(history.where((w) =>
+            !w.isTestData &&
+            !w.timestamp.toLocal().isBefore(periodStart) &&
+            w.timestamp.toLocal().isBefore(periodEnd)));
     final data = MonthlyStats.calculate(history, _month,
-        catalog: catalog, now: now, year: _year);
+        catalog: catalog,
+        now: now,
+        year: _year,
+        durations: {for (final e in _watch.entries) e.key: e.value.seconds});
     final previousMonth = _year
         ? DateTime(_month.year - 1, now.month)
         : DateTime(_month.year, _month.month - 1);
@@ -983,14 +1074,34 @@ class _StatsScreenState extends State<StatsScreen> {
           Icons.fitness_center_rounded,
           AppColors.lavender,
           () => _details('Strength & holds', [strengthDetails])),
-      _tile(
-          'Cardio',
-          '${data.cardioSessions}',
-          'workouts with cardio',
-          Icons.directions_run_rounded,
-          AppColors.coral,
-          () => _details('Cardio',
-              [cardioDetails, _entries(data, catalog, cardio: true)])),
+      if (useHealth && !source.usesLogs)
+        _tile(
+            'Cardio',
+            health == null || health.isEmpty
+                ? '—'
+                : health.distanceKm > 0
+                    ? '${(health.distanceKm / (distanceUnit == 'mi' ? 1.609344 : 1)).toStringAsFixed(1)} $distanceUnit'
+                    : NumberFormat.decimalPattern().format(health.steps ?? 0),
+            health == null
+                ? 'connect Apple Health'
+                : health.distanceKm > 0
+                    ? 'walked and run'
+                    : 'steps',
+            Icons.directions_run_rounded,
+            AppColors.coral,
+            () => _details('Cardio', [_healthCard(uid, settings)]))
+      else
+        _tile(
+            'Cardio',
+            '${data.cardioSessions}',
+            'workouts with cardio',
+            Icons.directions_run_rounded,
+            AppColors.coral,
+            () => _details('Cardio', [
+                  cardioDetails,
+                  if (useHealth) _healthCard(uid, settings),
+                  _entries(data, catalog, cardio: true)
+                ])),
       _tile(
           'Muscles',
           '${muscles.where((e) => e.key != 'Unspecified').length}',
@@ -1071,9 +1182,9 @@ class _StatsScreenState extends State<StatsScreen> {
                       color: panel,
                       padding: 13,
                       radius: 30),
-                  if (AppleHealthService.instance.isAvailable) ...[
+                  if (useHealth) ...[
                     const SizedBox(height: 18),
-                    _healthSection(now, settings),
+                    _healthCard(uid, settings),
                   ],
                   const SizedBox(height: 18),
                   _entries(data, catalog, limit: 3),

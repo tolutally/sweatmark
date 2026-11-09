@@ -95,7 +95,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Icon(icon, size: 19, color: color));
 
   Widget _segments<T extends Object>(
-      String label, T value, Map<T, String> options, ValueChanged<T> changed) {
+      String label, T value, Map<T, String> options, ValueChanged<T> changed,
+      {String noun = 'unit'}) {
     final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(4),
@@ -106,7 +107,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final selected = value == entry.key;
         return Expanded(
             child: Semantics(
-          label: '$label unit: ${entry.value}',
+          label: '$label $noun: ${entry.value}',
           selected: selected,
           button: true,
           child: Material(
@@ -380,13 +381,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _preference(
                       title: 'Apple Health',
                       description:
-                          'Save finished workouts to Health, and show runs, walks and steps from Health in Stats.',
+                          'Save finished workouts to Health, and show steps, walking and running distance and active energy from Health in Stats.',
                       icon: PhosphorIconsRegular.heartbeat,
                       iconColor: _isDark ? colors.onSurface : AppColors.ink,
                       iconBackground: AppColors.lime.withValues(alpha: .45),
                       activeColor: const Color(0xFF6741B2),
                       value: _healthOn,
                       onChanged: _setHealth,
+                      details: _healthOn
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                  Text('Cardio in Stats',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                              fontWeight: FontWeight.w500)),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                      'Use cardio you log in SweatMark, movement from Health, or both. With Both or Health, a logged workout on the same day as an Apple Watch workout uses the Watch time.',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                              color: _captionColor,
+                                              fontSize: 12,
+                                              height: 1.4)),
+                                  const SizedBox(height: 10),
+                                  _segments(
+                                      'Cardio data',
+                                      settings.userSettings.cardioSource,
+                                      const {
+                                        CardioSource.both: 'Both',
+                                        CardioSource.logs: 'Logs',
+                                        CardioSource.health: 'Health',
+                                      },
+                                      (source) => _save(() =>
+                                          settings.setCardioSource(source)),
+                                      noun: 'source'),
+                                ])
+                          : null,
                     ),
                   ],
                 ]),

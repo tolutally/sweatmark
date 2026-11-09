@@ -115,27 +115,47 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
             },
           ),
           actions: [
-            Container(
-              margin: const EdgeInsets.only(right: 16),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Row(
-                children: [
-                  Icon(PhosphorIconsBold.play,
-                      color: Theme.of(context).colorScheme.primary, size: 16),
-                  const SizedBox(width: 8),
-                  Text(
-                    _formatDuration(notifier.elapsedSeconds),
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurface,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
-                    ),
+            Semantics(
+              button: notifier.isTimerPaused,
+              label: notifier.isTimerPaused
+                  ? 'Workout timer paused. Resume timer'
+                  : 'Workout timer',
+              child: GestureDetector(
+                onTap: notifier.isTimerPaused ? notifier.resumeTimer : null,
+                child: Container(
+                  margin: const EdgeInsets.only(right: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: notifier.isTimerPaused
+                        ? AppColors.lime
+                        : Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(999),
                   ),
-                ],
+                  child: Row(
+                    children: [
+                      Icon(
+                          notifier.isTimerPaused
+                              ? PhosphorIconsBold.pause
+                              : PhosphorIconsBold.play,
+                          color: notifier.isTimerPaused
+                              ? AppColors.ink
+                              : Theme.of(context).colorScheme.primary,
+                          size: 16),
+                      const SizedBox(width: 8),
+                      Text(
+                        _formatDuration(notifier.elapsedSeconds),
+                        style: TextStyle(
+                          color: notifier.isTimerPaused
+                              ? AppColors.ink
+                              : Theme.of(context).colorScheme.onSurface,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ],
@@ -203,6 +223,8 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
                   ],
                 ),
               ),
+
+              if (notifier.isTimerPaused) _PausedTimerBanner(notifier),
 
               // Exercise List
               Expanded(
@@ -3899,6 +3921,67 @@ class _GlobalRestTimerOverlay extends StatelessWidget {
             controls,
           ]);
         }),
+      ),
+    );
+  }
+}
+
+/// Shown when the workout clock stopped after 10 minutes without activity.
+class _PausedTimerBanner extends StatelessWidget {
+  final WorkoutNotifier notifier;
+  const _PausedTimerBanner(this.notifier);
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: const BoxDecoration(
+                color: AppColors.lime, shape: BoxShape.circle),
+            child: const Icon(PhosphorIconsBold.pause,
+                size: 16, color: AppColors.ink),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Timer paused',
+                    style:
+                        TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(
+                    'Nothing logged for 10 minutes, so the clock stopped at your last change.',
+                    style: TextStyle(
+                        fontSize: 13,
+                        height: 1.35,
+                        color: colors.onSurfaceVariant)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          FilledButton(
+            onPressed: notifier.resumeTimer,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.lavender,
+              foregroundColor: AppColors.ink,
+              minimumSize: const Size(44, 44),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+            ),
+            child: const Text('Resume'),
+          ),
+        ],
       ),
     );
   }

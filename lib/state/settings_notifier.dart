@@ -283,6 +283,13 @@ class SettingsNotifier extends SessionNotifier {
     await _saveUserSettings();
   }
 
+  /// Where cardio in Stats comes from when Apple Health is on.
+  Future<void> setCardioSource(CardioSource source) async {
+    _userSettings = _userSettings.copyWith(cardioSource: source);
+    notifyListeners();
+    await _saveUserSettings();
+  }
+
   /// Update weight unit
   Future<void> setWeightUnit(WeightUnit unit) async {
     _userSettings = _userSettings.copyWith(weightUnit: unit);

@@ -42,7 +42,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSHealthShareUsageDescription</key>
-	<string>SweatMark reads your workouts and steps to show runs, walks and other movement in Stats. This data stays on your iPhone.</string>
+	<string>SweatMark reads your steps, walking and running distance and active energy to show them in Stats, and the times of Apple Watch workouts so a logged workout on the same day uses the Watch time. This data stays on your iPhone.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>SweatMark saves your finished workouts to Apple Health when you turn this on in Settings.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
