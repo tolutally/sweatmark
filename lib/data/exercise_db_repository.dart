@@ -1,3 +1,4 @@
+import '../services/exercise_search.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
@@ -44,15 +45,9 @@ class ExerciseDbRepository {
 
     var results = List<Exercise>.from(allExercises);
 
-    // Filter by query (name search)
-    if (query != null && query.isNotEmpty) {
-      final lowerQuery = query.toLowerCase();
-      results = results
-          .where((e) =>
-              e.name.toLowerCase().contains(lowerQuery) ||
-              e.muscleGroup.toLowerCase().contains(lowerQuery) ||
-              e.equipment.toLowerCase().contains(lowerQuery))
-          .toList();
+    // Filter and rank by query (name, muscle, equipment, shorthand).
+    if (query != null && query.trim().isNotEmpty) {
+      results = ExerciseSearch.search(results, query);
     }
 
     // Filter by body part / muscle group
@@ -211,7 +206,8 @@ class ExerciseDbRepository {
     }
 
     try {
-      final callable = FirebaseFunctions.instance.httpsCallable(
+      final callable =
+          FirebaseFunctions.instanceFor(region: 'us-east1').httpsCallable(
         'refreshGymFitImage',
         options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
       );
@@ -293,7 +289,8 @@ class ExerciseDbRepository {
 
     try {
       // Call the comprehensive download Cloud Function
-      final callable = FirebaseFunctions.instance.httpsCallable(
+      final callable =
+          FirebaseFunctions.instanceFor(region: 'us-east1').httpsCallable(
         'downloadAllExercisesComplete',
         options: HttpsCallableOptions(timeout: const Duration(minutes: 10)),
       );
