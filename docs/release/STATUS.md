@@ -53,4 +53,39 @@ Personal testing internal group created with automatic distribution disabled; on
 - Command-line export could not use the Xcode account; uploaded from Xcode Organizer (App Store Connect → Upload). Status: Uploaded to Apple.
 - Apple processing completed. The owner answered export compliance (standard encryption).
 - Added to the internal Personal testing group (1 tester); status Testing, expires in 90 days. No public review.
-- Open: the updated Apple Developer Program License Agreement awaits the Account Holder's acceptance.
+- The Account Holder accepted the updated Apple Developer Program License Agreement on November 1, 2026 (deadline was November 13).
+
+## November 4, 2026 — Sign-in redesign and Apple Health / 1.4.1 (12)
+
+- Contents: intro pages, Apple and Google sign-in, separate sign-in and sign-up screens, Apple Health (save workouts; show Health workouts and steps in Stats), new icon, app name SweatMark.
+- 155 Flutter tests passed on the committed state.
+- HealthKit enabled on the App ID in the developer portal; Xcode regenerated the team profile with HealthKit.
+- Archived from the command line as ios/build/SweatMark-1.4.1-12.xcarchive and uploaded from Xcode Organizer. Only warnings: missing dSYMs for some frameworks.
+- Apple processing completed. The owner answered export compliance (standard encryption).
+- Added to Personal testing (internal) and Family & Friends (external, 4 testers). Submitted for TestFlight Beta App Review, which external groups need. No public App Store review.
+- Not yet checked on a real device: Apple Health read and write, Apple and Google sign-in.
+- Before any public release: add Health data to the App Store privacy answers.
+
+## November 8, 2026 — AI search, Health in Stats, share card / 1.5.0 (13)
+
+- Contents: AI exercise search ("Ask AI" in Library, Claude Haiku 5.5 through the `runAiWorker` function), smarter text search (any word order, plurals, gym shorthand), redesigned share card with top set and muscles, share from saved workouts, timer pauses after 10 minutes idle, Apple Health steps, distance and active energy in Stats, Watch time used when a workout overlaps, cardio source setting (logs, Health or both).
+- 198 Flutter tests and 17 Functions tests passed. Analyzer clean.
+- Fix: the project inherited the organization's "Domain restricted sharing" rule, so no app function could be called (403). The owner set the project to the Google-managed default and gave the seven app callables public invoker access (each still requires sign-in). Admin functions stay private.
+- App callables in `exercise_db_repository.dart` now use region us-east1.
+- All Cloud Functions deployed to sweatmark-v1.
+- Signed archive build/ios/archive/SweatMark-13.xcarchive verified as 1.5.0 (13) with HealthKit, Sign in with Apple and push entitlements. Command-line upload again couldn't use the Xcode account; uploaded from Xcode Organizer.
+- Before AI search works: Firestore `_config/ai` must exist with `enabled: true`.
+- Uploaded from Xcode Organizer on November 8, 2026 (warnings only: missing dSYMs for some frameworks). Next: Apple processing, export compliance, then add to Personal testing and Family & Friends.
+- Apple processing completed. The owner answered export compliance (standard encryption).
+- Added to Personal testing (internal) and Family & Friends (external) with a "What to Test" note; submitted for TestFlight Beta App Review. Status: Waiting for Review. No public App Store review.
+- AI search turned on: Firestore `_config/ai` created with `enabled: true`.
+
+## November 12, 2026 — Tester fixes, monthly wrap, cardio sessions / 1.5.0 (14)
+
+- Contents: workout clock stops after 30 idle minutes (was 10), a "Still training?" reminder after 15 minutes without logging, editable workout time after saving; keyboard Done bar; one-tap set cells with set 1 values filling later sets; new exercises scroll into view and Add Exercise sits after the exercises; cardio as one session card with a stopwatch and pace, speed or split; brand restyle of exercise and superset cards; Apple Health period and daily averages in Stats; logged-workout lists removed from Stats; monthly wrap (9:16 image, shown after each month ends); 758 exercises renamed to everyday names, common gym names and 17 staples (dead hang, sled push…) in search; Ask AI offers "Create" beside substitutes; profile rebuilt, with Delete account in Settings.
+- 237 Flutter tests and 21 Functions tests passed. Analyzer: no errors or warnings.
+- Deployed before this build: `runAiWorker` (everyday names, staples, create offer) and new `deleteAccount` callable (us-east1; requires a sign-in within 10 minutes). Deleting does not yet revoke Sign in with Apple tokens; needed before public release.
+- Signed archive build/ios/archive/SweatMark-14.xcarchive verified as 1.5.0 (14) with the new exercise assets. Uploaded from Xcode Organizer on November 12, 2026 (warnings only: missing dSYMs for some frameworks). Next: Apple processing, export compliance, then add to Personal testing and Family & Friends.
+- Apple processing completed. The owner answered export compliance (standard encryption).
+- Added to Personal testing (internal) and Family & Friends (external) with a "What to Test" note and submitted for TestFlight Beta App Review; approved at once. Status: Testing, expires in 90 days. No public App Store review.
+- Not yet checked on a real device: the logging reminder notification, the keyboard Done bar on the number pad, cardio stopwatch across app restarts, wrap image export.

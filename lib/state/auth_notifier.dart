@@ -1,6 +1,8 @@
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import '../services/firebase_service.dart';
 
 class AuthNotifier extends ChangeNotifier {
@@ -21,7 +23,7 @@ class AuthNotifier extends ChangeNotifier {
   User? get user => _user;
   bool get isAuthenticated => _user != null && !(_user?.isAnonymous ?? true);
   bool get isLoading => _isLoading;
-  
+
   /// Check if user has a verified email (for extra security if needed)
   bool get hasVerifiedEmail => _user?.emailVerified ?? false;
 
@@ -33,10 +35,10 @@ class AuthNotifier extends ChangeNotifier {
     notifyListeners();
 
     final credential = await _firebaseService.signUpWithEmail(email, password);
-    
+
     _isLoading = false;
     notifyListeners();
-    
+
     return credential != null;
   }
 
@@ -46,15 +48,45 @@ class AuthNotifier extends ChangeNotifier {
     notifyListeners();
 
     final credential = await _firebaseService.signInWithEmail(email, password);
-    
+
     _isLoading = false;
     notifyListeners();
-    
+
     return credential != null;
   }
 
   /// Sign out
   Future<void> signOut() async {
+    await _firebaseService.signOut();
+  }
+
+  /// Changes the name shown on the profile, share cards and the wrap.
+  Future<void> updateName(String name) async {
+    final user = _user;
+    if (user == null) throw StateError('Not signed in');
+    await user.updateDisplayName(name.trim());
+    await user.reload();
+    _user = _firebaseService.currentUser ?? user;
+    notifyListeners();
+  }
+
+  /// Permanently deletes the account and its data on the server, then signs
+  /// out. Throws [AccountDeletionException] with a message safe to show.
+  Future<void> deleteAccount() async {
+    try {
+      await FirebaseFunctions.instanceFor(region: 'us-east1')
+          .httpsCallable('deleteAccount',
+              options:
+                  HttpsCallableOptions(timeout: const Duration(minutes: 2)))
+          .call<dynamic>();
+    } on FirebaseFunctionsException catch (error) {
+      throw AccountDeletionException(error.code == 'failed-precondition'
+          ? 'For your security, sign out and sign back in, then delete your account.'
+          : 'Could not delete your account. Please try again.');
+    } catch (_) {
+      throw const AccountDeletionException(
+          'Could not delete your account. Please try again.');
+    }
     await _firebaseService.signOut();
   }
 
@@ -66,42 +98,53 @@ class AuthNotifier extends ChangeNotifier {
     notifyListeners();
 
     final success = await _firebaseService.sendPasswordResetEmail(email);
-    
+
     _isLoading = false;
     notifyListeners();
-    
+
     return success;
   }
 
-  /// Sign in with Google
-  Future<bool> signInWithGoogle() async {
+  /// Sign in with Google. Null means the person closed Google's sheet.
+  Future<bool?> signInWithGoogle() async {
     _isLoading = true;
     notifyListeners();
 
-    final credential = await _firebaseService.signInWithGoogle();
-    
-    _isLoading = false;
-    notifyListeners();
-    
-    return credential != null;
+    try {
+      return await _firebaseService.signInWithGoogle() != null;
+    } on SignInCancelled {
+      return null;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
-  /// Sign in with Apple
-  Future<bool> signInWithApple() async {
+  /// Sign in with Apple. Null means the person closed Apple's sheet.
+  Future<bool?> signInWithApple() async {
     _isLoading = true;
     notifyListeners();
-
-    final credential = await _firebaseService.signInWithApple();
-    
-    _isLoading = false;
-    notifyListeners();
-    
-    return credential != null;
+    try {
+      return await _firebaseService.signInWithApple() != null;
+    } on SignInWithAppleAuthorizationException {
+      return null;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
+
   @override
   void dispose() {
     _authSubscription.cancel();
     super.dispose();
   }
+}
 
+/// Account deletion failed; [message] is safe to show.
+class AccountDeletionException implements Exception {
+  final String message;
+  const AccountDeletionException(this.message);
+  @override
+  String toString() => message;
 }

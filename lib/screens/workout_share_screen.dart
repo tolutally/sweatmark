@@ -1,498 +1,301 @@
-import 'dart:math' as math;
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
 
-import '../widgets/exercise_media.dart';
 import '../models/workout_result.dart';
 import '../state/auth_notifier.dart';
 import '../theme/app_theme.dart';
+import '../widgets/share_image_sheet.dart';
 
 Future<void> showWorkoutShare(
     BuildContext context, WorkoutResultData data) async {
   final name = context.read<AuthNotifier>().user?.displayName?.trim();
-  await showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    showDragHandle: false,
-    backgroundColor: AppColors.ink,
-    barrierColor: Colors.black54,
-    clipBehavior: Clip.antiAlias,
-    shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
-    builder: (_) => FractionallySizedBox(
-      heightFactor: .94,
-      child: _WorkoutShareSheet(
-          data: data,
-          displayName: name == null || name.isEmpty ? 'My workout' : name),
-    ),
+  await showShareImage(
+    context,
+    title: 'Share result',
+    shareTitle: data.workout.workoutName,
+    fileName: 'sweatmark-workout-${data.workout.id}.png',
+    previewKey: const ValueKey('workout-share-card'),
+    card: _WorkoutShareCard(
+        data: data, displayName: name == null || name.isEmpty ? null : name),
   );
 }
 
-class _WorkoutShareSheet extends StatefulWidget {
-  final WorkoutResultData data;
-  final String displayName;
-  const _WorkoutShareSheet({required this.data, required this.displayName});
-
-  @override
-  State<_WorkoutShareSheet> createState() => _WorkoutShareSheetState();
-}
-
-class _WorkoutShareSheetState extends State<_WorkoutShareSheet> {
-  final _cardKey = GlobalKey();
-  bool _sharing = false;
-  String? _error;
-
-  Future<void> _share(BuildContext buttonContext) async {
-    if (_sharing) return;
-    final button = buttonContext.findRenderObject() as RenderBox?;
-    final origin =
-        button == null ? null : button.localToGlobal(Offset.zero) & button.size;
-    setState(() {
-      _sharing = true;
-      _error = null;
-    });
-    try {
-      // Capture only the card, after the current frame has painted. Its eager
-      // Column includes every exercise, including rows below the viewport.
-      await WidgetsBinding.instance.endOfFrame;
-      if (!mounted) return;
-      final boundary =
-          _cardKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null || !boundary.hasSize) {
-        throw StateError('The result card is not ready.');
-      }
-      final size = boundary.size;
-      // Keep long workout images within a reasonable memory/texture budget.
-      final ratio = math.min(
-          3.0,
-          math.min(math.sqrt(12000000 / (size.width * size.height)),
-              8192 / math.max(size.width, size.height)));
-      final image = await boundary.toImage(pixelRatio: ratio);
-      // Release the native image even if PNG encoding fails.
-      final bytes = await (() async {
-        try {
-          final encoded =
-              await image.toByteData(format: ui.ImageByteFormat.png);
-          if (encoded == null) throw StateError('Could not create the image.');
-          return encoded.buffer
-              .asUint8List(encoded.offsetInBytes, encoded.lengthInBytes);
-        } finally {
-          image.dispose();
-        }
-      })();
-      if (!mounted) return;
-      await SharePlus.instance.share(ShareParams(
-        title: widget.data.workout.workoutName,
-        files: [XFile.fromData(bytes, mimeType: 'image/png')],
-        fileNameOverrides: ['sweatmark-workout-${widget.data.workout.id}.png'],
-        sharePositionOrigin: origin,
-      ));
-    } catch (_) {
-      if (mounted) {
-        setState(
-            () => _error = 'Could not share this image. Please try again.');
-      }
-    } finally {
-      if (mounted) setState(() => _sharing = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => PopScope(
-        canPop: !_sharing,
-        child: Column(children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-            child: Row(children: [
-              IconButton(
-                tooltip: 'Close share preview',
-                onPressed: _sharing ? null : () => Navigator.of(context).pop(),
-                style: IconButton.styleFrom(
-                    backgroundColor: Colors.white.withValues(alpha: .09),
-                    foregroundColor: Colors.white,
-                    disabledForegroundColor: Colors.white38,
-                    minimumSize: const Size(48, 48)),
-                icon: const Icon(Icons.close_rounded, size: 25),
-              ),
-              const Expanded(
-                child: Text('Share result',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w500)),
-              ),
-              const SizedBox(width: 48),
-            ]),
-          ),
-          Expanded(
-            child: LayoutBuilder(builder: (_, constraints) {
-              return SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                      minHeight: math.max(0, constraints.maxHeight - 40)),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 440),
-                      child: RepaintBoundary(
-                        key: _cardKey,
-                        child: Theme(
-                          // Export stays consistent in light and dark mode.
-                          data: lightTheme,
-                          child: Material(
-                            type: MaterialType.transparency,
-                            child: _WorkoutShareCard(
-                                data: widget.data,
-                                displayName: widget.displayName),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ),
-          Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-                border: Border(
-                    top:
-                        BorderSide(color: Colors.white.withValues(alpha: .1)))),
-            child: SafeArea(
-              top: false,
-              minimum: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(_error!,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white)),
-                  ),
-                Builder(builder: (buttonContext) {
-                  return SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: _sharing ? null : () => _share(buttonContext),
-                      style: FilledButton.styleFrom(
-                          minimumSize: const Size(0, 52),
-                          backgroundColor: AppColors.lavender,
-                          foregroundColor: AppColors.ink,
-                          disabledBackgroundColor: AppColors.paleLavender,
-                          disabledForegroundColor: AppColors.ink),
-                      icon: _sharing
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: AppColors.ink))
-                          : const Icon(Icons.ios_share_rounded, size: 20),
-                      label: Text(_sharing
-                          ? 'Preparing image…'
-                          : 'Share or save image'),
-                    ),
-                  );
-                }),
-                const SizedBox(height: 10),
-                const Text(
-                    'Choose an app or save from your phone’s share menu.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white70, fontSize: 12)),
-              ]),
-            ),
-          ),
-        ]),
-      );
-}
-
-/// The preview itself is the exported image. Notes and account email are never
-/// included. Local placeholders keep missing exercise artwork usable offline.
+/// The preview itself is the exported image: streak, totals, top set and
+/// muscles worked. The exercise list stays on the in-app summary so the image
+/// is clean. Notes and account email are never included; the person's name
+/// appears only when they set one.
 class _WorkoutShareCard extends StatelessWidget {
   final WorkoutResultData data;
-  final String displayName;
+  final String? displayName;
   const _WorkoutShareCard({required this.data, required this.displayName});
 
-  static const _interactive = Color(0xFF6741B2);
-  static const _muted = Color(0xFF696473);
-
-  Widget _metric(IconData icon, Color color, String value) =>
-      Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 21, color: color),
-        const SizedBox(width: 7),
-        Flexible(
-          child: Text(value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style:
-                  const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-        ),
-      ]);
-
-  /// Numbers stay ink and bold; units and separators recede, as in
-  /// "45 lb • 10 reps".
-  static Widget _result(String label, {TextAlign align = TextAlign.end}) {
-    final text = label.replaceFirstMapped(
-        RegExp(r' × (\d+)$'), (match) => ' • ${match[1]} reps');
-    final spans = <TextSpan>[];
-    text.splitMapJoin(RegExp(r'-?\d[\d,.]*'), onMatch: (match) {
-      spans.add(TextSpan(
-          text: match[0],
-          style: const TextStyle(
-              fontWeight: FontWeight.w600, color: AppColors.ink)));
-      return '';
-    }, onNonMatch: (rest) {
-      if (rest.isNotEmpty) spans.add(TextSpan(text: rest));
-      return '';
-    });
-    return Text.rich(TextSpan(children: spans),
-        textAlign: align,
-        style: const TextStyle(
-            fontSize: 15, color: _muted, fontWeight: FontWeight.w400));
-  }
+  static const _muted = Color(0xFF6E6A78);
+  static const _line = Color(0xFFECE8F2);
+  static const _coralWash = Color(0xFFFFECEC);
+  static const _coralText = Color(0xFFB3262E);
 
   static const _prBadge = DecoratedBox(
     decoration: BoxDecoration(
-        color: AppColors.coral,
-        borderRadius: BorderRadius.all(Radius.circular(8))),
+        color: AppColors.lime,
+        borderRadius: BorderRadius.all(Radius.circular(5))),
     child: Padding(
-      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       child: Text('PR',
           style: TextStyle(
-              fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: .3,
+              color: AppColors.ink)),
     ),
   );
 
-  /// The first exercise with artwork represents the workout; the lavender
-  /// dumbbell tile covers workouts without any artwork or offline failures.
-  Widget _workoutTile() {
-    final image = data.exercises
-        .map((exercise) => exercise.imageUrl)
-        .whereType<String>()
-        .where((url) => url.isNotEmpty)
-        .firstOrNull;
-    const fallback = DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFDED0FC), AppColors.lavender]),
-      ),
-      child: Center(
-        child:
-            Icon(Icons.fitness_center_rounded, color: AppColors.ink, size: 22),
-      ),
-    );
-    return Container(
-      width: 46,
-      height: 46,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border:
-            image == null ? null : Border.all(color: const Color(0xFFE6E1ED)),
-      ),
-      child: image == null
-          ? fallback
-          : Padding(
-              padding: const EdgeInsets.all(3),
-              child: ExerciseMedia(
-                imageUrl: image,
-                fit: BoxFit.contain,
-                fadeInDuration: Duration.zero,
-                placeholder: (_, __) => fallback,
-                errorWidget: (_, __, ___) => fallback,
-              ),
+  Widget _brand({double size = 28, bool light = true}) =>
+      Row(mainAxisSize: MainAxisSize.min, children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(size * .28),
+          child: Image.asset('assets/icon.png',
+              width: size, height: size, fit: BoxFit.cover),
+        ),
+        SizedBox(width: size * .32),
+        Flexible(
+          child: Text('SweatMark',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  fontSize: size * .55,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -.3,
+                  color: light ? Colors.white : AppColors.ink)),
+        ),
+      ]);
+
+  Widget _stat(String value, String label) => Expanded(
+        child: Column(children: [
+          SizedBox(
+            height: 22,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(value,
+                  maxLines: 1,
+                  style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -.2,
+                      color: Colors.white)),
             ),
-    );
+          ),
+          const SizedBox(height: 3),
+          Text(label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 11, color: Color(0xFF9C97A8))),
+        ]),
+      );
+
+  /// "41,444 lb" becomes ("41.4k", "lb") so four totals fit one row.
+  static (String, String)? _volume(String label) {
+    if (label == '—') return null;
+    final space = label.lastIndexOf(' ');
+    if (space < 0) return (label, '');
+    final unit = label.substring(space + 1);
+    final number = num.tryParse(label.substring(0, space).replaceAll(',', ''));
+    final value = number == null
+        ? label.substring(0, space)
+        : number >= 10000
+            ? '${(number / 1000).toStringAsFixed(1)}k'
+            : NumberFormat('#,##0').format(number);
+    return (value, unit);
   }
 
-  Widget _exercise(WorkoutResultExercise exercise) {
-    final image = exercise.imageUrl;
-    const placeholder = Icon(Icons.fitness_center_rounded,
-        size: 19, color: AppColors.referenceMuted);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(children: [
-        Container(
-          width: 40,
-          height: 40,
-          clipBehavior: Clip.antiAlias,
-          padding: const EdgeInsets.all(3),
-          decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(11),
-              boxShadow: const [
-                BoxShadow(
-                    color: Color(0x0F1D1C21),
-                    blurRadius: 6,
-                    offset: Offset(0, 2)),
-              ]),
-          child: image != null && image.isNotEmpty
-              ? ExerciseMedia(
-                  imageUrl: image,
-                  fit: BoxFit.contain,
-                  fadeInDuration: Duration.zero,
-                  placeholder: (_, __) => placeholder,
-                  errorWidget: (_, __, ___) => placeholder,
-                )
-              : placeholder,
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: LayoutBuilder(builder: (context, constraints) {
-            final name = Text(exercise.name,
-                style: const TextStyle(
-                    fontSize: 15, height: 1.3, fontWeight: FontWeight.w500));
-            if (constraints.maxWidth < 250 ||
-                MediaQuery.textScalerOf(context).scale(1) > 1.3) {
-              return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    name,
-                    const SizedBox(height: 4),
-                    Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          _result(exercise.resultLabel, align: TextAlign.start),
-                          if (exercise.isNewRecord) _prBadge,
-                        ]),
-                  ]);
-            }
-            return Row(children: [
-              Expanded(child: name),
-              const SizedBox(width: 10),
-              ConstrainedBox(
-                  constraints:
-                      BoxConstraints(maxWidth: constraints.maxWidth * .45),
-                  child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerRight,
-                      child: _result(exercise.resultLabel))),
-              if (exercise.isNewRecord) ...[
-                const SizedBox(width: 10),
-                _prBadge,
-              ],
-            ]);
-          }),
-        ),
-      ]),
-    );
-  }
+  Widget _chips(String title, List<String> muscles, {required bool primary}) =>
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title,
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.ink)),
+          const SizedBox(height: 9),
+          Wrap(spacing: 6, runSpacing: 6, children: [
+            for (final muscle in muscles)
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+                decoration: BoxDecoration(
+                    color: primary ? AppColors.lavender : Colors.white,
+                    borderRadius: BorderRadius.circular(99),
+                    border: primary
+                        ? null
+                        : Border.all(color: const Color(0xFFCFC6E8))),
+                child: Text(muscle,
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color:
+                            primary ? AppColors.ink : const Color(0xFF4A4553))),
+              ),
+          ]),
+        ]),
+      );
 
   @override
   Widget build(BuildContext context) {
+    final date = DateFormat('EEEE, MMM d, yyyy')
+        .format(data.workout.timestamp.toLocal());
+    final volume = _volume(data.volumeLabel);
+    final exercises = data.exerciseCount;
     // Missing measurements are left out rather than shown as placeholders.
-    final metrics = [
-      if (data.workout.durationSeconds > 0)
-        _metric(Icons.timer_outlined, _interactive, data.durationLabel),
-      _metric(Icons.done_all_rounded, AppColors.lavender,
-          '${data.completedSets} ${data.completedSets == 1 ? 'set' : 'sets'}'),
-      if (data.volumeLabel != '—')
-        _metric(
-            Icons.fitness_center_rounded, AppColors.coral, data.volumeLabel),
+    final stats = [
+      if (data.workout.durationSeconds > 0) _stat(data.durationLabel, 'time'),
+      _stat('${data.completedSets}', data.completedSets == 1 ? 'set' : 'sets'),
+      _stat('$exercises', exercises == 1 ? 'exercise' : 'exercises'),
+      if (volume != null) _stat(volume.$1, '${volume.$2} lifted'.trim()),
     ];
+    final top = data.topSet;
+    final streak = data.streakWeeks;
     return Container(
       width: double.infinity,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-          color: AppColors.referencePanel,
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: const Color(0xFFE6E1ED))),
+          color: Colors.white, borderRadius: BorderRadius.circular(26)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Container(
-          color: Colors.white,
-          padding: const EdgeInsets.fromLTRB(22, 22, 22, 24),
+          color: AppColors.ink,
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
+              Expanded(
+                  child:
+                      Align(alignment: Alignment.centerLeft, child: _brand())),
+              const SizedBox(width: 10),
               Container(
-                width: 46,
-                height: 46,
-                alignment: Alignment.center,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                    color: streak > 0
+                        ? AppColors.lime
+                        : AppColors.lavender.withValues(alpha: .2),
+                    borderRadius: BorderRadius.circular(99)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  if (streak > 0) ...[
+                    const Icon(Icons.local_fire_department_rounded,
+                        size: 13, color: AppColors.ink),
+                    const SizedBox(width: 3),
+                  ],
+                  Text(streak > 0 ? '$streak-week streak' : 'Complete',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color:
+                              streak > 0 ? AppColors.ink : AppColors.lavender)),
+                ]),
+              ),
+            ]),
+            const SizedBox(height: 20),
+            Text(data.workout.workoutName,
+                style: const TextStyle(
+                    fontSize: 25,
+                    height: 1.12,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -.5,
+                    color: Colors.white)),
+            const SizedBox(height: 6),
+            Text(displayName == null ? date : '$displayName · $date',
+                style: const TextStyle(fontSize: 12, color: Color(0xFFB8B3C2))),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+              decoration: BoxDecoration(
+                  color: const Color(0xFF2A2830),
+                  borderRadius: BorderRadius.circular(14)),
+              child: Row(children: [
+                for (var i = 0; i < stats.length; i++) ...[
+                  if (i > 0)
+                    Container(
+                        width: 1, height: 30, color: const Color(0xFF44414D)),
+                  stats[i],
+                ],
+              ]),
+            ),
+          ]),
+        ),
+        if (top != null)
+          Container(
+            margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            decoration: BoxDecoration(
+                color: _coralWash, borderRadius: BorderRadius.circular(14)),
+            child: Row(children: [
+              Container(
+                width: 36,
+                height: 36,
                 decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [AppColors.lavender, _interactive]),
-                ),
-                child: Text(displayName.characters.first.toUpperCase(),
-                    style: const TextStyle(
-                        fontSize: 19,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white)),
+                    color: AppColors.coral, shape: BoxShape.circle),
+                child: const Icon(Icons.emoji_events_rounded,
+                    size: 19, color: Colors.white),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(displayName,
-                          maxLines: 1,
+                      const Text('Top set',
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: _coralText)),
+                      const SizedBox(height: 1),
+                      Text(top.exerciseName,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w500)),
-                      const SizedBox(height: 2),
-                      Text(
-                          DateFormat('MMM d, yyyy')
-                              .format(data.workout.timestamp.toLocal()),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 13, color: Color(0xFF8A72D8))),
+                              fontSize: 14,
+                              height: 1.25,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.ink)),
                     ]),
               ),
-              const SizedBox(width: 8),
-              const Text('S W E A T M A R K',
-                  style: TextStyle(
-                      fontSize: 10,
-                      letterSpacing: 1.6,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.ink)),
-            ]),
-            const SizedBox(height: 22),
-            Row(children: [
-              _workoutTile(),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Text(data.workout.workoutName,
-                    style: const TextStyle(
-                        fontSize: 27,
-                        height: 1.15,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: -.4)),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(top.label,
+                            textAlign: TextAlign.end,
+                            style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.ink)),
+                        if (top.isNewRecord) ...[
+                          const SizedBox(height: 4),
+                          _prBadge,
+                        ],
+                      ]),
+                ),
               ),
             ]),
-            const SizedBox(height: 22),
-            SizedBox(
-              width: double.infinity,
-              child: Wrap(
-                alignment: metrics.length > 1
-                    ? WrapAlignment.spaceBetween
-                    : WrapAlignment.start,
-                spacing: 18,
-                runSpacing: 12,
-                children: metrics,
-              ),
-            ),
-          ]),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(22, 18, 22, 34),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            for (final exercise in data.exercises) _exercise(exercise),
+          ),
+        if (data.primaryMuscles.isNotEmpty)
+          _chips('Primary muscles worked', data.primaryMuscles, primary: true),
+        if (data.secondaryMuscles.isNotEmpty)
+          _chips('Secondary muscles worked', data.secondaryMuscles,
+              primary: false),
+        Container(
+          margin: const EdgeInsets.only(top: 20),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
+          decoration: const BoxDecoration(
+              border: Border(top: BorderSide(color: _line))),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            const Text('Tracked with',
+                style: TextStyle(fontSize: 11, color: _muted)),
+            const SizedBox(width: 7),
+            Flexible(child: _brand(size: 18, light: false)),
           ]),
         ),
       ]),

@@ -3,10 +3,10 @@ import 'package:firebase_core_platform_interface/test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:phosphor_icons/phosphor_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:sweatmark/models/workout_model.dart';
 import 'package:sweatmark/screens/active_workout_screen.dart';
+import 'package:sweatmark/widgets/keyboard_done_bar.dart';
 import 'package:sweatmark/state/settings_notifier.dart';
 import 'package:sweatmark/state/workout_notifier.dart';
 import 'package:sweatmark/theme/app_theme.dart';
@@ -37,6 +37,13 @@ class _NarrowWorkouts extends DesignWorkouts {
   @override
   void toggleExerciseCollapsed(String id) {
     collapsed = !collapsed;
+    notifyListeners();
+  }
+
+  int completions = 0;
+  @override
+  void toggleSetCompletion(String exerciseId, int setIndex) {
+    completions++;
     notifyListeners();
   }
 }
@@ -101,7 +108,7 @@ Future<void> _pumpWorkout(WidgetTester tester,
       builder: (context, child) => MediaQuery(
           data: MediaQuery.of(context)
               .copyWith(textScaler: const TextScaler.linear(1.5)),
-          child: child!),
+          child: KeyboardDoneBar(child: child!)),
       home: const ActiveWorkoutScreen(),
     ),
   ));
@@ -151,6 +158,70 @@ void main() {
       expect(tester.testTextInput.isVisible, isTrue);
     });
 
+    testWidgets(
+        'the keyboard closes with Done, a completed set or a scroll in $mode',
+        (tester) async {
+      await _pumpWorkout(tester, dark: dark);
+      Future<void> openKeyboard() async {
+        await tester.tap(find.byType(TextField).first);
+        tester.view.viewInsets = const FakeViewPadding(bottom: 280);
+        await tester.pumpAndSettle();
+        expect(tester.testTextInput.isVisible, isTrue);
+      }
+
+      addTearDown(tester.view.resetViewInsets);
+      await openKeyboard();
+      final done = find.byKey(const ValueKey('keyboard-done'));
+      expect(done, findsOneWidget, reason: 'number pads have no return key');
+      await tester.tap(done);
+      await tester.pumpAndSettle();
+      expect(tester.testTextInput.isVisible, isFalse);
+
+      await openKeyboard();
+      await tester.tap(find
+          .byWidgetPredicate((w) =>
+              w is IconButton &&
+              (w.tooltip == 'Complete set' ||
+                  w.tooltip == 'Mark set incomplete'))
+          .first);
+      await tester.pumpAndSettle();
+      expect(tester.testTextInput.isVisible, isFalse);
+
+      await openKeyboard();
+      await tester.drag(find.byType(ListView).first, const Offset(0, -80));
+      await tester.pumpAndSettle();
+      expect(tester.testTextInput.isVisible, isFalse);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('one tap anywhere in a set cell opens it in $mode',
+        (tester) async {
+      await _pumpWorkout(tester, dark: dark);
+      final field = find.byType(TextField).first;
+      // Beside the digits, not on them.
+      await tester.tapAt(tester.getCenter(field) + const Offset(30, 0));
+      await tester.pumpAndSettle();
+      expect(tester.testTextInput.isVisible, isTrue);
+      final controller = tester.widget<TextField>(field).controller!;
+      expect(controller.selection.start, 0);
+      expect(controller.selection.end, controller.text.length,
+          reason: 'typing replaces the value');
+    });
+
+    testWidgets('Add Exercise sits after the exercises in $mode',
+        (tester) async {
+      await _pumpWorkout(tester, dark: dark);
+      final add = find.text('Add Exercise');
+      await tester.scrollUntilVisible(add, 200,
+          scrollable: find.byType(Scrollable).first);
+      await tester.pumpAndSettle();
+      final lastField = find.byType(TextField).last;
+      expect(tester.getTopLeft(add).dy,
+          greaterThan(tester.getTopLeft(lastField).dy),
+          reason: 'below the last set, not above the first exercise');
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('collapsed long exercise retains its PR badge in $mode',
         (tester) async {
       final workouts = _NarrowWorkouts(collapsed: true, longName: true);
@@ -160,7 +231,7 @@ void main() {
       expect(find.byType(BestRecordBadge), findsOneWidget);
       expect(find.text('🏆 Best: 60 kg × 8'), findsOneWidget);
       expect(find.byType(TextField), findsNothing);
-      await tester.tap(find.byIcon(PhosphorIconsRegular.caretDown).last);
+      await tester.tap(find.byTooltip('Show sets'));
       await tester.pumpAndSettle();
       expect(workouts.collapsed, isFalse);
       expect(tester.takeException(), isNull);

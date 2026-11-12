@@ -4,10 +4,14 @@ class UserSettings {
   final DistanceUnit distanceUnit;
   final WeightUnit weightUnit;
 
+  /// Where cardio in Stats comes from when Apple Health is on.
+  final CardioSource cardioSource;
+
   const UserSettings({
     this.weeklyGoals = const {},
     this.distanceUnit = DistanceUnit.miles,
     this.weightUnit = WeightUnit.lb,
+    this.cardioSource = CardioSource.both,
   });
 
   factory UserSettings.fromJson(Map<String, dynamic> json) {
@@ -22,6 +26,10 @@ class UserSettings {
         (e) => e.name == json['weightUnit'],
         orElse: () => WeightUnit.lb,
       ),
+      cardioSource: CardioSource.values.firstWhere(
+        (e) => e.name == json['cardioSource'],
+        orElse: () => CardioSource.both,
+      ),
     );
   }
 
@@ -29,17 +37,20 @@ class UserSettings {
         'weeklyGoals': weeklyGoals,
         'distanceUnit': distanceUnit.name,
         'weightUnit': weightUnit.name,
+        'cardioSource': cardioSource.name,
       };
 
   UserSettings copyWith({
     Map<String, int>? weeklyGoals,
     DistanceUnit? distanceUnit,
     WeightUnit? weightUnit,
+    CardioSource? cardioSource,
   }) {
     return UserSettings(
       weeklyGoals: weeklyGoals ?? this.weeklyGoals,
       distanceUnit: distanceUnit ?? this.distanceUnit,
       weightUnit: weightUnit ?? this.weightUnit,
+      cardioSource: cardioSource ?? this.cardioSource,
     );
   }
 
@@ -112,4 +123,14 @@ enum DistanceUnit {
 enum WeightUnit {
   lb,
   kg,
+}
+
+/// Cardio in Stats: logged cardio exercises, Apple Health movement, or both.
+enum CardioSource {
+  both,
+  logs,
+  health;
+
+  bool get usesLogs => this != CardioSource.health;
+  bool get usesHealth => this != CardioSource.logs;
 }

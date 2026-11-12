@@ -360,29 +360,49 @@ class PreviousSets extends StatelessWidget {
   const PreviousSets({super.key, required this.exerciseId});
   @override
   Widget build(BuildContext context) {
-    final history = context
-        .watch<WorkoutNotifier>()
-        .workoutHistory
-        .where((w) => !w.isTestData)
-        .toList()
-      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
-    for (final workout in history) {
-      final entries = workout.exercises
+    // One pass for the most recent workout with this exercise; sorting the
+    // whole history here ran on every keystroke while logging.
+    WorkoutLog? latest;
+    List<WorkoutSet> latestSets = const [];
+    for (final workout in context.watch<WorkoutNotifier>().workoutHistory) {
+      if (workout.isTestData) continue;
+      if (latest != null && !workout.timestamp.isAfter(latest.timestamp)) {
+        continue;
+      }
+      final sets = workout.exercises
           .where((e) => ExerciseCatalog.sameExercise(e.exerciseId, exerciseId,
               nameA: e.exerciseName))
-          .toList();
-      final sets = entries
           .expand((e) => e.sets)
           .where((s) => s.isCompleted && !s.isSuperSetRest)
           .toList();
       if (sets.isEmpty) continue;
-      return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Text(
-              'Last time: ${sets.map((s) => s.weight != null ? '${s.weightLabel} × ${s.reps ?? 0}' : s.reps != null ? '${s.reps} reps' : '${s.durationSeconds ?? 0}s').join(' · ')}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant)));
+      latest = workout;
+      latestSets = sets;
     }
-    return const SizedBox.shrink();
+    if (latest == null) return const SizedBox.shrink();
+    final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+          color: dark ? colors.primaryContainer : AppColors.paleLavender,
+          borderRadius: BorderRadius.circular(14)),
+      child: Row(children: [
+        Icon(Icons.history_rounded, size: 16, color: colors.onSurface),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+              'Last time: ${latestSets.map((s) => s.weight != null ? '${s.weightLabel} × ${s.reps ?? 0}' : s.reps != null ? '${s.reps} reps' : '${s.durationSeconds ?? 0}s').join(' · ')}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500,
+                  color: colors.onSurface)),
+        ),
+      ]),
+    );
   }
 }

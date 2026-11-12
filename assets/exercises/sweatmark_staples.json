@@ -1,0 +1,254 @@
+{
+ "source": "SweatMark",
+ "release": "staples-1",
+ "count": 17,
+ "exercises": [
+  {
+   "id": "sm:dead-hang",
+   "name": "Dead Hang",
+   "muscleGroup": "Forearms",
+   "equipment": "Body weight",
+   "exerciseType": "timedHold",
+   "secondaryMuscles": [
+    "Lats",
+    "Shoulders"
+   ],
+   "instructions": "Grip a pull-up bar overhand, hands shoulder-width apart.\nHang with arms straight and shoulders relaxed.\nKeep your legs still and breathe steadily.\nHold for time, then step down with control.",
+   "gifUrl": null,
+   "externalId": null,
+   "source": "sweatmark"
+  },
+  {
+   "id": "sm:active-hang",
+   "name": "Active Hang",
+   "muscleGroup": "Upper back",
+   "equipment": "Body weight",
+   "exerciseType": "timedHold",
+   "secondaryMuscles": [
+    "Lats",
+    "Forearms"
+   ],
+   "instructions": "Hang from a pull-up bar with straight arms.\nPull your shoulders down and back, away from your ears, without bending your elbows.\nKeep your ribs down and legs together.\nHold for time.",
+   "gifUrl": null,
+   "externalId": null,
+   "source": "sweatmark"
+  },
+  {
+   "id": "sm:bird-dog",
+   "name": "Bird Dog",
+   "muscleGroup": "Lower back",
+   "equipment": "Body weight",
+   "exerciseType": "bodyweightReps",
+   "secondaryMuscles": [
+    "Abs",
+    "Glutes"
+   ],
+   "instructions": "Start on hands and knees, back flat.\nReach one arm forward and the opposite leg back until both are straight.\nPause, keeping your hips level.\nReturn and switch sides.",
+   "gifUrl": null,
+   "externalId": null,
+   "source": "sweatmark"
+  },
+  {
+   "id": "sm:cable-woodchopper",
+   "name": "Cable Woodchopper",
+   "muscleGroup": "Abs",
+   "equipment": "Cable",
+   "exerciseType": "weightedStrength",
+   "secondaryMuscles": [
+    "Shoulders"
+   ],
+   "instructions": "Set a cable high and hold the handle with both hands.\nStand side-on with feet wide.\nPull diagonally down across your body, turning through your torso and hips.\nReturn slowly and repeat, then switch sides.",
+   "gifUrl": null,
+   "externalId": null,
+   "source": "sweatmark"
+  },
+  {
+   "id": "sm:landmine-press",
+   "name": "Landmine Press",
+   "muscleGroup": "Shoulders",
+   "equipment": "Barbell",
+   "exerciseType": "weightedStrength",
+   "secondaryMuscles": [
+    "Chest",
+    "Triceps"
+   ],
+   "instructions": "Wedge one end of a barbell in a landmine or corner and hold the other end at shoulder height.\nPress the bar up and forward until your arm is straight.\nLower it back to your shoulder with control.",
+   "gifUrl": null,
+   "externalId": null,
+   "source": "sweatmark"
+  },
+  {
+   "id": "sm:toes-to-bar",
+   "name": "Toes to Bar",
+   "muscleGroup": "Abs",
+   "equipment": "Body weight",
+   "exerciseType": "bodyweightReps",
+   "secondaryMuscles": [
+    "Lats",
+    "Forearms"
+   ],
+   "instructions": "Hang from a pull-up bar.\nBrace your core and raise your feet to touch the bar.\nLower your legs with control without swinging.",
+   "gifUrl": null,
+   "externalId": null,
+   "source": "sweatmark"
+  },
+  {
+   "id": "sm:sled-push",
+   "name": "Sled Push",
+   "muscleGroup": "Quadriceps",
+   "equipment": "Sled",
+   "exerciseType": "weightedStrength",
+   "secondaryMuscles": [
+    "Glutes",
+    "Calves"
+   ],
+   "instructions": "Hold the sled handles with arms extended and body leaning forward.\nDrive through the balls of your feet with short, powerful steps.\nPush for the set distance or time.",
+   "gifUrl": null,
+   "externalId": null,
+   "source": "sweatmark"
+  },
+  {
+   "id": "sm:wall-ball",
+   "name": "Wall Ball",
+   "muscleGroup": "Quadriceps",
+   "equipment": "Other",
+   "exerciseType": "weightedStrength",
+   "secondaryMuscles": [
+    "Shoulders",
+    "Glutes"
+   ],
+   "instructions": "Hold a medicine ball at your chest, facing a wall.\nSquat down, then stand up fast and throw the ball to a target on the wall.\nCatch it and go straight into the next squat.",
+   "gifUrl": null,
+   "externalId": null,
+   "source": "sweatmark"
+  },
+  {
+   "id": "sm:box-jump",
+   "name": "Box Jump",
+   "muscleGroup": "Quadriceps",
+   "equipment": "Body weight",
+   "exerciseType": "bodyweightReps",
+   "secondaryMuscles": [
+    "Glutes",
+    "Calves"
+   ],
+   "instructions": "Stand facing a sturdy box.\nSwing your arms and jump, landing softly on the box with both feet.\nStand up fully, then step down.",
+   "gifUrl": null,
+   "externalId": null,
+   "source": "sweatmark"
+  },
+  {
+   "id": "sm:wall-sit",
+   "name": "Wall Sit",
+   "muscleGroup": "Quadriceps",
+   "equipment": "Body weight",
+   "exerciseType": "timedHold",
+   "secondaryMuscles": [
+    "Glutes"
+   ],
+   "instructions": "Lean your back against a wall and slide down until your knees are at about 90 degrees.\nKeep your feet flat and knees over your ankles.\nHold for time.",
+   "gifUrl": null,
+   "externalId": null,
+   "source": "sweatmark"
+  },
+  {
+   "id": "sm:rowing-machine",
+   "name": "Rowing Machine",
+   "muscleGroup": "Cardio",
+   "equipment": "Machine",
+   "exerciseType": "cardio",
+   "secondaryMuscles": [
+    "Upper back",
+    "Quadriceps"
+   ],
+   "instructions": "Strap your feet in and hold the handle.\nPush with your legs, lean back slightly, then pull the handle to your ribs.\nReturn in reverse: arms, body, then legs.\nKeep a steady pace for time or distance.",
+   "gifUrl": null,
+   "externalId": null,
+   "source": "sweatmark"
+  },
+  {
+   "id": "sm:assault-bike",
+   "name": "Assault Bike",
+   "muscleGroup": "Cardio",
+   "equipment": "Machine",
+   "exerciseType": "cardio",
+   "secondaryMuscles": [
+    "Quadriceps",
+    "Shoulders"
+   ],
+   "instructions": "Sit on the fan bike and hold the handles.\nPush and pull the handles while pedalling.\nKeep a steady pace, or sprint for intervals.",
+   "gifUrl": null,
+   "externalId": null,
+   "source": "sweatmark"
+  },
+  {
+   "id": "sm:cable-glute-kickback",
+   "name": "Cable Glute Kickback",
+   "muscleGroup": "Glutes",
+   "equipment": "Cable",
+   "exerciseType": "weightedStrength",
+   "secondaryMuscles": [
+    "Hamstrings"
+   ],
+   "instructions": "Attach an ankle strap to a low cable.\nHold the frame and kick your strapped leg straight back, squeezing your glute.\nReturn with control and repeat, then switch legs.",
+   "gifUrl": null,
+   "externalId": null,
+   "source": "sweatmark"
+  },
+  {
+   "id": "sm:meadows-row",
+   "name": "Meadows Row",
+   "muscleGroup": "Upper back",
+   "equipment": "Barbell",
+   "exerciseType": "weightedStrength",
+   "secondaryMuscles": [
+    "Lats",
+    "Biceps"
+   ],
+   "instructions": "Stand beside a landmine barbell in a staggered stance.\nGrip the end of the bar with one hand and row it up to your hip.\nLower with control and repeat, then switch sides.",
+   "gifUrl": null,
+   "externalId": null,
+   "source": "sweatmark"
+  },
+  {
+   "id": "sm:plate-pinch",
+   "name": "Plate Pinch",
+   "muscleGroup": "Forearms",
+   "equipment": "Other",
+   "exerciseType": "timedHold",
+   "secondaryMuscles": [],
+   "instructions": "Pinch two weight plates together, smooth sides out, with your fingers and thumb.\nStand tall with your arm straight at your side.\nHold for time, then switch hands.",
+   "gifUrl": null,
+   "externalId": null,
+   "source": "sweatmark"
+  },
+  {
+   "id": "sm:nordic-curl",
+   "name": "Nordic Curl",
+   "muscleGroup": "Hamstrings",
+   "equipment": "Body weight",
+   "exerciseType": "bodyweightReps",
+   "secondaryMuscles": [
+    "Glutes"
+   ],
+   "instructions": "Kneel with your ankles anchored under a pad or by a partner.\nKeeping hips straight, lower your body forward as slowly as you can.\nCatch yourself with your hands and push back up.",
+   "gifUrl": null,
+   "externalId": null,
+   "source": "sweatmark"
+  },
+  {
+   "id": "sm:barbell-hip-thrust",
+   "name": "Barbell Hip Thrust",
+   "muscleGroup": "Glutes",
+   "equipment": "Barbell",
+   "exerciseType": "weightedStrength",
+   "secondaryMuscles": [
+    "Hamstrings"
+   ],
+   "instructions": "Sit with your upper back against a bench and a padded barbell over your hips.\nDrive through your heels to lift your hips until your body is flat from shoulders to knees.\nSqueeze your glutes, then lower with control.",
+   "gifUrl": null,
+   "externalId": null,
+   "source": "sweatmark"
+  }
+ ]
+}

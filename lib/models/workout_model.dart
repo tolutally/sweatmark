@@ -18,6 +18,7 @@ class WorkoutSet {
   double? speed; // Speed in mph or km/h
   double? incline; // Incline percentage
   int? resistance; // Resistance level (1-20 typically)
+  int? calories; // Active calories a cardio machine reported
   bool isCompleted;
   final bool isSuperSetRest;
 
@@ -31,6 +32,7 @@ class WorkoutSet {
     this.speed,
     this.incline,
     this.resistance,
+    this.calories,
     this.isCompleted = false,
     this.isSuperSetRest = false,
   });
@@ -45,6 +47,7 @@ class WorkoutSet {
         'speed': speed,
         'incline': incline,
         'resistance': resistance,
+        'calories': calories,
         'isCompleted': isCompleted,
         'isSuperSetRest': isSuperSetRest,
       };
@@ -63,6 +66,7 @@ class WorkoutSet {
       speed: (json['speed'] as num?)?.toDouble(),
       incline: (json['incline'] as num?)?.toDouble(),
       resistance: json['resistance'],
+      calories: (json['calories'] as num?)?.round(),
       isCompleted: json['isCompleted'] ?? false,
       isSuperSetRest: json['isSuperSetRest'] ?? false,
     );
@@ -78,6 +82,7 @@ class WorkoutSet {
     double? speed,
     double? incline,
     int? resistance,
+    int? calories,
     bool? isCompleted,
     bool? isSuperSetRest,
   }) {
@@ -91,6 +96,7 @@ class WorkoutSet {
       speed: speed ?? this.speed,
       incline: incline ?? this.incline,
       resistance: resistance ?? this.resistance,
+      calories: calories ?? this.calories,
       isCompleted: isCompleted ?? this.isCompleted,
       isSuperSetRest: isSuperSetRest ?? this.isSuperSetRest,
     );
