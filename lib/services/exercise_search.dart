@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+
+import '../data/exercise_catalog.dart';
 import '../models/exercise_model.dart';
 
 /// Forgiving exercise search shared by the library, the workout picker and
@@ -51,6 +54,71 @@ class ExerciseSearch {
     'military': ['military', 'overhead'],
     'skullcrusher': ['skull crusher', 'skullcrusher'],
   };
+
+  /// Everyday gym names for library exercises named differently, so a
+  /// search for what people call it finds it. Each name lists phrases from
+  /// the library's exercise names; any of them may match.
+  static const Map<String, List<String>> commonNames = {
+    'face pull': ['rear delt row with rope'],
+    'pec deck': ['lever seated fly'],
+    'pec fly machine': ['lever seated fly'],
+    'machine fly': ['lever seated fly'],
+    'bulgarian split squat': ['single leg split squat'],
+    'rear foot elevated split squat': ['single leg split squat'],
+    'farmer carry': ['farmers walk'],
+    'farmers carry': ['farmers walk'],
+    'battle rope': ['battling ropes'],
+    'stairmaster': ['walking on stepmill'],
+    'stair climber': ['walking on stepmill'],
+    'stepmill': ['walking on stepmill'],
+    'treadmill': ['run', 'walking on incline treadmill'],
+    'z press': ['barbell seated overhead press'],
+    'chest supported row': ['incline row', 'incline bench row'],
+    'reverse lunge': ['rear lunge'],
+    'curtsy lunge': ['curtsey squat'],
+    'single leg rdl': ['single leg deadlift'],
+    'single leg romanian deadlift': ['single leg deadlift'],
+    'tibialis raise': ['toe raise'],
+    'tib raise': ['toe raise'],
+    'back squat': [
+      'barbell full squat',
+      'barbell high bar squat',
+      'barbell low bar squat'
+    ],
+    'hip thrust': ['hip thrust', 'glute bridge'],
+    'rear delt fly': ['reverse fly', 'rear fly'],
+    'ab roller': ['wheel rollerout'],
+    'ab wheel': ['wheel rollerout'],
+    'glute ham raise': ['glute ham raise', 'nordic curl'],
+    'nordic hamstring curl': ['nordic curl'],
+    'bar hang': ['dead hang', 'active hang'],
+    'fan bike': ['assault bike'],
+    'air bike': ['assault bike'],
+    'rower': ['rowing machine'],
+    'erg': ['rowing machine'],
+    'woodchop': ['woodchopper'],
+  };
+
+  /// Library name phrases for the common name the query spells out, or
+  /// begins to once past its first word ("face pu" → face pull), so a
+  /// single word like "glute" never jumps to "glute ham raise".
+  static List<List<String>> _commonTargets(List<String> query) {
+    final typed = _joined(query);
+    if (typed.length < 3) return const [];
+    return [
+      for (final entry in commonNames.entries)
+        if (_spells(typed, _words(entry.key)))
+          for (final phrase in entry.value) _words(phrase),
+    ];
+  }
+
+  static bool _spells(String typed, List<String> name) {
+    final full = _joined(name);
+    if (typed == full) return true;
+    return name.length > 1 &&
+        typed.length > name.first.length &&
+        full.startsWith(typed);
+  }
 
   // Variant markers and model labels in library names that nobody types.
   static final _noise = RegExp(r'^(v\d+|male|female)$');
@@ -119,9 +187,16 @@ class ExerciseSearch {
   static List<Exercise> search(Iterable<Exercise> exercises, String query,
       {Set<String> loggedIds = const {}}) {
     final words = _words(query);
+    final targets = _commonTargets(words);
     final scored = <(Exercise, int)>[];
     for (final exercise in exercises) {
-      final score = _score(exercise, words, loggedIds.contains(exercise.id));
+      final logged = loggedIds.contains(exercise.id);
+      var score = _score(exercise, words, logged);
+      final common = _commonScore(exercise, targets, logged);
+      if (common != null) {
+        // Matching the common name and the typed words beats either alone.
+        score = score == null ? common : math.max(score, common) + 100;
+      }
       if (score != null) scored.add((exercise, score));
     }
     scored.sort((a, b) {
@@ -134,14 +209,36 @@ class ExerciseSearch {
   }
 
   /// Whether [exercise] matches [query] at all.
-  static bool matches(Exercise exercise, String query) =>
-      _score(exercise, _words(query), false) != null;
+  static bool matches(Exercise exercise, String query) {
+    final words = _words(query);
+    return _score(exercise, words, false) != null ||
+        _commonScore(exercise, _commonTargets(words), false) != null;
+  }
+
+  /// A strong match when the exercise is what a common gym name refers to.
+  static int? _commonScore(
+      Exercise exercise, List<List<String>> targets, bool logged) {
+    if (targets.isEmpty) return null;
+    final name = _words(exercise.name);
+    final library = ExerciseCatalog.libraryName(exercise.id);
+    final tokens = [
+      ..._withJoins(name),
+      if (library != null) ..._withJoins(_words(library)),
+    ];
+    if (!targets.any((phrase) => _phraseIn(phrase, tokens))) return null;
+    return (logged ? 1000 : 0) + 450 - name.length * 4;
+  }
 
   static int? _score(Exercise exercise, List<String> query, bool logged) {
     final name = _words(exercise.name);
     var score = logged ? 1000 : 0;
     if (query.isEmpty) return score;
-    final nameTokens = _withJoins(name);
+    // The library's own name still finds a renamed exercise.
+    final library = ExerciseCatalog.libraryName(exercise.id);
+    final nameTokens = [
+      ..._withJoins(name),
+      if (library != null) ..._withJoins(_words(library)),
+    ];
     final everything = [
       ...nameTokens,
       ..._words(exercise.muscleGroup),

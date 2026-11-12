@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
+import '../widgets/duration_editor.dart';
 import '../widgets/exercise_media.dart';
 import '../models/exercise_model.dart';
 import '../models/weekly_progress.dart';
@@ -191,6 +192,21 @@ class WorkoutDetailScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _editTime(BuildContext context, WorkoutLog current) async {
+    final seconds = await showDurationEditor(context, current.durationSeconds);
+    if (seconds == null || !context.mounted) return;
+    try {
+      await context
+          .read<WorkoutNotifier>()
+          .updateWorkoutDuration(current, seconds);
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Could not save the time. Please try again.')));
+      }
+    }
+  }
+
   void _showEditNotesDialog(BuildContext context) {
     final controller = TextEditingController(text: workout.notes ?? '');
 
@@ -262,10 +278,18 @@ class WorkoutDetailScreen extends StatelessWidget {
     if ((set.durationSeconds ?? 0) > 0) {
       parts.add(_duration(set.durationSeconds!));
     }
-    // Machine settings from older cardio logs; speed has no saved unit.
-    if ((set.speed ?? 0) > 0) parts.add('speed ${_number(set.speed!)}');
+    // Cardio sessions save average speed in their distance unit; older logs
+    // saved a speed with no unit.
+    if ((set.speed ?? 0) > 0) {
+      parts.add(switch (set.distanceUnit) {
+        'mi' => '${_number(set.speed!)} mph',
+        'km' => '${_number(set.speed!)} km/h',
+        _ => 'speed ${_number(set.speed!)}',
+      });
+    }
     if ((set.incline ?? 0) > 0) parts.add('${_number(set.incline!)}% incline');
     if ((set.resistance ?? 0) > 0) parts.add('level ${set.resistance}');
+    if ((set.calories ?? 0) > 0) parts.add('${set.calories} kcal');
     return parts.isEmpty ? 'Not recorded' : parts.join(' · ');
   }
 
@@ -590,21 +614,39 @@ class WorkoutDetailScreen extends StatelessWidget {
                                   for (final (label, value) in metrics)
                                     SizedBox(
                                       width: width,
-                                      child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(label,
-                                                style: TextStyle(
-                                                    fontSize: 13,
-                                                    color: muted)),
-                                            const SizedBox(height: 2),
-                                            Text(value,
-                                                style: const TextStyle(
-                                                    fontSize: 20,
-                                                    fontWeight:
-                                                        FontWeight.w600)),
-                                          ]),
+                                      child: InkWell(
+                                        // The time can be corrected after
+                                        // the workout.
+                                        onTap: label == 'Duration'
+                                            ? () => _editTime(context, current)
+                                            : null,
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Row(children: [
+                                                Text(label,
+                                                    style: TextStyle(
+                                                        fontSize: 13,
+                                                        color: muted)),
+                                                if (label == 'Duration') ...[
+                                                  const SizedBox(width: 4),
+                                                  Icon(Icons.edit_outlined,
+                                                      size: 13,
+                                                      color: muted,
+                                                      semanticLabel:
+                                                          'Edit time'),
+                                                ],
+                                              ]),
+                                              const SizedBox(height: 2),
+                                              Text(value,
+                                                  style: const TextStyle(
+                                                      fontSize: 20,
+                                                      fontWeight:
+                                                          FontWeight.w600)),
+                                            ]),
+                                      ),
                                     ),
                                 ],
                               );

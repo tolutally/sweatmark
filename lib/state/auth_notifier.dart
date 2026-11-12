@@ -2,6 +2,7 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import '../services/firebase_service.dart';
 
 class AuthNotifier extends ChangeNotifier {
@@ -59,6 +60,36 @@ class AuthNotifier extends ChangeNotifier {
     await _firebaseService.signOut();
   }
 
+  /// Changes the name shown on the profile, share cards and the wrap.
+  Future<void> updateName(String name) async {
+    final user = _user;
+    if (user == null) throw StateError('Not signed in');
+    await user.updateDisplayName(name.trim());
+    await user.reload();
+    _user = _firebaseService.currentUser ?? user;
+    notifyListeners();
+  }
+
+  /// Permanently deletes the account and its data on the server, then signs
+  /// out. Throws [AccountDeletionException] with a message safe to show.
+  Future<void> deleteAccount() async {
+    try {
+      await FirebaseFunctions.instanceFor(region: 'us-east1')
+          .httpsCallable('deleteAccount',
+              options:
+                  HttpsCallableOptions(timeout: const Duration(minutes: 2)))
+          .call<dynamic>();
+    } on FirebaseFunctionsException catch (error) {
+      throw AccountDeletionException(error.code == 'failed-precondition'
+          ? 'For your security, sign out and sign back in, then delete your account.'
+          : 'Could not delete your account. Please try again.');
+    } catch (_) {
+      throw const AccountDeletionException(
+          'Could not delete your account. Please try again.');
+    }
+    await _firebaseService.signOut();
+  }
+
   // linkEmailPassword removed - no anonymous accounts to link
 
   /// Send password reset email
@@ -108,4 +139,12 @@ class AuthNotifier extends ChangeNotifier {
     _authSubscription.cancel();
     super.dispose();
   }
+}
+
+/// Account deletion failed; [message] is safe to show.
+class AccountDeletionException implements Exception {
+  final String message;
+  const AccountDeletionException(this.message);
+  @override
+  String toString() => message;
 }

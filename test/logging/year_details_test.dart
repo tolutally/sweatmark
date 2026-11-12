@@ -39,7 +39,7 @@ class LoggedWorkouts extends Workouts {
 
 void main() {
   testWidgets(
-      'year chart opens month and details show logged timestamps and cardio observations',
+      'year chart opens month; details show summaries without workout lists',
       (tester) async {
     tester.view.physicalSize = const Size(390, 1000);
     tester.view.devicePixelRatio = 1;
@@ -64,16 +64,8 @@ void main() {
     expect(find.byType(DraggableScrollableSheet), findsNothing);
     await tester.tap(find.text('Time'));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-        find.textContaining(
-            'Logged Jan 2, ${DateTime.now().year - 1} · 10:30 AM'),
-        200,
-        scrollable: _sheetScroll());
-    await tester.pumpAndSettle();
-    expect(
-        find.textContaining(
-            'Logged Jan 2, ${DateTime.now().year - 1} · 10:30 AM'),
-        findsOneWidget);
+    expect(find.textContaining('Logged Jan 2'), findsNothing,
+        reason: 'Stats no longer lists logged workouts');
     await tester.tap(find.byTooltip('Close details'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Cardio'));
@@ -81,9 +73,7 @@ void main() {
     await tester.tap(find.text('Cardio'));
     await tester.pumpAndSettle();
     expect(find.text('140 bpm'), findsOneWidget);
-    await tester.scrollUntilVisible(
-        find.textContaining('Average HR: 140 bpm · Effort: Moderate'), 200,
-        scrollable: _sheetScroll());
+    expect(find.text('Logged cardio'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../widgets/duration_editor.dart';
 import '../widgets/exercise_media.dart';
 import '../models/template_model.dart';
 import '../models/workout_model.dart';
@@ -175,7 +176,7 @@ class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
   }
 
   Widget _hero(WorkoutResultData? data, int workoutNumber) {
-    final workout = widget.completedWorkout;
+    final workout = _saved(context.read<WorkoutNotifier>());
     String? image;
     for (final exercise in data?.exercises ?? const <WorkoutResultExercise>[]) {
       if (exercise.imageUrl != null && exercise.imageUrl!.isNotEmpty) {
@@ -275,8 +276,21 @@ class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
                     letterSpacing: -1.35)),
             const SizedBox(height: 15),
             Wrap(spacing: 20, runSpacing: 9, children: [
-              _heroFact(Icons.schedule_rounded,
-                  data?.durationLabel ?? _fallbackDuration()),
+              InkWell(
+                onTap: workout == null ? null : () => _editTime(workout),
+                borderRadius: BorderRadius.circular(8),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  _heroFact(Icons.schedule_rounded,
+                      data?.durationLabel ?? _fallbackDuration()),
+                  if (workout != null) ...[
+                    const SizedBox(width: 4),
+                    Icon(Icons.edit_outlined,
+                        size: 15,
+                        color: colors.onSurfaceVariant,
+                        semanticLabel: 'Edit time'),
+                  ],
+                ]),
+              ),
               _heroFact(Icons.drag_indicator_rounded,
                   'Your ${_ordinal(workoutNumber)} workout'),
             ]),
@@ -483,10 +497,34 @@ class _WorkoutSummaryScreenState extends State<WorkoutSummaryScreen> {
             icon: const Icon(Icons.ios_share_rounded, size: 23)),
       ]));
 
+  /// The saved copy of the finished workout, so edits such as a corrected
+  /// time show here straight away.
+  WorkoutLog? _saved(WorkoutNotifier workouts) {
+    final finished = widget.completedWorkout;
+    if (finished == null) return null;
+    return workouts.workoutHistory
+            .where((w) => w.id == finished.id)
+            .firstOrNull ??
+        finished;
+  }
+
+  Future<void> _editTime(WorkoutLog workout) async {
+    final seconds = await showDurationEditor(context, workout.durationSeconds);
+    if (seconds == null || !mounted) return;
+    try {
+      await context
+          .read<WorkoutNotifier>()
+          .updateWorkoutDuration(workout, seconds);
+      _message('Time updated');
+    } catch (_) {
+      _message('Could not save the time. Please try again.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final workout = widget.completedWorkout;
     final workouts = context.watch<WorkoutNotifier>();
+    final workout = _saved(workouts);
     final settings = context.watch<SettingsNotifier>();
     final catalog = {
       for (final e in context.watch<ExerciseDbNotifier?>()?.exercises ??

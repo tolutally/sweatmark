@@ -103,6 +103,51 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  test('daily averages use the days that have Health data', () {
+    final summary = HealthSummary(steps: 9000, daysWithData: 9);
+    expect(summary.perDay(9000, 11), 1000, reason: '9 days with data');
+    expect(HealthSummary(steps: 9000).perDay(9000, 10), 900,
+        reason: 'unknown days fall back to the whole period');
+    expect(HealthSummary(daysWithData: 40).perDay(3000, 30), 100,
+        reason: 'never more days than the period has');
+    expect(summary.perDay(null, 11), isNull);
+    expect(summary.perDay(0, 11), isNull);
+  });
+
+  testWidgets('shows the period, daily averages and missing days',
+      (tester) async {
+    await pump(
+        tester,
+        AppleHealthActivity(
+            summary: HealthSummary(
+                steps: 44000,
+                distanceMeters: 22000,
+                activeKcal: 3300,
+                daysWithData: 10),
+            period: 'Nov 1–11',
+            periodDays: 11));
+    expect(find.text('Nov 1–11 · 11 days'), findsOneWidget);
+    expect(find.text('44,000'), findsOneWidget);
+    expect(find.text('avg 4,400 a day'), findsOneWidget);
+    expect(find.text('avg 2.2 km a day'), findsOneWidget);
+    expect(find.text('avg 330 kcal a day'), findsOneWidget);
+    expect(find.textContaining('Health has data on 10 of 11 days'),
+        findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a one-day period shows totals without averages', (tester) async {
+    await pump(
+        tester,
+        AppleHealthActivity(
+            summary: HealthSummary(steps: 5000, daysWithData: 1),
+            period: 'Nov 1',
+            periodDays: 1));
+    expect(find.text('Nov 1 · 1 day'), findsOneWidget);
+    expect(find.textContaining('avg'), findsNothing);
+    expect(find.textContaining('Health has data on'), findsNothing);
+  });
+
   testWidgets('says when Health has nothing for the period', (tester) async {
     await pump(tester, AppleHealthActivity(summary: HealthSummary()));
     expect(find.textContaining('No steps, distance or active energy'),

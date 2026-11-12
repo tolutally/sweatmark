@@ -24,6 +24,7 @@ import 'widgets/app_shell.dart';
 import 'screens/auth_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'theme/app_theme.dart';
+import 'widgets/keyboard_done_bar.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -148,7 +149,7 @@ class _SessionAppState extends State<_SessionApp> {
           value: Theme.of(context).brightness == Brightness.dark
               ? SystemUiOverlayStyle.light
               : SystemUiOverlayStyle.dark,
-          child: child!,
+          child: KeyboardDoneBar(child: child!),
         ),
         home: const AuthWrapper(),
       ),

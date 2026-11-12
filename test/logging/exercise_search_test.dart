@@ -7,10 +7,13 @@ import 'package:sweatmark/services/exercise_search.dart';
 
 void main() {
   final library = [
-    for (final json in (jsonDecode(
-            File('assets/exercises/catalog_v1.json').readAsStringSync())
-        as Map<String, dynamic>)['exercises'] as List)
-      Exercise.fromJson(Map<String, dynamic>.from(json as Map))
+    for (final file in [
+      'assets/exercises/catalog_v1.json',
+      'assets/exercises/sweatmark_staples.json'
+    ])
+      for (final json in (jsonDecode(File(file).readAsStringSync())
+          as Map<String, dynamic>)['exercises'] as List)
+        Exercise.fromJson(Map<String, dynamic>.from(json as Map))
   ];
   List<String> names(String query, {int take = 5}) =>
       ExerciseSearch.search(library, query)
@@ -91,5 +94,53 @@ void main() {
 
   test('nonsense finds nothing', () {
     expect(ExerciseSearch.search(library, 'zzqx'), isEmpty);
+  });
+
+  test('common gym names find the library exercise they mean', () {
+    const commonNames = {
+      'face pull': 'Rear Delt Row With Rope',
+      'face pulls': 'Rear Delt Row With Rope',
+      'face pu': 'Rear Delt Row With Rope',
+      'pec deck': 'Lever Seated Fly',
+      'bulgarian split squat': 'Single Leg Split Squat',
+      'farmer carry': 'Farmers Walk',
+      'stairmaster': 'Walking On Stepmill',
+      'reverse lunge': 'Rear Lunge',
+      'single leg rdl': 'Single Leg Deadlift',
+      'z press': 'Barbell Seated Overhead Press',
+      'back squat': 'Barbell',
+      'ab wheel': 'Wheel Rollerout',
+    };
+    for (final entry in commonNames.entries) {
+      expect(
+          names(entry.key, take: 3).any((n) => n.contains(entry.value)), isTrue,
+          reason: '"${entry.key}" should find ${entry.value}, '
+              'got ${names(entry.key, take: 3)}');
+    }
+  });
+
+  test('everyday staples missing from the bundled library are found', () {
+    const staples = {
+      'dead hang': 'Dead Hang',
+      'deadhang': 'Dead Hang',
+      'bar hang': 'Dead Hang',
+      'active hang': 'Active Hang',
+      'sled push': 'Sled Push',
+      'wall sit': 'Wall Sit',
+      'hip thrust': 'Barbell Hip Thrust',
+      'rowing machine': 'Rowing Machine',
+      'rower': 'Rowing Machine',
+      'assault bike': 'Assault Bike',
+      'glute kickback': 'Cable Glute Kickback',
+      'toes to bar': 'Toes to Bar',
+    };
+    for (final entry in staples.entries) {
+      expect(names(entry.key, take: 3), contains(entry.value),
+          reason: '"${entry.key}" got ${names(entry.key, take: 3)}');
+    }
+  });
+
+  test('short words do not trigger common names', () {
+    expect(names('face').every((n) => !n.contains('Rear Delt Row')), isTrue);
   });
 }

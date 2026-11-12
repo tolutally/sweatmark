@@ -26,6 +26,10 @@ class HealthSummary {
   final double? distanceMeters;
   final double? activeKcal;
 
+  /// Days in the period with any steps, distance or active energy. Null
+  /// when Health could not say, in which case averages use every day.
+  final int? daysWithData;
+
   /// Workouts from other apps and devices, used only for [watchTimes].
   final List<HealthActivity> sessions;
 
@@ -33,10 +37,21 @@ class HealthSummary {
       {this.steps,
       this.distanceMeters,
       this.activeKcal,
+      this.daysWithData,
       List<HealthActivity> sessions = const []})
       : sessions = [...sessions]..sort((a, b) => a.start.compareTo(b.start));
 
   double get distanceKm => (distanceMeters ?? 0) / 1000;
+
+  /// Daily average of [total] over the days that have data, or over
+  /// [periodDays] when that isn't known. Null with no total.
+  double? perDay(num? total, int periodDays) {
+    if (total == null || total <= 0) return null;
+    final known = daysWithData;
+    final days =
+        known != null && known > 0 && known < periodDays ? known : periodDays;
+    return days > 0 ? total / days : null;
+  }
 
   bool get isEmpty =>
       (steps ?? 0) == 0 && (distanceMeters ?? 0) <= 0 && (activeKcal ?? 0) <= 0;

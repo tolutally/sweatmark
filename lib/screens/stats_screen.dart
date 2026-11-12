@@ -5,8 +5,8 @@ import 'package:provider/provider.dart';
 import '../models/exercise_model.dart';
 import '../models/health_activity.dart';
 import '../models/monthly_stats.dart';
+import '../models/monthly_wrap.dart';
 import '../models/user_settings.dart';
-import '../models/workout_model.dart';
 import '../services/apple_health_service.dart';
 import '../services/pr_service.dart';
 import '../state/auth_notifier.dart';
@@ -17,7 +17,7 @@ import '../theme/app_theme.dart';
 import '../widgets/apple_health_activity.dart';
 import '../widgets/personal_records.dart';
 import 'exercise_progress_screen.dart';
-import 'workout_detail_screen.dart';
+import 'monthly_wrap_screen.dart';
 
 class StatsScreen extends StatefulWidget {
   /// Replaceable in tests; default is Apple Health on iPhone.
@@ -26,14 +26,22 @@ class StatsScreen extends StatefulWidget {
   final Future<bool> Function(String uid)? healthConnect;
   final bool? healthAvailable;
 
+  /// Current time; replaceable in tests.
+  final DateTime Function()? clock;
+
   const StatsScreen(
-      {super.key, this.healthReader, this.healthConnect, this.healthAvailable});
+      {super.key,
+      this.healthReader,
+      this.healthConnect,
+      this.healthAvailable,
+      this.clock});
   @override
   State<StatsScreen> createState() => _StatsScreenState();
 }
 
 class _StatsScreenState extends State<StatsScreen> {
-  DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
+  DateTime get _now => (widget.clock ?? DateTime.now)();
+  late DateTime _month = DateTime(_now.year, _now.month);
   bool _year = false;
 
   // Apple Health for the shown period, loaded once per period and account.
@@ -103,14 +111,27 @@ class _StatsScreenState extends State<StatsScreen> {
     }
   }
 
-  Widget _healthCard(String? uid, UserSettings settings) => AppleHealthActivity(
+  Widget _healthCard(String? uid, UserSettings settings,
+          {required String period, required int days}) =>
+      AppleHealthActivity(
         summary: _health,
         loading: _healthLoading,
         connecting: _connecting,
         miles: settings.distanceUnit == DistanceUnit.miles,
         watchTimed: _watch.length,
+        period: period,
+        periodDays: days,
         onConnect: uid == null ? null : () => _connectHealth(uid),
       );
+
+  /// What the Health totals cover: "Nov 1–11", "2026 so far", "October 2026".
+  String _healthPeriod(bool current, DateTime now) {
+    if (!current) return _period;
+    if (_year) return '${_month.year} so far';
+    final month = DateFormat('MMM').format(_month);
+    return now.day == 1 ? '$month 1' : '$month 1–${now.day}';
+  }
+
   String get _period =>
       _year ? '${_month.year}' : DateFormat('MMMM yyyy').format(_month);
   ColorScheme get colors => Theme.of(context).colorScheme;
@@ -243,121 +264,6 @@ class _StatsScreenState extends State<StatsScreen> {
                                     backgroundColor: panel)))
                       ])))));
 
-  Widget _entries(MonthlyStats data, Map<String, Exercise> catalog,
-      {bool cardio = false, int? limit}) {
-    final workouts = data.loggedWorkouts
-        .where((w) =>
-            !cardio ||
-            w.exercises.any((e) =>
-                MonthlyStats.isCardio(e, catalog[e.exerciseId]) &&
-                e.sets.any((s) => s.isCompleted && !s.isSuperSetRest)))
-        .take(limit ?? data.loggedWorkouts.length)
-        .toList();
-    return _surface(
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(cardio ? 'Logged cardio' : 'Logged workouts',
-              style:
-                  const TextStyle(fontSize: 17, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 16),
-          if (workouts.isEmpty) _note('No entries in this period.'),
-          for (var index = 0; index < workouts.length; index++) ...[
-            if (index > 0) const SizedBox(height: 12),
-            _loggedCard(workouts[index], catalog, cardio: cardio),
-          ]
-        ]),
-        color: panel);
-  }
-
-  Widget _loggedCard(WorkoutLog workout, Map<String, Exercise> catalog,
-      {bool cardio = false}) {
-    final completedSets = workout.exercises
-        .expand((e) => e.sets)
-        .where((s) => s.isCompleted && !s.isSuperSetRest)
-        .length;
-    final exercises = workout.exercises.where((e) =>
-        MonthlyStats.isCardio(e, catalog[e.exerciseId]) &&
-        e.sets.any((s) => s.isCompleted && !s.isSuperSetRest));
-    final watch = _watch[workout.id];
-    final seconds = watch?.seconds ?? workout.durationSeconds;
-    return _surface(
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Material(
-              color: Colors.transparent,
-              child: InkWell(
-                  borderRadius: BorderRadius.circular(18),
-                  onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) =>
-                              WorkoutDetailScreen(workout: workout))),
-                  child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(children: [
-                        _icon(
-                            cardio
-                                ? Icons.directions_run_rounded
-                                : Icons.fitness_center_outlined,
-                            cardio ? AppColors.lime : AppColors.lavender),
-                        const SizedBox(width: 12),
-                        Expanded(
-                            child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                              Text(workout.workoutName,
-                                  style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w500)),
-                              const SizedBox(height: 3),
-                              _note(
-                                  'Logged ${DateFormat('MMM d, yyyy · h:mm a').format(workout.timestamp.toLocal())}')
-                            ])),
-                        const SizedBox(width: 4),
-                        Container(
-                            width: 34,
-                            height: 40,
-                            decoration: BoxDecoration(
-                                color: softLavender,
-                                borderRadius: BorderRadius.circular(16)),
-                            child: Icon(Icons.chevron_right_rounded,
-                                color: colors.onSurface, size: 20))
-                      ])))),
-          Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Divider(height: 1, color: softLavender)),
-          _metrics([
-            _metric(
-                seconds > 0 ? _time(seconds) : '—',
-                watch != null
-                    ? 'time from ${watch.sourceName}'
-                    : seconds > 0
-                        ? 'workout time'
-                        : 'Duration not recorded',
-                Icons.timer_outlined),
-            _metric('$completedSets', 'completed sets',
-                Icons.fitness_center_outlined)
-          ]),
-          if (cardio)
-            for (final exercise in exercises) ...[
-              const SizedBox(height: 16),
-              Text(
-                  exercise.exerciseName ??
-                      catalog[exercise.exerciseId]?.name ??
-                      'Cardio exercise',
-                  style: const TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w500)),
-              const SizedBox(height: 4),
-              _note(
-                  'Average HR: ${exercise.averageHeartRate == null ? 'Not recorded' : '${exercise.averageHeartRate} bpm'} · Effort: ${exercise.intensity ?? 'Not recorded'}'),
-              for (final set in exercise.sets
-                  .where((s) => s.isCompleted && !s.isSuperSetRest))
-                _note(
-                    '${set.durationSeconds == null ? 'Time not recorded' : _time(set.durationSeconds!)} · ${set.distance == null ? 'Distance not recorded' : '${set.distance} ${set.distanceUnit ?? '(unit not recorded)'}'}'),
-            ]
-        ]),
-        padding: 14,
-        radius: 26);
-  }
-
   void _details(String title, List<Widget> content) {
     final period = _period;
     showModalBottomSheet<void>(
@@ -427,6 +333,58 @@ class _StatsScreenState extends State<StatsScreen> {
                 ])));
   }
 
+  /// Opens a month's shareable wrap. [load] builds it when tapped, so a
+  /// featured wrap can read that month's Apple Health first.
+  Widget _wrapButton(DateTime month, Future<MonthlyWrap> Function() load,
+      UserSettings settings,
+      {bool featured = false}) {
+    final name = DateFormat('MMMM').format(month);
+    return Material(
+        color: AppColors.ink,
+        borderRadius: BorderRadius.circular(25),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+            onTap: () async {
+              final wrap = await load();
+              if (!mounted) return;
+              await showMonthlyWrap(context, wrap,
+                  weightUnit:
+                      settings.weightUnit == WeightUnit.lb ? 'lb' : 'kg',
+                  miles: settings.distanceUnit == DistanceUnit.miles);
+            },
+            child: Semantics(
+                button: true,
+                child: Padding(
+                    padding: const EdgeInsets.fromLTRB(15, 14, 15, 14),
+                    child: Row(children: [
+                      _icon(Icons.auto_awesome_rounded, AppColors.lime,
+                          size: 36),
+                      const SizedBox(width: 12),
+                      Expanded(
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                            Text(
+                                featured
+                                    ? 'Your $name wrap is ready'
+                                    : 'Your $name wrap',
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w500)),
+                            const SizedBox(height: 2),
+                            Text(
+                                featured
+                                    ? 'See how last month went and share it'
+                                    : 'Your month in one card, ready to share',
+                                style: const TextStyle(
+                                    color: Color(0xFFB8B3C2), fontSize: 13)),
+                          ])),
+                      const Icon(Icons.chevron_right_rounded,
+                          size: 20, color: Colors.white70)
+                    ])))));
+  }
+
   Widget _tile(String title, String value, String subtitle, IconData icon,
           Color accent, VoidCallback tap) =>
       Material(
@@ -465,7 +423,7 @@ class _StatsScreenState extends State<StatsScreen> {
                           ])))));
 
   Future<void> _pickPeriod() async {
-    final now = DateTime.now();
+    final now = _now;
     final chosen = await showDatePicker(
         context: context,
         initialDate: _month.isAfter(now) ? now : _month,
@@ -763,7 +721,7 @@ class _StatsScreenState extends State<StatsScreen> {
     final settings = context.watch<SettingsNotifier>().userSettings;
     final uid = context.watch<AuthNotifier?>()?.user?.uid;
     final source = settings.cardioSource;
-    final now = DateTime.now();
+    final now = _now;
     final current =
         _month.year == now.year && (_year || _month.month == now.month);
     final useHealth = _healthAvailable && source.usesHealth;
@@ -812,6 +770,50 @@ class _StatsScreenState extends State<StatsScreen> {
                 1
             : now.day)
         : data.dailyWorkouts.length;
+    // A month's wrap opens once it's over; past months keep theirs.
+    final wrap = _year || !MonthlyWrap.isReady(_month, now)
+        ? null
+        : MonthlyWrap.from(
+            month: _month,
+            stats: data,
+            previous: previous,
+            records: allRecords,
+            now: now,
+            catalog: catalog,
+            health: health);
+    // On the 1st to 3rd, last month's wrap is featured on this month.
+    final featuredMonth =
+        !_year && current ? MonthlyWrap.featuredMonth(now) : null;
+    Future<MonthlyWrap> featuredWrap(DateTime month) async {
+      final next = DateTime(month.year, month.month + 1);
+      HealthSummary? monthHealth;
+      if (useHealth) {
+        try {
+          monthHealth = await (widget.healthReader ??
+                  AppleHealthService.instance.readActivity)(uid, month, next)
+              .timeout(const Duration(seconds: 8));
+        } catch (_) {}
+      }
+      return MonthlyWrap.from(
+          month: month,
+          stats: MonthlyStats.calculate(history, month,
+              catalog: catalog, now: now),
+          previous: MonthlyStats.calculate(
+              history, DateTime(month.year, month.month - 1),
+              catalog: catalog, now: now),
+          records: allRecords,
+          now: now,
+          catalog: catalog,
+          health: monthHealth);
+    }
+
+    final hasFeatured = featuredMonth != null &&
+        MonthlyStats.calculate(history, featuredMonth,
+                    catalog: catalog, now: now)
+                .workouts >
+            0;
+    Widget healthCard() => _healthCard(uid, settings,
+        period: _healthPeriod(current, now), days: days);
     final cardioEntries = data.loggedWorkouts
         .expand((w) => w.exercises)
         .where((e) =>
@@ -1029,16 +1031,14 @@ class _StatsScreenState extends State<StatsScreen> {
           'completed this ${_year ? 'year' : 'month'}',
           Icons.fitness_center_outlined,
           AppColors.lavender,
-          () => _details('Workouts',
-              [overview, _activityChart(data, now), _entries(data, catalog)])),
+          () => _details('Workouts', [overview, _activityChart(data, now)])),
       _tile(
           'Time',
           data.timedWorkouts == 0 ? '—' : _time(data.totalSeconds),
           'total workout time',
           Icons.timer_outlined,
           AppColors.paleLavender,
-          () => _details(
-              'Workout time', [_timeOverview(data), _entries(data, catalog)])),
+          () => _details('Workout time', [_timeOverview(data)])),
       _tile(
           'Personal Records',
           '${recentRecords.length}',
@@ -1085,11 +1085,11 @@ class _StatsScreenState extends State<StatsScreen> {
             health == null
                 ? 'connect Apple Health'
                 : health.distanceKm > 0
-                    ? 'walked and run'
-                    : 'steps',
+                    ? 'walked and run this ${_year ? 'year' : 'month'}'
+                    : 'steps this ${_year ? 'year' : 'month'}',
             Icons.directions_run_rounded,
             AppColors.coral,
-            () => _details('Cardio', [_healthCard(uid, settings)]))
+            () => _details('Cardio', [healthCard()]))
       else
         _tile(
             'Cardio',
@@ -1099,8 +1099,7 @@ class _StatsScreenState extends State<StatsScreen> {
             AppColors.coral,
             () => _details('Cardio', [
                   cardioDetails,
-                  if (useHealth) _healthCard(uid, settings),
-                  _entries(data, catalog, cardio: true)
+                  if (useHealth) healthCard(),
                 ])),
       _tile(
           'Muscles',
@@ -1150,6 +1149,15 @@ class _StatsScreenState extends State<StatsScreen> {
                   const SizedBox(height: 20),
                   _periodControl(current, now),
                   const SizedBox(height: 18),
+                  if (wrap != null && !wrap.isEmpty) ...[
+                    _wrapButton(_month, () async => wrap, settings),
+                    const SizedBox(height: 18),
+                  ] else if (hasFeatured) ...[
+                    _wrapButton(featuredMonth,
+                        () => featuredWrap(featuredMonth), settings,
+                        featured: true),
+                    const SizedBox(height: 18),
+                  ],
                   _surface(
                       Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1184,10 +1192,8 @@ class _StatsScreenState extends State<StatsScreen> {
                       radius: 30),
                   if (useHealth) ...[
                     const SizedBox(height: 18),
-                    _healthCard(uid, settings),
+                    healthCard(),
                   ],
-                  const SizedBox(height: 18),
-                  _entries(data, catalog, limit: 3),
                   const SizedBox(height: 16),
                   Center(
                       child: _note(

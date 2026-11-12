@@ -1654,3 +1654,5 @@ function normalizeGymFitBodyPart(bodyPart: string): string {
 
 // AI workers (see src/ai/registry.ts)
 export {runAiWorker} from "./ai";
+
+export {deleteAccount} from "./account";

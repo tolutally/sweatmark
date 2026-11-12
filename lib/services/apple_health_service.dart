@@ -118,6 +118,18 @@ class AppleHealthService {
     // Totals use HealthKit statistics, which count overlapping iPhone and
     // Watch samples once.
     final totals = <HealthDataType, double>{};
+    // Local days with any movement; each point is one day starting at
+    // [start]. Its middle names the day, so a daylight-saving shift can't
+    // move it to the day before.
+    final days = <String>{};
+    void addDay(HealthDataPoint point) {
+      final middle = point.dateFrom
+          .add(point.dateTo.difference(point.dateFrom) ~/ 2)
+          .toLocal();
+      days.add('${middle.year}-${middle.month}-${middle.day}');
+    }
+
+    var daysKnown = false;
     try {
       final points = await _health.getHealthIntervalDataFromTypes(
           startDate: start,
@@ -133,7 +145,9 @@ class AppleHealthService {
         final number = value.numericValue.toDouble();
         if (!number.isFinite || number <= 0) continue;
         totals[point.type] = (totals[point.type] ?? 0) + number;
+        addDay(point);
       }
+      daysKnown = true;
     } catch (error) {
       debugPrint('Apple Health totals skipped: $error');
     }
@@ -141,6 +155,24 @@ class AppleHealthService {
     try {
       steps = await _health.getTotalStepsInInterval(start, end);
     } catch (_) {}
+    if (daysKnown && (steps ?? 0) > 0) {
+      try {
+        final points = await _health.getHealthIntervalDataFromTypes(
+            startDate: start,
+            endDate: end,
+            types: const [HealthDataType.STEPS],
+            interval: 86400);
+        for (final point in points) {
+          final value = point.value;
+          if (value is NumericHealthValue && value.numericValue > 0) {
+            addDay(point);
+          }
+        }
+      } catch (error) {
+        daysKnown = false;
+        debugPrint('Apple Health step days skipped: $error');
+      }
+    }
     final sessions = <HealthActivity>[];
     try {
       final points = await _health.getHealthDataFromTypes(
@@ -168,6 +200,7 @@ class AppleHealthService {
       steps: steps,
       distanceMeters: totals[HealthDataType.DISTANCE_WALKING_RUNNING],
       activeKcal: totals[HealthDataType.ACTIVE_ENERGY_BURNED],
+      daysWithData: daysKnown && days.isNotEmpty ? days.length : null,
       sessions: sessions,
     );
   }

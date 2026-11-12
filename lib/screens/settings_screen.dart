@@ -6,6 +6,7 @@ import '../models/user_settings.dart';
 import '../models/weekly_progress.dart';
 import '../services/apple_health_service.dart';
 import '../state/auth_notifier.dart';
+import '../widgets/delete_account_link.dart';
 import '../state/settings_notifier.dart';
 import '../theme/app_theme.dart';
 
@@ -486,6 +487,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onPressed: () => context.read<AuthNotifier>().signOut(),
                 icon: const Icon(Icons.logout_rounded, size: 20),
                 label: const Text('Sign out')),
+            const SizedBox(height: 8),
+            const DeleteAccountLink(),
           ]),
         ),
       ),

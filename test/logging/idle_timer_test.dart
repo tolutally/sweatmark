@@ -33,7 +33,7 @@ void main() {
   final press = Exercise(
       id: 'press', name: 'Press', muscleGroup: 'Chest', equipment: 'Barbell');
 
-  test('clock stops at the last activity after 10 idle minutes and resumes',
+  test('clock stops at the last activity after 30 idle minutes and resumes',
       () async {
     final (notifier, _, _) = await setUp();
     var now = DateTime(2026, 11, 8, 9);
@@ -45,12 +45,12 @@ void main() {
 
     now = now.add(const Duration(minutes: 4));
     notifier.toggleSetCompletion('press', 1); // last activity 9:04
-    now = now.add(const Duration(minutes: 9, seconds: 59));
+    now = now.add(const Duration(minutes: 29, seconds: 59));
     notifier.onAppResumed();
     expect(notifier.isTimerPaused, isFalse);
-    expect(notifier.elapsedSeconds, 13 * 60 + 59);
+    expect(notifier.elapsedSeconds, 33 * 60 + 59);
 
-    now = now.add(const Duration(seconds: 1)); // 10 minutes idle
+    now = now.add(const Duration(seconds: 1)); // 30 minutes idle
     notifier.onAppResumed();
     expect(notifier.isTimerPaused, isTrue);
     expect(notifier.elapsedSeconds, 4 * 60, reason: 'idle time not counted');
@@ -75,7 +75,7 @@ void main() {
     notifier.startWorkout();
     notifier.addExercise(press);
     notifier.toggleSetCompletion('press', 0);
-    now = now.add(const Duration(minutes: 15));
+    now = now.add(const Duration(minutes: 30));
     notifier.onAppResumed();
     expect(notifier.isTimerPaused, isTrue);
     expect(notifier.elapsedSeconds, 0);
@@ -98,7 +98,7 @@ void main() {
     original.toggleSetCompletion('press', 0);
     now = now.add(const Duration(minutes: 5));
     original.toggleSetCompletion('press', 1);
-    now = now.add(const Duration(minutes: 20));
+    now = now.add(const Duration(minutes: 30));
     original.onAppResumed();
     expect(original.isTimerPaused, isTrue);
     await original.saveDraftWorkout();

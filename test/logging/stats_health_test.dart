@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:sweatmark/models/health_activity.dart';
 import 'package:sweatmark/models/workout_model.dart';
@@ -70,9 +71,15 @@ void main() {
     expect(find.text('9,120'), findsOneWidget);
     expect(find.text('380 kcal'), findsOneWidget);
     expect(find.textContaining('uses Apple Watch time'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('time from Apple Watch'), 300,
-        scrollable: find.byType(Scrollable).first);
-    expect(find.text('time from Apple Watch'), findsOneWidget);
+    final now = DateTime.now();
+    final month = DateFormat('MMM').format(now);
+    expect(
+        find.textContaining(
+            now.day == 1 ? '$month 1 · 1 day' : '$month 1–${now.day} · '),
+        findsOneWidget,
+        reason: 'Health totals say what period they cover');
+    expect(find.text('Logged workouts'), findsNothing,
+        reason: 'Stats no longer lists logged workouts');
     expect(tester.takeException(), isNull);
   });
 }

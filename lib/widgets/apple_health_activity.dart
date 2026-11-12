@@ -16,6 +16,13 @@ class AppleHealthActivity extends StatelessWidget {
 
   /// How many logged workouts in the period use Apple Watch time.
   final int watchTimed;
+
+  /// The span the totals cover, such as "Nov 1–11" or "2026 so far".
+  final String? period;
+
+  /// Calendar days in [period] up to now; daily averages divide by the days
+  /// that have Health data, or by this when that isn't known.
+  final int periodDays;
   final VoidCallback? onConnect;
 
   const AppleHealthActivity({
@@ -25,6 +32,8 @@ class AppleHealthActivity extends StatelessWidget {
     this.connecting = false,
     this.miles = false,
     this.watchTimed = 0,
+    this.period,
+    this.periodDays = 0,
     this.onConnect,
   });
 
@@ -100,7 +109,15 @@ class AppleHealthActivity extends StatelessWidget {
         note('No steps, distance or active energy from Health in this period.'),
       ];
     } else {
-      Widget metric(String value, String label) => Container(
+      final number = NumberFormat.decimalPattern();
+      final days = periodDays;
+      String? average(num? total, String Function(double) format) {
+        if (days <= 1) return null;
+        final value = data.perDay(total, days);
+        return value == null ? null : 'avg ${format(value)} a day';
+      }
+
+      Widget metric(String value, String label, String? perDay) => Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
                 color: colors.surface, borderRadius: BorderRadius.circular(18)),
@@ -111,18 +128,30 @@ class AppleHealthActivity extends StatelessWidget {
                       fontSize: 20, fontWeight: FontWeight.w500)),
               const SizedBox(height: 2),
               note(label),
+              if (perDay != null)
+                Text(perDay,
+                    style: TextStyle(
+                        fontSize: 13,
+                        height: 1.45,
+                        fontWeight: FontWeight.w500,
+                        color: colors.onSurface)),
             ]),
           );
       final metrics = [
         if ((data.steps ?? 0) > 0)
-          metric(NumberFormat.decimalPattern().format(data.steps), 'steps'),
+          metric(number.format(data.steps), 'steps',
+              average(data.steps, (v) => number.format(v.round()))),
         if (data.distanceKm > 0)
-          metric(_distance(data.distanceKm), 'walked and run'),
+          metric(_distance(data.distanceKm), 'walked and run',
+              average(data.distanceKm, _distance)),
         if ((data.activeKcal ?? 0) > 0)
           metric(
-              '${NumberFormat.decimalPattern().format(data.activeKcal!.round())} kcal',
-              'active energy'),
+              '${number.format(data.activeKcal!.round())} kcal',
+              'active energy',
+              average(
+                  data.activeKcal, (v) => '${number.format(v.round())} kcal')),
       ];
+      final known = data.daysWithData;
       body = [
         const SizedBox(height: 14),
         LayoutBuilder(builder: (context, box) {
@@ -134,6 +163,11 @@ class AppleHealthActivity extends StatelessWidget {
           ]);
         }),
         const SizedBox(height: 12),
+        if (known != null && days > 1 && known < days) ...[
+          note(
+              'Health has data on $known of $days days. Averages use those $known days.'),
+          const SizedBox(height: 6),
+        ],
         note(
             'From your iPhone and Apple Watch. Kept separate from cardio you log, so nothing is counted twice.'),
       ];
@@ -145,6 +179,17 @@ class AppleHealthActivity extends StatelessWidget {
           BoxDecoration(color: panel, borderRadius: BorderRadius.circular(28)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         header,
+        if (period != null && !loading && data != null) ...[
+          const SizedBox(height: 10),
+          Text(
+              periodDays > 0
+                  ? '$period · ${periodDays == 1 ? '1 day' : '$periodDays days'}'
+                  : period!,
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: colors.onSurface)),
+        ],
         ...body,
         if (!loading && data != null && watchTimed > 0) ...[
           const SizedBox(height: 8),

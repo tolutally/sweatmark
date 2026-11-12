@@ -88,9 +88,10 @@ void main() {
         'profile supports narrow screen and larger text in ${entry.key}',
         (tester) async {
       await _pumpSmallScreen(tester, entry.value, const AccountProfileScreen());
-      await tester.scrollUntilVisible(find.text('Recent activity'), 160);
+      await tester.scrollUntilVisible(find.text('Exercise library'), 160);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
+      expect(find.text('Recent activity'), findsNothing);
     });
 
     testWidgets(

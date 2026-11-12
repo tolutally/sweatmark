@@ -1,3 +1,6 @@
+import '../models/cardio_machine.dart';
+import '../widgets/cardio_session_card.dart';
+import '../widgets/keyboard_done_bar.dart';
 import '../widgets/personal_records.dart';
 import '../widgets/exercise_media.dart';
 import '../widgets/cardio_details_button.dart';
@@ -33,6 +36,29 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
     with WidgetsBindingObserver {
   bool _saving = false;
   final NotificationService _notificationService = NotificationService();
+  final _scroll = ScrollController();
+
+  // The exercise just added; the list scrolls to it so earlier, completed
+  // exercises aren't edited by mistake.
+  String? _revealId;
+  final _revealKey = GlobalKey();
+
+  void _revealAdded(String exerciseId) {
+    setState(() => _revealId = exerciseId);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || !_scroll.hasClients) return;
+      // The new card is last, so bring the end of the list into view first;
+      // then line the card's top up with the top of the screen.
+      await _scroll.animateTo(_scroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+      final card = _revealKey.currentContext;
+      if (!mounted || card == null || !card.mounted) return;
+      await Scrollable.ensureVisible(card,
+          alignment: 0.02,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut);
+    });
+  }
 
   @override
   void initState() {
@@ -43,6 +69,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -96,9 +123,9 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
         statusBarBrightness: Theme.of(context).brightness,
       ),
       child: Scaffold(
-        backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
+        backgroundColor: _brandPage(context),
         appBar: AppBar(
-          backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
+          backgroundColor: _brandPage(context),
           elevation: 0,
           leading: IconButton(
             tooltip: 'Back',
@@ -168,7 +195,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
               // Workout Header - Compact
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                color: Theme.of(context).colorScheme.surfaceContainerLow,
+                color: _brandPage(context),
                 child: Row(
                   children: [
                     Container(
@@ -233,62 +260,6 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
                     // Build display items: either regular exercises or combined supersets
                     final displayItems = <Widget>[];
                     final renderedSuperSets = <String>{};
-
-                    // Add Exercise Button first
-                    displayItems.add(
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 10.0),
-                        child: GestureDetector(
-                          onTap: () async {
-                            final Exercise? selected = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) =>
-                                      const LibraryScreen(isPicker: true)),
-                            );
-                            if (selected != null) {
-                              notifier.addExercise(selected);
-                            }
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.surface,
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .shadow
-                                      .withValues(alpha: 0.04),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(PhosphorIconsBold.plus,
-                                    color:
-                                        Theme.of(context).colorScheme.primary,
-                                    size: 18),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Add Exercise',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                    color:
-                                        Theme.of(context).colorScheme.onSurface,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
 
                     // Process exercises
                     for (int i = 0; i < workout.exercises.length; i++) {
@@ -387,19 +358,91 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
                                 },
                         );
 
-                        displayItems.add(
-                          _ExerciseWorkoutCard(
-                            key: ValueKey(log.exerciseId),
-                            exercise: exercise,
-                            log: log,
-                            exerciseIndex: i,
-                          ),
-                        );
+                        // Cardio is one session with a stopwatch, not sets.
+                        final Widget card = isCardioSession(exercise,
+                                loggedType: log.exerciseType)
+                            ? CardioSessionCard(
+                                key: ValueKey(log.exerciseId),
+                                exercise: exercise,
+                                log: log,
+                                exerciseIndex: i,
+                              )
+                            : _ExerciseWorkoutCard(
+                                key: ValueKey(log.exerciseId),
+                                exercise: exercise,
+                                log: log,
+                                exerciseIndex: i,
+                              );
+                        displayItems.add(log.exerciseId == _revealId
+                            ? KeyedSubtree(key: _revealKey, child: card)
+                            : card);
                       }
                     }
 
+                    // Add Exercise after the exercises, where your thumb already is.
+                    displayItems.add(
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2, bottom: 24),
+                        child: GestureDetector(
+                          onTap: () async {
+                            final Exercise? selected = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) =>
+                                      const LibraryScreen(isPicker: true)),
+                            );
+                            if (selected != null) {
+                              notifier.addExercise(selected);
+                              _revealAdded(selected.id);
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.surface,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .shadow
+                                      .withValues(alpha: 0.04),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(PhosphorIconsBold.plus,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                    size: 18),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Add Exercise',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color:
+                                        Theme.of(context).colorScheme.onSurface,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+
                     return ListView(
+                      controller: _scroll,
                       padding: const EdgeInsets.symmetric(horizontal: 16),
+                      // Scrolling closes the keyboard so it never sits over
+                      // the sets you're looking for.
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
                       children: displayItems,
                     );
                   },
@@ -580,6 +623,8 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
   Future<void> _showFinishWorkoutConfirmation(
       BuildContext context, WorkoutNotifier notifier, dynamic workout) async {
     if (_saving || workout == null) return;
+    // A cardio stopwatch still running keeps its time.
+    notifier.stopAllCardio();
     final sets = (workout as WorkoutLog)
         .exercises
         .expand((e) => e.sets)
@@ -619,6 +664,9 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
             .where((e) => e.sets.any((s) => s.isCompleted))
             .map((e) => WorkoutExerciseLog(
                   exerciseId: e.exerciseId,
+                  exerciseType: e.exerciseType,
+                  averageHeartRate: e.averageHeartRate,
+                  intensity: e.intensity,
                   exerciseName: e.exerciseName,
                   muscleGroup: e.muscleGroup,
                   equipment: e.equipment,
@@ -787,97 +835,96 @@ class _SuperSetWorkoutCardState extends State<_SuperSetWorkoutCard> {
     final notifier = context.watch<WorkoutNotifier>();
     final exerciseCount = widget.exercises.length;
 
+    final colors = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(26),
+        // A lavender outline marks exercises done back to back.
         border: Border.all(
-          color: Theme.of(context).colorScheme.primary,
-          width: 2,
+          color: AppColors.lavender.withValues(alpha: 0.7),
+          width: 1.5,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: Column(
         children: [
-          // Super Set Header
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary,
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(24),
-                topRight: Radius.circular(24),
-              ),
-            ),
+          // Superset header, like the exercise cards: icon circle, title,
+          // and the small menu and collapse buttons.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 10, 6),
             child: Row(
               children: [
-                Icon(
-                  PhosphorIconsBold.arrowsClockwise,
-                  color: Theme.of(context).colorScheme.onPrimary,
-                  size: 18,
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: const BoxDecoration(
+                      color: AppColors.lavender, shape: BoxShape.circle),
+                  child: const Icon(PhosphorIconsBold.arrowsClockwise,
+                      size: 20, color: AppColors.ink),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  'Super Set · $exerciseCount exercises',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onPrimary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Superset',
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: -0.2,
+                                color: colors.onSurface)),
+                        const SizedBox(height: 2),
+                        Text('$exerciseCount exercises · alternate sets',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 12.5,
+                                color: colors.onSurfaceVariant)),
+                      ]),
                 ),
-                const Spacer(),
-                // Menu button
-                GestureDetector(
+                _SquareButton(
+                  tooltip: 'Superset options',
+                  icon: PhosphorIconsBold.dotsThree,
                   onTap: () => _showSuperSetMenu(context),
-                  child: Icon(
-                    PhosphorIconsRegular.dotsThree,
-                    color: Theme.of(context).colorScheme.onPrimary,
-                    size: 22,
-                  ),
                 ),
-                const SizedBox(width: 8),
-                // Collapse button
-                GestureDetector(
+                const SizedBox(width: 4),
+                _SquareButton(
+                  tooltip: _isCollapsed ? 'Show sets' : 'Done, collapse',
+                  icon: _isCollapsed
+                      ? PhosphorIconsBold.caretDown
+                      : PhosphorIconsBold.check,
+                  circle: true,
+                  fill: _isCollapsed ? null : AppColors.lavender,
                   onTap: _toggleCollapsed,
-                  child: Icon(
-                    _isCollapsed
-                        ? PhosphorIconsRegular.caretDown
-                        : PhosphorIconsRegular.check,
-                    color: Theme.of(context).colorScheme.onPrimary,
-                    size: 22,
-                  ),
                 ),
               ],
             ),
           ),
 
-          // Exercise list (mini headers)
+          // The exercises in the superset, each with its letter.
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 4),
             child: Column(
               children: widget.exercises.map((item) {
                 final exercise = item.$2;
-                final isLast = item == widget.exercises.last;
-                return Padding(
-                  padding: EdgeInsets.only(bottom: isLast ? 0 : 8),
+                final letter =
+                    String.fromCharCode(65 + widget.exercises.indexOf(item));
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.fromLTRB(6, 6, 10, 6),
+                  decoration: BoxDecoration(
+                    color: _softPill(context).withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   child: Row(
                     children: [
-                      // Exercise image/icon
                       Container(
-                        width: 36,
-                        height: 36,
+                        width: 40,
+                        height: 40,
                         decoration: BoxDecoration(
-                          color:
-                              Theme.of(context).colorScheme.surfaceContainerLow,
-                          borderRadius: BorderRadius.circular(8),
+                          color: colors.surface,
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         clipBehavior: Clip.antiAlias,
                         child: exercise.hasGif
@@ -899,40 +946,32 @@ class _SuperSetWorkoutCardState extends State<_SuperSetWorkoutCard> {
                         child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              BestRecordBadge(exercise.id),
                               Text(
                                 exercise.name,
                                 style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  color:
-                                      Theme.of(context).colorScheme.onSurface,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: colors.onSurface,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
+                              BestRecordBadge(exercise.id),
                             ]),
                       ),
-                      // Order label (A, B, C...)
+                      const SizedBox(width: 8),
+                      // Order letter (A, B, C...)
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .primary
-                              .withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          String.fromCharCode(65 +
-                              widget.exercises.indexOf(item)), // A, B, C...
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
+                        width: 30,
+                        height: 30,
+                        alignment: Alignment.center,
+                        decoration: const BoxDecoration(
+                            color: AppColors.lavender, shape: BoxShape.circle),
+                        child: Text(letter,
+                            style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.ink)),
                       ),
                     ],
                   ),
@@ -941,17 +980,10 @@ class _SuperSetWorkoutCardState extends State<_SuperSetWorkoutCard> {
             ),
           ),
 
-          // Divider
-          Container(
-            height: 1,
-            color: Theme.of(context).colorScheme.outlineVariant,
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-          ),
-
           // Alternating Sets Section (collapsible)
           if (!_isCollapsed)
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
               child: Column(
                 children: [
                   for (final entry in widget.exercises)
@@ -960,38 +992,23 @@ class _SuperSetWorkoutCardState extends State<_SuperSetWorkoutCard> {
                       CardioDetailsButton(exercise: entry.$1),
                   // Column Headers
                   Padding(
-                    padding: EdgeInsets.only(left: 56, bottom: 8, right: 48),
+                    padding:
+                        const EdgeInsets.only(left: 58, bottom: 6, right: 58),
                     child: Row(
                       children: [
-                        Expanded(
-                          child: Text(
-                            'WEIGHT',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.5,
+                        for (final label in ['WEIGHT', 'REPS'])
+                          Expanded(
+                            child: Text(
+                              label,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: colors.onSurfaceVariant,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.9,
+                              ),
                             ),
-                            textAlign: TextAlign.center,
                           ),
-                        ),
-                        SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            'REPS',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.5,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
                       ],
                     ),
                   ),
@@ -1005,7 +1022,7 @@ class _SuperSetWorkoutCardState extends State<_SuperSetWorkoutCard> {
                             (e) => e.$1.exerciseId == item.log.exerciseId));
 
                     return Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
+                      padding: EdgeInsets.zero,
                       child: _SuperSetSetRow(
                         exerciseLetter: exerciseLetter,
                         setNumber: item.setIndex + 1,
@@ -1020,35 +1037,11 @@ class _SuperSetWorkoutCardState extends State<_SuperSetWorkoutCard> {
                   const SizedBox(height: 8),
 
                   // Add Set Button (adds to ALL exercises)
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceContainerLow,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: GestureDetector(
-                      onTap: () =>
-                          notifier.addSetToSuperSet(widget.superSet.id),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(PhosphorIconsRegular.plusCircle,
-                                color: Theme.of(context).colorScheme.primary,
-                                size: 18),
-                            SizedBox(width: 8),
-                            Text(
-                              'Add Set to All',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                  _ActionPill(
+                    icon: PhosphorIconsBold.plus,
+                    label: 'Add set to all',
+                    fill: AppColors.lavender,
+                    onTap: () => notifier.addSetToSuperSet(widget.superSet.id),
                   ),
                 ],
               ),
@@ -1082,24 +1075,46 @@ class _SuperSetSetRow extends StatefulWidget {
 }
 
 class _SuperSetSetRowState extends State<_SuperSetSetRow> {
-  late TextEditingController _weightController;
-  late TextEditingController _repsController;
+  late final _weightController =
+      TextEditingController(text: _text(widget.set.weight));
+  late final _repsController =
+      TextEditingController(text: _text(widget.set.reps));
+  final _weightFocus = FocusNode();
+  final _repsFocus = FocusNode();
+
+  static String _text(num? value) => value?.toString() ?? '';
 
   @override
   void initState() {
     super.initState();
-    _weightController =
-        TextEditingController(text: widget.set.weight?.toString() ?? '');
-    _repsController =
-        TextEditingController(text: widget.set.reps?.toString() ?? '');
+    // Select the value on focus so typing replaces it.
+    for (final (node, controller) in [
+      (_weightFocus, _weightController),
+      (_repsFocus, _repsController),
+    ]) {
+      node.addListener(() {
+        if (!node.hasFocus) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (node.hasFocus) {
+            controller.selection = TextSelection(
+                baseOffset: 0, extentOffset: controller.text.length);
+          }
+        });
+      });
+    }
   }
 
   @override
   void didUpdateWidget(covariant _SuperSetSetRow oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.set != widget.set) {
-      _weightController.text = widget.set.weight?.toString() ?? '';
-      _repsController.text = widget.set.reps?.toString() ?? '';
+    // Show values filled in from an earlier set, except while typing here.
+    final weight = _text(widget.set.weight);
+    final reps = _text(widget.set.reps);
+    if (!_weightFocus.hasFocus && _weightController.text != weight) {
+      _weightController.text = weight;
+    }
+    if (!_repsFocus.hasFocus && _repsController.text != reps) {
+      _repsController.text = reps;
     }
   }
 
@@ -1107,150 +1122,149 @@ class _SuperSetSetRowState extends State<_SuperSetSetRow> {
   void dispose() {
     _weightController.dispose();
     _repsController.dispose();
+    _weightFocus.dispose();
+    _repsFocus.dispose();
     super.dispose();
+  }
+
+  Widget _field({
+    required TextEditingController controller,
+    required FocusNode focus,
+    required bool decimal,
+    String? suffix,
+    required ValueChanged<String> onChanged,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    // The whole cell takes the tap, not just the digits.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: focus.requestFocus,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 44),
+        child: Center(
+          child: TextField(
+            controller: controller,
+            focusNode: focus,
+            textAlign: TextAlign.center,
+            keyboardType: TextInputType.numberWithOptions(decimal: decimal),
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: colors.onSurface,
+            ),
+            decoration: InputDecoration(
+              isDense: true,
+              filled: false,
+              suffixText: suffix,
+              suffixStyle:
+                  TextStyle(fontSize: 11, color: colors.onSurfaceVariant),
+              hintText: '—',
+              hintStyle: TextStyle(color: colors.onSurfaceVariant),
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: 8),
+            ),
+            onChanged: onChanged,
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final notifier = context.read<WorkoutNotifier>();
-    final isCompleted = widget.set.isCompleted;
+    final settings = context.read<SettingsNotifier>();
+    final done = widget.set.isCompleted;
+    final colors = Theme.of(context).colorScheme;
 
-    return GestureDetector(
-      onTap: () =>
-          notifier.toggleSetCompletion(widget.exerciseId, widget.setIndex),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(
-          color: isCompleted
-              ? AppDesign.of(context).successContainer
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          children: [
-            SetRecordBadge(widget.exerciseId, widget.setIndex),
-            // Exercise letter + set number (e.g., "A1", "B1")
-            Container(
-              width: 40,
-              height: 32,
-              decoration: BoxDecoration(
-                color: isCompleted
-                    ? AppDesign.of(context).successContainer
-                    : Theme.of(context).colorScheme.outlineVariant,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                '${widget.exerciseLetter}${widget.setNumber}',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: isCompleted
-                      ? AppDesign.of(context).successContainer
-                      : Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+    // Same row as single exercises: soft, rounded, lime once done.
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      margin: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.fromLTRB(8, 4, 6, 4),
+      decoration: BoxDecoration(
+        color: done
+            ? AppColors.lime.withValues(alpha: 0.22)
+            : colors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          SetRecordBadge(widget.exerciseId, widget.setIndex),
+          // Exercise letter + set number (e.g., "A1", "B1")
+          Container(
+            width: 40,
+            height: 30,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: done ? AppColors.lime : colors.surface,
+              borderRadius: BorderRadius.circular(99),
+            ),
+            child: Text(
+              '${widget.exerciseLetter}${widget.setNumber}',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: done ? AppColors.ink : colors.onSurface,
               ),
             ),
-            const SizedBox(width: 8),
-            // Weight field
-            Expanded(
-              child: Container(
-                constraints: const BoxConstraints(minHeight: 44),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: TextField(
-                  controller: _weightController,
-                  textAlign: TextAlign.center,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                  decoration: InputDecoration(
-                    suffixText: widget.set.weightUnit ??
-                        (widget.set.weight == null
-                            ? context.read<SettingsNotifier>().weightSuffix
-                            : '?'),
-                    hintText: '—',
-                    hintStyle: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant),
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 8),
-                  ),
-                  onChanged: (value) {
-                    final weight = double.tryParse(value);
-                    notifier.updateSet(widget.exerciseId, widget.setIndex,
-                        weight: weight,
-                        clearWeight: weight == null,
-                        weightUnit: widget.set.weightUnit ??
-                            context.read<SettingsNotifier>().weightSuffix);
-                  },
-                ),
-              ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _field(
+              controller: _weightController,
+              focus: _weightFocus,
+              decimal: true,
+              suffix: widget.set.weightUnit ??
+                  (widget.set.weight == null ? settings.weightSuffix : '?'),
+              onChanged: (value) {
+                final weight = double.tryParse(value);
+                notifier.updateSet(widget.exerciseId, widget.setIndex,
+                    weight: weight,
+                    clearWeight: weight == null,
+                    weightUnit: widget.set.weightUnit ?? settings.weightSuffix);
+              },
             ),
-            const SizedBox(width: 6),
-            // Reps field
-            Expanded(
-              child: Container(
-                constraints: const BoxConstraints(minHeight: 44),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: TextField(
-                  controller: _repsController,
-                  textAlign: TextAlign.center,
-                  keyboardType: TextInputType.number,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: '—',
-                    hintStyle: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant),
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 8),
-                  ),
-                  onChanged: (value) {
-                    final reps = int.tryParse(value);
-                    notifier.updateSet(widget.exerciseId, widget.setIndex,
-                        reps: reps, clearReps: reps == null);
-                  },
-                ),
-              ),
+          ),
+          Container(
+              width: 1,
+              height: 22,
+              margin: const EdgeInsets.symmetric(horizontal: 8),
+              color: colors.outlineVariant.withValues(alpha: 0.6)),
+          Expanded(
+            child: _field(
+              controller: _repsController,
+              focus: _repsFocus,
+              decimal: false,
+              onChanged: (value) {
+                final reps = int.tryParse(value);
+                notifier.updateSet(widget.exerciseId, widget.setIndex,
+                    reps: reps, clearReps: reps == null);
+              },
             ),
-            const SizedBox(width: 8),
-            // Completion stays green; the hit target remains comfortable.
-            IconButton(
-              tooltip: isCompleted ? 'Mark set incomplete' : 'Complete set',
-              onPressed: () => notifier.toggleSetCompletion(
-                  widget.exerciseId, widget.setIndex),
-              style: IconButton.styleFrom(
-                backgroundColor: isCompleted
-                    ? AppDesign.of(context).successContainer
-                    : Theme.of(context).colorScheme.surfaceContainerLow,
-                foregroundColor: isCompleted
-                    ? AppDesign.of(context).onSuccessContainer
-                    : Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-              icon: Icon(
-                  isCompleted
-                      ? PhosphorIconsBold.check
-                      : PhosphorIconsRegular.check,
-                  size: 18),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            tooltip: done ? 'Mark set incomplete' : 'Complete set',
+            onPressed: () {
+              hideKeyboard();
+              notifier.toggleSetCompletion(widget.exerciseId, widget.setIndex);
+            },
+            style: IconButton.styleFrom(
+              minimumSize: const Size(44, 44),
+              backgroundColor: done ? AppColors.lime : colors.surface,
+              foregroundColor: done ? AppColors.ink : colors.onSurfaceVariant,
+              side: done
+                  ? null
+                  : BorderSide(color: colors.outlineVariant, width: 1),
             ),
-          ],
-        ),
+            icon: Icon(
+                done ? PhosphorIconsBold.check : PhosphorIconsRegular.check,
+                size: 19),
+          ),
+        ],
       ),
     );
   }
@@ -1538,10 +1552,10 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
 
   Widget _buildColumnHeaders(List<SetFieldType> fields) {
     final headerStyle = TextStyle(
-      fontSize: 13,
+      fontSize: 11,
       color: Theme.of(context).colorScheme.onSurfaceVariant,
       fontWeight: FontWeight.w600,
-      letterSpacing: 0.5,
+      letterSpacing: 0.9,
     );
 
     return Row(
@@ -1573,20 +1587,13 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(26),
         border: isInSuperSet
             ? Border.all(
                 color: Theme.of(context).colorScheme.primary,
                 width: 2,
               )
             : null,
-        boxShadow: [
-          BoxShadow(
-            color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: Column(
         children: [
@@ -1632,16 +1639,16 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
 
           // Exercise Header
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+            padding: const EdgeInsets.fromLTRB(14, 14, 10, 10),
             child: Row(
               children: [
                 // Exercise image/icon
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: 50,
+                  height: 50,
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(10),
+                    color: _softPill(context),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   clipBehavior: Clip.antiAlias,
                   child: widget.exercise.hasGif
@@ -1679,8 +1686,10 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                       Text(
                         widget.exercise.name,
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: 16,
+                          height: 1.2,
                           fontWeight: FontWeight.w600,
+                          letterSpacing: -0.2,
                           color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
@@ -1690,13 +1699,12 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                       GestureDetector(
                         onTap: () => _showFieldSelector(context),
                         child: Container(
+                          margin: const EdgeInsets.only(top: 2),
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
+                              horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerLow,
-                            borderRadius: BorderRadius.circular(12),
+                            color: _softPill(context),
+                            borderRadius: BorderRadius.circular(99),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -1728,31 +1736,22 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
                     ],
                   ),
                 ),
-                // Menu button
-                IconButton(
-                  icon: Icon(PhosphorIconsRegular.dotsThree,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      size: 22),
-                  onPressed: () => _showExerciseMenu(context),
-                  padding: EdgeInsets.zero,
-                  constraints:
-                      const BoxConstraints(minWidth: 36, minHeight: 36),
+                // Menu button: a small rounded square, as on the profile.
+                _SquareButton(
+                  tooltip: 'Exercise options',
+                  icon: PhosphorIconsBold.dotsThree,
+                  onTap: () => _showExerciseMenu(context),
                 ),
-                // Collapse button
-                IconButton(
-                  icon: Icon(
-                    _isCollapsed
-                        ? PhosphorIconsRegular.caretDown
-                        : PhosphorIconsRegular.check,
-                    color: _isCollapsed
-                        ? Theme.of(context).colorScheme.onSurfaceVariant
-                        : Theme.of(context).colorScheme.primary,
-                    size: 22,
-                  ),
-                  onPressed: _toggleCollapsed,
-                  padding: EdgeInsets.zero,
-                  constraints:
-                      const BoxConstraints(minWidth: 36, minHeight: 36),
+                const SizedBox(width: 4),
+                // Collapse: a lavender circle with a check.
+                _SquareButton(
+                  tooltip: _isCollapsed ? 'Show sets' : 'Done, collapse',
+                  icon: _isCollapsed
+                      ? PhosphorIconsBold.caretDown
+                      : PhosphorIconsBold.check,
+                  circle: true,
+                  fill: _isCollapsed ? null : AppColors.lavender,
+                  onTap: _toggleCollapsed,
                 ),
               ],
             ),
@@ -1761,13 +1760,13 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
           // Sets Section (collapsible)
           if (!_isCollapsed)
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
               child: Column(
                 children: [
                   // Column Headers - dynamic based on selected fields
                   Padding(
                     padding:
-                        const EdgeInsets.only(left: 56, bottom: 8, right: 48),
+                        const EdgeInsets.only(left: 48, bottom: 6, right: 58),
                     child: _buildColumnHeaders(_effectiveFields),
                   ),
 
@@ -1895,119 +1894,43 @@ class _ExerciseWorkoutCardState extends State<_ExerciseWorkoutCard> {
 
                   const SizedBox(height: 8),
 
-                  // Compact Action Buttons Row
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceContainerLow,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        // Add Set button
-                        Expanded(
-                          flex: 1,
-                          child: GestureDetector(
-                            onTap: () => notifier.addSet(widget.exercise.id),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(PhosphorIconsRegular.plusCircle,
-                                      color:
-                                          Theme.of(context).colorScheme.primary,
-                                      size: 18),
-                                  SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      'Add Set',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w500,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onSurface,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
+                  // Actions as brand pills.
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ActionPill(
+                          icon: PhosphorIconsBold.plus,
+                          label: 'Add set',
+                          fill: AppColors.lavender,
+                          onTap: () => notifier.addSet(widget.exercise.id),
                         ),
-                        // Divider
-                        Container(
-                            width: 1,
-                            height: 24,
-                            color:
-                                Theme.of(context).colorScheme.outlineVariant),
-                        // Super Set button
-                        Expanded(
-                          flex: 1,
-                          child: GestureDetector(
-                            onTap: () {
-                              _showSuperSetOptions(
-                                  context, notifier, widget.exercise.id);
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(PhosphorIconsRegular.arrowsClockwise,
-                                      color:
-                                          Theme.of(context).colorScheme.primary,
-                                      size: 18),
-                                  SizedBox(width: 6),
-                                  Flexible(
-                                    child: Text(
-                                      'Super Set',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w500,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onSurface,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _ActionPill(
+                          icon: PhosphorIconsBold.arrowsClockwise,
+                          label: 'Superset',
+                          fill: _softPill(context),
+                          onTap: () => _showSuperSetOptions(
+                              context, notifier, widget.exercise.id),
                         ),
-                        // Divider
-                        Container(
-                            width: 1,
-                            height: 24,
-                            color:
-                                Theme.of(context).colorScheme.outlineVariant),
-                        // Mark all complete button
-                        GestureDetector(
-                          onTap: () {
-                            for (int i = 0; i < widget.log.sets.length; i++) {
-                              if (!widget.log.sets[i].isCompleted) {
-                                notifier.toggleSetCompletion(
-                                    widget.exercise.id, i);
-                              }
+                      ),
+                      const SizedBox(width: 8),
+                      _ActionPill(
+                        icon: PhosphorIconsBold.checks,
+                        tooltip: 'Complete all sets',
+                        fill: AppColors.lime,
+                        onTap: () {
+                          hideKeyboard();
+                          for (int i = 0; i < widget.log.sets.length; i++) {
+                            if (!widget.log.sets[i].isCompleted) {
+                              notifier.toggleSetCompletion(
+                                  widget.exercise.id, i);
                             }
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 14),
-                            child: Icon(
-                              PhosphorIconsBold.checks,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                              size: 20,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                          }
+                        },
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -2061,6 +1984,14 @@ class _SetRowState extends State<_SetRow> {
         ..addListener(() {
           if (_focusNodes[field]!.hasFocus) {
             _focusedField = field;
+            // Select the value so typing replaces it, without first
+            // deleting what was there.
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              final controller = _controllers[field];
+              if (controller == null || !_focusNodes[field]!.hasFocus) return;
+              controller.selection = TextSelection(
+                  baseOffset: 0, extentOffset: controller.text.length);
+            });
           } else if (_focusedField == field) {
             _focusedField = null;
           }
@@ -2141,25 +2072,36 @@ class _SetRowState extends State<_SetRow> {
     final notifier = context.read<WorkoutNotifier>();
     final settings = context.read<SettingsNotifier>();
 
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+    final done = widget.set.isCompleted;
+    final colors = Theme.of(context).colorScheme;
+    // Each set is a soft rounded row that turns lime when it's done.
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      margin: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.fromLTRB(8, 4, 6, 4),
+      decoration: BoxDecoration(
+        color: done
+            ? AppColors.lime.withValues(alpha: 0.22)
+            : colors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(18),
+      ),
       child: Row(
         children: [
           SetRecordBadge(widget.exerciseId, widget.setIndex),
           _SetTypeBadge(
             setNumber: widget.setNumber,
             isWarmup: widget.isWarmup,
-            isCompleted: widget.set.isCompleted,
+            isCompleted: done,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           Expanded(
             child: _buildDynamicInputFields(context, notifier, settings),
           ),
           const SizedBox(width: 8),
           IconButton(
-            tooltip:
-                widget.set.isCompleted ? 'Mark set incomplete' : 'Complete set',
+            tooltip: done ? 'Mark set incomplete' : 'Complete set',
             onPressed: () {
+              hideKeyboard();
               final wasCompleted = widget.set.isCompleted;
               notifier.toggleSetCompletion(widget.exerciseId, widget.setIndex);
               if (!wasCompleted && !_isLastSetOfBlock(context)) {
@@ -2167,18 +2109,16 @@ class _SetRowState extends State<_SetRow> {
               }
             },
             style: IconButton.styleFrom(
-              backgroundColor: widget.set.isCompleted
-                  ? AppDesign.of(context).successContainer
-                  : Theme.of(context).colorScheme.surfaceContainerLow,
-              foregroundColor: widget.set.isCompleted
-                  ? AppDesign.of(context).onSuccessContainer
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
+              minimumSize: const Size(44, 44),
+              backgroundColor: done ? AppColors.lime : colors.surface,
+              foregroundColor: done ? AppColors.ink : colors.onSurfaceVariant,
+              side: done
+                  ? null
+                  : BorderSide(color: colors.outlineVariant, width: 1),
             ),
             icon: Icon(
-                widget.set.isCompleted
-                    ? PhosphorIconsBold.check
-                    : PhosphorIconsRegular.check,
-                size: 18),
+                done ? PhosphorIconsBold.check : PhosphorIconsRegular.check,
+                size: 19),
           ),
         ],
       ),
@@ -2198,13 +2138,27 @@ class _SetRowState extends State<_SetRow> {
           if (i > 0)
             Container(
               width: 1,
-              height: 24,
-              color: Theme.of(context).colorScheme.outlineVariant,
-              margin: EdgeInsets.symmetric(horizontal: fieldCount > 2 ? 6 : 10),
+              height: 22,
+              color: Theme.of(context)
+                  .colorScheme
+                  .outlineVariant
+                  .withValues(alpha: 0.6),
+              margin: EdgeInsets.symmetric(horizontal: fieldCount > 2 ? 4 : 8),
             ),
+          // The whole cell takes the tap, not just the digits, so one tap
+          // always opens the field.
           Expanded(
-            child: _buildFieldInput(
-                widget.fields[i], context, settings, isMetric, fieldCount),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _focusNodes[widget.fields[i]]!.requestFocus(),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 44),
+                child: Center(
+                  child: _buildFieldInput(widget.fields[i], context, settings,
+                      isMetric, fieldCount),
+                ),
+              ),
+            ),
           ),
         ],
       ],
@@ -2494,40 +2448,46 @@ class _SetTypeBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     if (isWarmup) {
       return Container(
-        width: 32,
-        height: 24,
+        width: 30,
+        height: 30,
         decoration: BoxDecoration(
           color: isCompleted
-              ? AppDesign.of(context).successContainer
-              : Theme.of(context).colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(4),
+              ? AppColors.lime
+              : AppColors.coral.withValues(alpha: 0.16),
+          shape: BoxShape.circle,
         ),
         child: Center(
           child: Text(
             'W',
             style: TextStyle(
               fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: isCompleted
-                  ? AppDesign.of(context).onSuccessContainer
-                  : AppDesign.of(context).success,
+              fontWeight: FontWeight.w700,
+              color: isCompleted ? AppColors.ink : AppColors.coral,
             ),
           ),
         ),
       );
     }
 
-    return SizedBox(
-      width: 32,
+    // A numbered circle: white while open, lime when done.
+    return Container(
+      width: 30,
+      height: 30,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: isCompleted
+            ? AppColors.lime
+            : Theme.of(context).colorScheme.surface,
+        shape: BoxShape.circle,
+      ),
       child: Text(
         '$setNumber',
-        textAlign: TextAlign.center,
         style: TextStyle(
           fontSize: 13,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w700,
           color: isCompleted
-              ? AppDesign.of(context).success
-              : Theme.of(context).colorScheme.onSurfaceVariant,
+              ? AppColors.ink
+              : Theme.of(context).colorScheme.onSurface,
         ),
       ),
     );
@@ -3926,7 +3886,7 @@ class _GlobalRestTimerOverlay extends StatelessWidget {
   }
 }
 
-/// Shown when the workout clock stopped after 10 minutes without activity.
+/// Shown when the workout clock stopped after 30 minutes without activity.
 class _PausedTimerBanner extends StatelessWidget {
   final WorkoutNotifier notifier;
   const _PausedTimerBanner(this.notifier);
@@ -3961,7 +3921,7 @@ class _PausedTimerBanner extends StatelessWidget {
                         TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
                 Text(
-                    'Nothing logged for 10 minutes, so the clock stopped at your last change.',
+                    'Nothing logged for 30 minutes, so the clock stopped at your last change.',
                     style: TextStyle(
                         fontSize: 13,
                         height: 1.35,
@@ -3984,5 +3944,110 @@ class _PausedTimerBanner extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// The soft lavender page behind workout cards (theme surface in dark mode).
+Color _brandPage(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark
+        ? Theme.of(context).colorScheme.surfaceContainerLow
+        : const Color(0xFFF6F4FC);
+
+/// Pale lavender for chips and thumbnails (primary container in dark mode).
+Color _softPill(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark
+        ? Theme.of(context).colorScheme.primaryContainer
+        : AppColors.paleLavender;
+
+/// A small rounded-square (or circle) icon button used in card headers.
+class _SquareButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  final bool circle;
+  final Color? fill;
+  const _SquareButton(
+      {required this.icon,
+      required this.tooltip,
+      required this.onTap,
+      this.circle = false,
+      this.fill});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: fill ?? colors.surface,
+        shape: circle
+            ? CircleBorder(
+                side: fill == null
+                    ? BorderSide(color: colors.outlineVariant)
+                    : BorderSide.none)
+            : RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: colors.outlineVariant)),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: SizedBox(
+            width: 36,
+            height: 36,
+            child: Icon(icon,
+                size: 17,
+                color: fill == null ? colors.onSurface : AppColors.ink),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A rounded pill button for card actions (Add set, Superset, Complete all).
+class _ActionPill extends StatelessWidget {
+  final IconData icon;
+  final String? label;
+  final String? tooltip;
+  final Color fill;
+  final VoidCallback onTap;
+  const _ActionPill(
+      {required this.icon,
+      this.label,
+      this.tooltip,
+      required this.fill,
+      required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final pill = Material(
+      color: fill,
+      borderRadius: BorderRadius.circular(99),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          height: 46,
+          padding: EdgeInsets.symmetric(horizontal: label == null ? 16 : 12),
+          alignment: Alignment.center,
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 17, color: AppColors.ink),
+            if (label != null) ...[
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(label!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.ink)),
+              ),
+            ],
+          ]),
+        ),
+      ),
+    );
+    return tooltip == null ? pill : Tooltip(message: tooltip!, child: pill);
   }
 }
