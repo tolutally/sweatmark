@@ -79,3 +79,11 @@ Personal testing internal group created with automatic distribution disabled; on
 - Apple processing completed. The owner answered export compliance (standard encryption).
 - Added to Personal testing (internal) and Family & Friends (external) with a "What to Test" note; submitted for TestFlight Beta App Review. Status: Waiting for Review. No public App Store review.
 - AI search turned on: Firestore `_config/ai` created with `enabled: true`.
+
+## November 12, 2026 — Tester fixes, monthly wrap, cardio sessions / 1.5.0 (14)
+
+- Contents: workout clock stops after 30 idle minutes (was 10), a "Still training?" reminder after 15 minutes without logging, editable workout time after saving; keyboard Done bar; one-tap set cells with set 1 values filling later sets; new exercises scroll into view and Add Exercise sits after the exercises; cardio as one session card with a stopwatch and pace, speed or split; brand restyle of exercise and superset cards; Apple Health period and daily averages in Stats; logged-workout lists removed from Stats; monthly wrap (9:16 image, shown after each month ends); 758 exercises renamed to everyday names, common gym names and 17 staples (dead hang, sled push…) in search; Ask AI offers "Create" beside substitutes; profile rebuilt, with Delete account in Settings.
+- 237 Flutter tests and 21 Functions tests passed. Analyzer: no errors or warnings.
+- Deployed before this build: `runAiWorker` (everyday names, staples, create offer) and new `deleteAccount` callable (us-east1; requires a sign-in within 10 minutes). Deleting does not yet revoke Sign in with Apple tokens; needed before public release.
+- Signed archive build/ios/archive/SweatMark-14.xcarchive verified as 1.5.0 (14) with the new exercise assets. Uploaded from Xcode Organizer on November 12, 2026 (warnings only: missing dSYMs for some frameworks). Next: Apple processing, export compliance, then add to Personal testing and Family & Friends.
+- Not yet checked on a real device: the logging reminder notification, the keyboard Done bar on the number pad, cardio stopwatch across app restarts, wrap image export.
