@@ -86,4 +86,6 @@ Personal testing internal group created with automatic distribution disabled; on
 - 237 Flutter tests and 21 Functions tests passed. Analyzer: no errors or warnings.
 - Deployed before this build: `runAiWorker` (everyday names, staples, create offer) and new `deleteAccount` callable (us-east1; requires a sign-in within 10 minutes). Deleting does not yet revoke Sign in with Apple tokens; needed before public release.
 - Signed archive build/ios/archive/SweatMark-14.xcarchive verified as 1.5.0 (14) with the new exercise assets. Uploaded from Xcode Organizer on November 12, 2026 (warnings only: missing dSYMs for some frameworks). Next: Apple processing, export compliance, then add to Personal testing and Family & Friends.
+- Apple processing completed. The owner answered export compliance (standard encryption).
+- Added to Personal testing (internal) and Family & Friends (external) with a "What to Test" note and submitted for TestFlight Beta App Review; approved at once. Status: Testing, expires in 90 days. No public App Store review.
 - Not yet checked on a real device: the logging reminder notification, the keyboard Done bar on the number pad, cardio stopwatch across app restarts, wrap image export.
