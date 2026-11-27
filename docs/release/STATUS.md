@@ -96,4 +96,6 @@ Personal testing internal group created with automatic distribution disabled; on
 - 267 Flutter tests and 23 Functions tests passed. Analyzer: no errors or warnings.
 - Deployed before this build: `runAiWorker` with the new `supersetPartner` worker.
 - Signed archive build/ios/archive/SweatMark-15.xcarchive verified as 1.5.0 (15). Xcode 27.1 needed its system components installed and the Apple account signed in again; after that the command-line upload (`xcodebuild -exportArchive`, destination upload) worked, so Organizer was not needed. Warnings only: missing dSYMs for some frameworks. Next: Apple processing, export compliance, then add to Personal testing and Family & Friends.
+- Apple processing completed. The owner answered export compliance.
+- Added to Personal testing (internal) and Family & Friends (external) with a "What to Test" note and submitted for TestFlight Beta App Review; approved at once. Status: Testing, expires in 90 days. No public App Store review.
 - Not yet checked on a real device: each-side inputs on small screens, the end-workout notification, share image export.
