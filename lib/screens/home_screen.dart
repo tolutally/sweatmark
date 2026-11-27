@@ -51,9 +51,9 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _start() {
-    final workouts = context.read<WorkoutNotifier>();
-    if (!workouts.isWorkoutActive) workouts.startWorkout();
+  Future<void> _start() async {
+    await context.read<WorkoutNotifier>().resumeOrStart();
+    if (!mounted) return;
     _push(const ActiveWorkoutScreen());
   }
 

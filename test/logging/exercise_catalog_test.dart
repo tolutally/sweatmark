@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sweatmark/data/exercise_catalog.dart';
+import 'package:sweatmark/services/exercise_search.dart';
 import 'package:sweatmark/models/exercise_model.dart';
 import 'package:sweatmark/models/workout_model.dart';
 import 'package:sweatmark/services/pr_service.dart';
@@ -30,11 +31,20 @@ void main() {
   setUpAll(() async => catalog = await ExerciseCatalog.load());
 
   test('bundled catalog is complete, unique and pinned', () {
-    expect(catalog, hasLength(1323));
+    final bundled = catalog.where((e) => e.id.startsWith('gg:')).toList();
+    final staples = catalog.where((e) => e.id.startsWith('sm:')).toList();
+    expect(bundled, hasLength(1323));
+    expect(staples, hasLength(17));
+    expect(catalog, hasLength(bundled.length + staples.length));
     expect(catalog.map((e) => e.id).toSet(), hasLength(catalog.length));
-    expect(catalog.every((e) => e.id.startsWith('gg:')), isTrue);
-    expect(catalog.every((e) => e.gifUrl!.contains('@v1.1.0/')), isTrue);
+    expect(bundled.every((e) => e.gifUrl!.contains('@v1.1.0/')), isTrue);
     expect(catalog.every((e) => e.muscleGroup.isNotEmpty), isTrue);
+    // Staples fill gaps; none repeats a bundled exercise's name.
+    final names = {for (final e in bundled) e.name.toLowerCase()};
+    expect(staples.where((e) => names.contains(e.name.toLowerCase())), isEmpty);
+    expect(staples.every((e) => (e.instructions ?? '').isNotEmpty), isTrue);
+    expect(staples.map((e) => e.name),
+        containsAll(['Dead Hang', 'Active Hang', 'Sled Push', 'Wall Sit']));
     // Inner-thigh adduction and outer-thigh abduction stay separate.
     final adduction = catalog
         .singleWhere((e) => e.id == 'gg:adductors/lever-seated-hip-adduction');
@@ -46,7 +56,7 @@ void main() {
 
   test('every catalog exercise has bundled media', () {
     final missing = [
-      for (final exercise in catalog)
+      for (final exercise in catalog.where((e) => e.id.startsWith('gg:')))
         if (!File(ExerciseMedia.assetFor(exercise.gifUrl!)!).existsSync())
           exercise.id
     ];
@@ -58,6 +68,55 @@ void main() {
         'assets/exercises/media/biceps__barbell-curl.webp');
     // Other sources keep loading from the network.
     expect(ExerciseMedia.assetFor('https://example.com/curl.gif'), isNull);
+  });
+
+  test('exercises show everyday names; library names still work', () {
+    String name(String id) => catalog.singleWhere((e) => e.id == id).name;
+    expect(
+        name('gg:delts/cable-standing-rear-delt-row-with-rope'), 'Face Pull');
+    expect(name('gg:pectorals/lever-seated-fly'), 'Pec Deck');
+    expect(name('gg:triceps/barbell-lying-triceps-extension-skull-crusher'),
+        'Skull Crusher');
+    expect(name('gg:glutes/sled-45-leg-press'), 'Leg Press');
+    // Calisthenics levers are not machines.
+    expect(
+        catalog.map((e) => e.name), containsAll(['Front Lever', 'Back Lever']));
+    // Library jargon is gone from what people see.
+    for (final e in catalog) {
+      expect(
+          RegExp(r'^Lever |\bMale\b|\bFemale\b|\bPov\b| v\d\b|\b\d{4}\b')
+              .hasMatch(e.name),
+          isFalse,
+          reason: e.name);
+    }
+    expect(catalog.map((e) => e.name).toSet(), hasLength(catalog.length),
+        reason: 'every name is unique');
+    expect(
+        ExerciseCatalog.libraryName(
+            'gg:delts/cable-standing-rear-delt-row-with-rope'),
+        'Cable Standing Rear Delt Row With Rope');
+    // Workouts saved with the old name still map to the same exercise.
+    expect(
+        ExerciseCatalog.canonicalId('exercisedb_x',
+            name: 'Barbell Lying Triceps Extension Skull Crusher'),
+        'gg:triceps/barbell-lying-triceps-extension-skull-crusher');
+    expect(ExerciseCatalog.canonicalId('sm:dead-hang'), 'sm:dead-hang');
+  });
+
+  test('search finds renamed exercises by either name', () {
+    List<String> top(String q) =>
+        ExerciseSearch.search(catalog, q).take(3).map((e) => e.name).toList();
+    expect(top('face pull').first, 'Face Pull');
+    expect(top('cable standing rear delt row'), contains('Face Pull'));
+    expect(top('lever seated fly'), contains('Pec Deck'));
+    expect(top('pec deck').first, 'Pec Deck');
+    expect(top('reverse pec deck').first, 'Reverse Pec Deck');
+    expect(top('machine fly'), contains('Pec Deck'));
+    expect(top('suitcase deadlift').first, 'Barbell Suitcase Deadlift');
+    expect(top('side plank'), contains('Side Plank'));
+    expect(top('skull crusher').first, 'Skull Crusher');
+    expect(top('leg press').first, 'Leg Press');
+    expect(top('lat pulldown').first, 'Lat Pulldown');
   });
 
   test('older IDs map onto the catalog; custom IDs never do', () {

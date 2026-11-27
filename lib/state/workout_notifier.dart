@@ -1,12 +1,15 @@
 import 'session_notifier.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../models/cardio_machine.dart';
+import '../models/each_side.dart';
 import '../models/workout_model.dart';
 import '../models/exercise_model.dart';
 import '../data/exercise_data.dart';
 import '../services/storage_service.dart';
 import '../services/sync_service.dart';
 import '../data/exercise_catalog.dart';
+import '../services/apple_health_service.dart';
 import '../services/pr_service.dart';
 import '../services/recovery_service.dart';
 import '../services/notification_service.dart';
@@ -30,6 +33,141 @@ class WorkoutNotifier extends SessionNotifier {
   int _elapsedSeconds = 0;
   int get elapsedSeconds => _elapsedSeconds;
   bool _timerStarted = false;
+
+  /// How long a workout can go without any logging before the clock stops.
+  static const idleLimit = Duration(minutes: 30);
+
+  /// How long without logging before the phone reminds the person.
+  static const reminderAfter = Duration(minutes: 15);
+
+  /// Schedules the logging reminder for a time, or cancels it with null;
+  /// replaceable in tests.
+  @visibleForTesting
+  Future<void> Function(DateTime? at) remind = _notify;
+
+  static Future<void> _notify(DateTime? at) async {
+    try {
+      final notifications = NotificationService();
+      if (at == null) {
+        await notifications.cancelLoggingReminder();
+      } else {
+        await notifications.scheduleLoggingReminder(at);
+      }
+    } catch (error) {
+      debugPrint('Logging reminder unavailable: $error');
+    }
+  }
+
+  /// How long the clock stays paused before the phone asks to end the
+  /// workout: it pauses after [idleLimit], so this is an hour after that.
+  static const endReminderAfter = Duration(hours: 1);
+
+  /// Schedules the "End your workout?" notification for a time, or cancels
+  /// it with null; replaceable in tests.
+  @visibleForTesting
+  Future<void> Function(DateTime? at) remindToEnd = _notifyEnd;
+
+  static Future<void> _notifyEnd(DateTime? at) async {
+    try {
+      final notifications = NotificationService();
+      if (at == null) {
+        await notifications.cancelEndWorkoutReminder();
+      } else {
+        await notifications.scheduleEndWorkoutReminder(at);
+      }
+    } catch (error) {
+      debugPrint('End-workout reminder unavailable: $error');
+    }
+  }
+
+  DateTime? _reminderAt;
+
+  /// Moves both reminders on from [activity] (the logging reminder after
+  /// [reminderAfter], "End your workout?" once the clock has been paused
+  /// for [endReminderAfter]), or cancels them. Small moves are skipped so
+  /// typing doesn't reschedule on every key.
+  void _planReminder(DateTime? activity) {
+    final at = activity?.add(reminderAfter);
+    final current = _reminderAt;
+    if (at == null && current == null) return;
+    if (at != null &&
+        current != null &&
+        at.difference(current).abs() < const Duration(seconds: 30)) {
+      return;
+    }
+    _reminderAt = at;
+    unawaited(remind(at));
+    unawaited(remindToEnd(activity?.add(idleLimit + endReminderAfter)));
+  }
+
+  /// Clock used for the workout timer; replaceable in tests.
+  @visibleForTesting
+  DateTime Function() clock = DateTime.now;
+
+  // Last time the person changed anything in the workout.
+  DateTime? _lastActivity;
+  // When the clock stopped for inactivity: the last activity, so idle time
+  // is never counted.
+  DateTime? _pausedAt;
+  // Time spent paused that was later resumed.
+  int _pausedSeconds = 0;
+
+  /// Whether the clock stopped after [idleLimit] without activity.
+  bool get isTimerPaused => _pausedAt != null;
+
+  void _clearPause() {
+    _lastActivity = null;
+    _pausedAt = null;
+    _pausedSeconds = 0;
+    _cardioRunning.clear();
+    _cardioCarryMs.clear();
+    _planReminder(null);
+  }
+
+  /// Records activity and restarts the clock if it had stopped.
+  void _touch() {
+    if (!_isWorkoutActive) return;
+    if (_pausedAt != null) {
+      _resume();
+    } else {
+      _lastActivity = clock();
+    }
+    // A running cardio stopwatch is activity; no reminder while it runs.
+    _planReminder(_cardioRunning.isEmpty ? clock() : null);
+  }
+
+  void _resume() {
+    final now = clock();
+    final paused = now.difference(_pausedAt!).inSeconds;
+    if (paused > 0) _pausedSeconds += paused;
+    _pausedAt = null;
+    _lastActivity = now;
+    _elapsedSeconds = _calculateElapsedSeconds();
+  }
+
+  /// Restarts the clock after it stopped for inactivity.
+  void resumeTimer() {
+    if (_pausedAt == null) return;
+    _resume();
+    notifyListeners();
+    _persistPresentation();
+  }
+
+  /// Stops the clock at the last activity once [idleLimit] has passed.
+  /// Returns whether it just stopped.
+  bool _checkIdle() {
+    if (_cardioRunning.isNotEmpty) {
+      _lastActivity = clock();
+      return false;
+    }
+    final last = _lastActivity;
+    if (!_timerStarted || _pausedAt != null || last == null) return false;
+    if (clock().difference(last) < idleLimit) return false;
+    _pausedAt = last;
+    _elapsedSeconds = _calculateElapsedSeconds();
+    _persistPresentation();
+    return true;
+  }
 
   // Track collapsed exercise cards (by exerciseId)
   final Set<String> _collapsedExercises = {};
@@ -135,6 +273,12 @@ class WorkoutNotifier extends SessionNotifier {
       'workoutNotes': _workoutNotes,
       'startTime': _startTime?.toIso8601String(),
       'elapsedSeconds': _elapsedSeconds,
+      'lastActivity': _lastActivity?.toIso8601String(),
+      'pausedAt': _pausedAt?.toIso8601String(),
+      'pausedSeconds': _pausedSeconds,
+      'cardioRunning': _cardioRunning
+          .map((id, since) => MapEntry(id, since.toIso8601String())),
+      'cardioCarryMs': _cardioCarryMs,
       'timestamp': _currentWorkout!.timestamp.toIso8601String(),
       'exercises': _currentWorkout!.exercises.map((e) => e.toJson()).toList(),
       'superSets': _currentWorkout!.superSets.map((s) => s.toJson()).toList(),
@@ -174,6 +318,30 @@ class WorkoutNotifier extends SessionNotifier {
     _workoutName = draftData['workoutName'] as String? ?? 'My Workout 1';
     _workoutNotes = draftData['workoutNotes'] as String? ?? '';
     _elapsedSeconds = draftData['elapsedSeconds'] as int? ?? 0;
+    _lastActivity =
+        DateTime.tryParse(draftData['lastActivity'] as String? ?? '');
+    _pausedAt = DateTime.tryParse(draftData['pausedAt'] as String? ?? '');
+    _pausedSeconds = draftData['pausedSeconds'] as int? ?? 0;
+    // Stopwatches keep running while the app is closed.
+    _cardioRunning.clear();
+    final running = draftData['cardioRunning'];
+    if (running is Map) {
+      for (final entry in running.entries) {
+        final since = DateTime.tryParse('${entry.value}');
+        if (entry.key is String && since != null) {
+          _cardioRunning[entry.key as String] = since;
+        }
+      }
+    }
+    _cardioCarryMs.clear();
+    final carry = draftData['cardioCarryMs'];
+    if (carry is Map) {
+      for (final entry in carry.entries) {
+        if (entry.key is String && entry.value is int) {
+          _cardioCarryMs[entry.key as String] = entry.value as int;
+        }
+      }
+    }
 
     if (draftData['startTime'] != null) {
       try {
@@ -225,6 +393,7 @@ class WorkoutNotifier extends SessionNotifier {
     _startTime = null;
     _elapsedSeconds = 0;
     _timerStarted = false;
+    _clearPause();
     _celebratedRecords.clear();
     _collapsedExercises.clear();
     _exerciseFields.clear();
@@ -242,6 +411,7 @@ class WorkoutNotifier extends SessionNotifier {
     _startTime = null;
     _elapsedSeconds = 0;
     _timerStarted = false;
+    _clearPause();
     _workoutName = workoutName ?? 'My Workout 1';
     _workoutNotes = '';
     _currentWorkout = WorkoutLog(
@@ -252,16 +422,19 @@ class WorkoutNotifier extends SessionNotifier {
     );
 
     _startAutoSave();
+    _planReminder(clock());
     // Timer will be started when first set is marked complete
     notifyListeners();
   }
 
   void updateWorkoutName(String name) {
+    _touch();
     _workoutName = name;
     notifyListeners();
   }
 
   void updateWorkoutNotes(String notes) {
+    _touch();
     _workoutNotes = notes;
     notifyListeners();
   }
@@ -270,17 +443,31 @@ class WorkoutNotifier extends SessionNotifier {
     if (_timerStarted && !restart) return;
     _timer?.cancel();
     _timerStarted = true;
-    _startTime ??= DateTime.now();
+    _startTime ??= clock();
+    _lastActivity ??= clock();
+    _checkIdle();
     _elapsedSeconds = _calculateElapsedSeconds();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      _elapsedSeconds = _calculateElapsedSeconds();
+      final stopped = _checkIdle();
+      final elapsed = _calculateElapsedSeconds();
+      if (!stopped && _pausedAt != null && elapsed == _elapsedSeconds) return;
+      _elapsedSeconds = elapsed;
       notifyListeners();
     });
     notifyListeners();
   }
 
+  /// Whether [exerciseId] is already in the workout. Each exercise appears
+  /// once: logs are found by exercise ID, so a second copy would be mixed
+  /// up with the first.
+  bool hasExercise(String exerciseId) =>
+      _currentWorkout?.exercises.any((e) => e.exerciseId == exerciseId) ??
+      false;
+
+  /// Adds [exercise] unless it's already in the workout.
   void addExercise(Exercise exercise) {
-    if (_currentWorkout == null) return;
+    _touch();
+    if (_currentWorkout == null || hasExercise(exercise.id)) return;
     _currentWorkout!.exercises.add(WorkoutExerciseLog(
       exerciseId: exercise.id,
       exerciseType: exercise.exerciseType.name,
@@ -288,12 +475,201 @@ class WorkoutNotifier extends SessionNotifier {
       muscleGroup: exercise.muscleGroup,
       equipment: exercise.equipment,
       gifUrl: exercise.gifUrl,
-      sets: [
-        WorkoutSet(weight: null, reps: null),
-        WorkoutSet(weight: null, reps: null),
-        WorkoutSet(weight: null, reps: null),
-      ],
+      oneSided: exercise.oneSided,
+      eachSide: _eachSideFor(exercise.id, exercise.name,
+          equipment: exercise.equipment,
+          type: exercise.exerciseType.name,
+          oneSided: exercise.oneSided),
+      // Cardio is one session, not sets.
+      sets: exercise.exerciseType == ExerciseType.cardio
+          ? [WorkoutSet()]
+          : [
+              WorkoutSet(weight: null, reps: null),
+              WorkoutSet(weight: null, reps: null),
+              WorkoutSet(weight: null, reps: null),
+            ],
     ));
+    notifyListeners();
+  }
+
+  /// How this person last logged the exercise, else the default for it
+  /// (one arm or leg, alternating, or two dumbbells).
+  bool _eachSideFor(String exerciseId, String? name,
+      {String? equipment, String? type, bool oneSided = false}) {
+    // Only one-sided exercises are ever logged each side.
+    if (!oneSided && !EachSide.isOneSided(name, type: type)) return false;
+    final id = ExerciseCatalog.canonicalId(exerciseId, name: name);
+    WorkoutExerciseLog? latest;
+    DateTime? latestTime;
+    for (final workout in _workoutHistory) {
+      for (final log in workout.exercises) {
+        if (!log.sideSaved ||
+            ExerciseCatalog.canonicalId(log.exerciseId,
+                    name: log.exerciseName) !=
+                id) continue;
+        if (latestTime == null || workout.timestamp.isAfter(latestTime)) {
+          latest = log;
+          latestTime = workout.timestamp;
+        }
+      }
+    }
+    return latest?.eachSide ?? true;
+  }
+
+  /// Switches an exercise between whole-set numbers and "each side". Only
+  /// one-sided exercises can turn it on.
+  void setEachSide(String exerciseId, bool eachSide) {
+    final log = _currentWorkout?.exercises
+        .where((e) => e.exerciseId == exerciseId)
+        .firstOrNull;
+    if (log == null || log.eachSide == eachSide) return;
+    if (eachSide && !log.canEachSide) return;
+    _touch();
+    log.eachSide = eachSide;
+    if (!eachSide) {
+      for (final set in log.sets) {
+        set.weightRight = null;
+        set.repsRight = null;
+      }
+    }
+    _persistPresentation();
+    notifyListeners();
+  }
+
+  /// Logs the right side of an "each side" set. Empty boxes go back to
+  /// matching the left. Later open sets still showing the old right value
+  /// follow, like the left side does.
+  void updateRightSide(String exerciseId, int setIndex,
+      {double? weight,
+      int? reps,
+      bool clearWeight = false,
+      bool clearReps = false}) {
+    final log = _currentWorkout?.exercises
+        .where((e) => e.exerciseId == exerciseId)
+        .firstOrNull;
+    final set = _setAt(exerciseId, setIndex);
+    if (log == null || set == null) return;
+    _touch();
+    final before = (weight: set.weightRight, reps: set.repsRight);
+    if (clearWeight || weight != null) set.weightRight = weight;
+    if (clearReps || reps != null) set.repsRight = reps;
+    for (final later in log.sets.skip(setIndex + 1)) {
+      if (later.isCompleted || later.isSuperSetRest) continue;
+      if (set.weightRight != before.weight &&
+          later.weightRight == before.weight) {
+        later.weightRight = set.weightRight;
+      }
+      if (set.repsRight != before.reps && later.repsRight == before.reps) {
+        later.repsRight = set.repsRight;
+      }
+    }
+    notifyListeners();
+  }
+
+  /// Marks or unmarks a set as a warm-up.
+  void toggleWarmup(String exerciseId, int setIndex) {
+    final set = _setAt(exerciseId, setIndex);
+    if (set == null) return;
+    _touch();
+    set.isWarmup = !set.isWarmup;
+    _persistPresentation();
+    notifyListeners();
+  }
+
+  WorkoutSet? _setAt(String exerciseId, int setIndex) {
+    final log = _currentWorkout?.exercises
+        .where((e) => e.exerciseId == exerciseId)
+        .firstOrNull;
+    if (log == null || setIndex < 0 || setIndex >= log.sets.length) return null;
+    return log.sets[setIndex];
+  }
+
+  // Cardio stopwatches by exercise: when each started running.
+  final Map<String, DateTime> _cardioRunning = {};
+  // Milliseconds past the last whole second already logged, so stopping and
+  // starting again never loses time.
+  final Map<String, int> _cardioCarryMs = {};
+
+  int _cardioMs(String exerciseId, WorkoutSet set) {
+    final since = _cardioRunning[exerciseId];
+    final running =
+        since == null ? 0 : clock().difference(since).inMilliseconds;
+    return (set.durationSeconds ?? 0) * 1000 +
+        (_cardioCarryMs[exerciseId] ?? 0) +
+        (running < 0 ? 0 : running);
+  }
+
+  WorkoutSet? _cardioSet(String exerciseId) {
+    final log = _currentWorkout?.exercises
+        .where((e) => e.exerciseId == exerciseId)
+        .firstOrNull;
+    if (log == null) return null;
+    if (log.sets.isEmpty) log.sets.add(WorkoutSet());
+    return log.sets.first;
+  }
+
+  bool isCardioRunning(String exerciseId) =>
+      _cardioRunning.containsKey(exerciseId);
+
+  /// Seconds on a cardio session, including a stopwatch still running.
+  int cardioSeconds(String exerciseId) {
+    final set = _cardioSet(exerciseId);
+    return set == null ? 0 : _cardioMs(exerciseId, set) ~/ 1000;
+  }
+
+  /// Starts (or resumes) a cardio session's stopwatch; the workout clock
+  /// starts with it.
+  void startCardio(String exerciseId) {
+    if (_cardioSet(exerciseId) == null || isCardioRunning(exerciseId)) return;
+    _cardioRunning[exerciseId] = clock();
+    _touch();
+    if (!_timerStarted) _startTimer();
+    // Saved at once, so the stopwatch survives iOS closing the app.
+    _persistPresentation();
+    notifyListeners();
+  }
+
+  /// Stops a cardio stopwatch and keeps the time.
+  void stopCardio(String exerciseId) {
+    final set = _cardioSet(exerciseId);
+    if (!_cardioRunning.containsKey(exerciseId) || set == null) return;
+    final ms = _cardioMs(exerciseId, set);
+    _cardioRunning.remove(exerciseId);
+    set.durationSeconds = ms ~/ 1000;
+    _cardioCarryMs[exerciseId] = ms % 1000;
+    _settleCardio(set);
+  }
+
+  /// Stops every running cardio stopwatch, e.g. before saving.
+  void stopAllCardio() {
+    for (final id in _cardioRunning.keys.toList()) {
+      stopCardio(id);
+    }
+  }
+
+  /// Changes a cardio session's numbers. A session counts as logged once it
+  /// has a time or a distance.
+  void updateCardio(String exerciseId, void Function(WorkoutSet set) change) {
+    final set = _cardioSet(exerciseId);
+    if (set == null) return;
+    final before = set.durationSeconds;
+    change(set);
+    // A typed time replaces the stopwatch's fraction of a second.
+    if (set.durationSeconds != before) _cardioCarryMs.remove(exerciseId);
+    _settleCardio(set);
+  }
+
+  void _settleCardio(WorkoutSet set) {
+    set.isCompleted = (set.durationSeconds ?? 0) > 0 || (set.distance ?? 0) > 0;
+    // Speed always matches the logged time and distance.
+    final miles = set.distanceUnit == 'mi';
+    final d = set.distance;
+    set.speed = CardioPace.speed(
+        set.durationSeconds, d == null ? null : (miles ? d * 1.609344 : d),
+        miles: miles);
+    _touch();
+    if (set.isCompleted && !_timerStarted) _startTimer();
+    _persistPresentation();
     notifyListeners();
   }
 
@@ -306,6 +682,7 @@ class WorkoutNotifier extends SessionNotifier {
     double? targetWeight,
     Exercise? exerciseDefinition,
   }) {
+    _touch();
     if (_currentWorkout == null) return;
 
     // Try to find the exercise in the database, or create a custom one
@@ -319,9 +696,13 @@ class WorkoutNotifier extends SessionNotifier {
       },
     );
 
-    // Create sets with template values
+    // A routine listing an exercise twice still adds it once.
+    if (hasExercise(exerciseId ?? exerciseData['id'] as String)) return;
+
+    // Create sets with template values; cardio is one session.
+    final cardio = exerciseDefinition?.exerciseType == ExerciseType.cardio;
     final sets = List.generate(
-      targetSets,
+      cardio ? 1 : targetSets,
       (_) => WorkoutSet(
         weight: targetWeight,
         reps: targetReps,
@@ -338,11 +719,19 @@ class WorkoutNotifier extends SessionNotifier {
       exerciseType: exerciseDefinition?.exerciseType.name,
       gifUrl: exerciseDefinition?.gifUrl,
       sets: sets,
+      eachSide: _eachSideFor(exerciseId ?? exerciseData['id'] as String,
+          exerciseDefinition?.name ?? exerciseData['name'] as String?,
+          equipment: exerciseDefinition?.equipment ??
+              exerciseData['equipment'] as String?,
+          type: exerciseDefinition?.exerciseType.name,
+          oneSided: exerciseDefinition?.oneSided ?? false),
+      oneSided: exerciseDefinition?.oneSided ?? false,
     ));
     notifyListeners();
   }
 
   void addSet(String exerciseId) {
+    _touch();
     if (_currentWorkout == null) return;
     final exerciseLog = _currentWorkout!.exercises
         .firstWhere((e) => e.exerciseId == exerciseId);
@@ -381,6 +770,7 @@ class WorkoutNotifier extends SessionNotifier {
 
   /// Add a set to all exercises in a superset
   void addSetToSuperSet(String superSetId) {
+    _touch();
     if (_currentWorkout == null) return;
     final superSet = getSuperSet(superSetId);
     if (superSet == null) return;
@@ -421,6 +811,7 @@ class WorkoutNotifier extends SessionNotifier {
   }
 
   void removeSet(String exerciseId, int setIndex) {
+    _touch();
     if (_currentWorkout == null) return;
     final exerciseLog = _currentWorkout!.exercises
         .firstWhere((e) => e.exerciseId == exerciseId);
@@ -432,6 +823,7 @@ class WorkoutNotifier extends SessionNotifier {
 
   void updateCardioDetails(String exerciseId,
       {int? averageHeartRate, String? intensity}) {
+    _touch();
     if (_currentWorkout == null) return;
     if (averageHeartRate != null &&
         (averageHeartRate < 1 || averageHeartRate > 300))
@@ -444,6 +836,8 @@ class WorkoutNotifier extends SessionNotifier {
     final e = _currentWorkout!.exercises[index];
     _currentWorkout!.exercises[index] = WorkoutExerciseLog(
         exerciseId: e.exerciseId,
+        eachSide: e.eachSide,
+        oneSided: e.oneSided,
         exerciseName: e.exerciseName,
         exerciseType: e.exerciseType,
         muscleGroup: e.muscleGroup,
@@ -472,11 +866,20 @@ class WorkoutNotifier extends SessionNotifier {
     double? incline,
     int? resistance,
   }) {
+    _touch();
     if (_currentWorkout == null) return;
     final exerciseLog = _currentWorkout!.exercises
         .firstWhere((e) => e.exerciseId == exerciseId);
     if (setIndex < exerciseLog.sets.length) {
       final set = exerciseLog.sets[setIndex];
+      final before = (
+        weight: set.weight,
+        weightUnit: set.weightUnit,
+        reps: set.reps,
+        durationSeconds: set.durationSeconds,
+        distance: set.distance,
+        distanceUnit: set.distanceUnit,
+      );
       // Only update provided fields, keep existing values for null
       if (clearWeight) {
         set.weight = null;
@@ -496,6 +899,31 @@ class WorkoutNotifier extends SessionNotifier {
       if (speed != null) set.speed = speed;
       if (incline != null) set.incline = incline;
       if (resistance != null) set.resistance = resistance;
+      // Later sets still showing this set's old value follow the change, so
+      // entering set 1 fills the rest. Completed sets and any set given its
+      // own value are left alone.
+      for (final later in exerciseLog.sets.skip(setIndex + 1)) {
+        if (later.isCompleted || later.isSuperSetRest) continue;
+        if (set.weight != before.weight &&
+            later.weight == before.weight &&
+            later.weightUnit == before.weightUnit) {
+          later.weight = set.weight;
+          later.weightUnit = set.weightUnit;
+        }
+        if (set.reps != before.reps && later.reps == before.reps) {
+          later.reps = set.reps;
+        }
+        if (set.durationSeconds != before.durationSeconds &&
+            later.durationSeconds == before.durationSeconds) {
+          later.durationSeconds = set.durationSeconds;
+        }
+        if (set.distance != before.distance &&
+            later.distance == before.distance &&
+            later.distanceUnit == before.distanceUnit) {
+          later.distance = set.distance;
+          later.distanceUnit = set.distanceUnit;
+        }
+      }
       notifyListeners();
     }
   }
@@ -512,6 +940,7 @@ class WorkoutNotifier extends SessionNotifier {
     required double? incline,
     required int? resistance,
   }) {
+    _touch();
     if (_currentWorkout == null) return;
     final exerciseLog = _currentWorkout!.exercises
         .firstWhere((e) => e.exerciseId == exerciseId);
@@ -536,6 +965,7 @@ class WorkoutNotifier extends SessionNotifier {
     final before = {for (final r in activeRecords) r.key: r};
     final set = exercise.sets[setIndex];
     set.isCompleted = !set.isCompleted;
+    _touch();
     if (set.isCompleted && !_timerStarted) _startTimer();
     final celebrate = <PersonalRecord>[];
     if (set.isCompleted) {
@@ -579,6 +1009,9 @@ class WorkoutNotifier extends SessionNotifier {
     await _syncService.syncWorkout(userId, finishedWorkout);
     if (isDisposed) return;
 
+    // Optional copy to Apple Health; never blocks or fails the save.
+    unawaited(AppleHealthService.instance.saveWorkout(userId, finishedWorkout));
+
     // Reload history
     await _loadWorkoutHistory();
 
@@ -604,6 +1037,7 @@ class WorkoutNotifier extends SessionNotifier {
     _startTime = null;
     _elapsedSeconds = 0;
     _timerStarted = false;
+    _clearPause();
     _workoutName = 'My Workout 1';
     _workoutNotes = '';
     notifyListeners();
@@ -662,6 +1096,7 @@ class WorkoutNotifier extends SessionNotifier {
     _startTime = null;
     _elapsedSeconds = 0;
     _timerStarted = false;
+    _clearPause();
     _workoutName = 'My Workout 1';
     _workoutNotes = '';
     notifyListeners();
@@ -677,6 +1112,7 @@ class WorkoutNotifier extends SessionNotifier {
   }
 
   void removeExercise(int exerciseIndex) {
+    _touch();
     if (_currentWorkout == null) return;
     _currentWorkout!.exercises.removeAt(exerciseIndex);
     notifyListeners();
@@ -684,6 +1120,7 @@ class WorkoutNotifier extends SessionNotifier {
 
   /// Create a super set from selected exercises
   void createSuperSet(List<String> exerciseIds) {
+    _touch();
     if (_currentWorkout == null || exerciseIds.length < 2) return;
 
     final superSetId = 'superset_${DateTime.now().millisecondsSinceEpoch}';
@@ -702,6 +1139,8 @@ class WorkoutNotifier extends SessionNotifier {
         final exercise = _currentWorkout!.exercises[exerciseIndex];
         _currentWorkout!.exercises[exerciseIndex] = WorkoutExerciseLog(
           exerciseId: exercise.exerciseId,
+          eachSide: exercise.eachSide,
+          oneSided: exercise.oneSided,
           exerciseType: exercise.exerciseType,
           averageHeartRate: exercise.averageHeartRate,
           intensity: exercise.intensity,
@@ -715,11 +1154,14 @@ class WorkoutNotifier extends SessionNotifier {
       }
     }
 
+    // Saved at once, so a new superset survives the app closing.
+    _persistPresentation();
     notifyListeners();
   }
 
   /// Remove exercise from super set
   void removeFromSuperSet(String exerciseId) {
+    _touch();
     if (_currentWorkout == null) return;
 
     final exerciseIndex = _currentWorkout!.exercises
@@ -749,6 +1191,8 @@ class WorkoutNotifier extends SessionNotifier {
                     _currentWorkout!.exercises[remainingIndex];
                 _currentWorkout!.exercises[remainingIndex] = WorkoutExerciseLog(
                   exerciseId: remainingExercise.exerciseId,
+                  eachSide: remainingExercise.eachSide,
+                  oneSided: remainingExercise.oneSided,
                   exerciseType: remainingExercise.exerciseType,
                   averageHeartRate: remainingExercise.averageHeartRate,
                   intensity: remainingExercise.intensity,
@@ -772,6 +1216,8 @@ class WorkoutNotifier extends SessionNotifier {
                     _currentWorkout!.exercises[remainingIndex];
                 _currentWorkout!.exercises[remainingIndex] = WorkoutExerciseLog(
                   exerciseId: remainingExercise.exerciseId,
+                  eachSide: remainingExercise.eachSide,
+                  oneSided: remainingExercise.oneSided,
                   exerciseType: remainingExercise.exerciseType,
                   averageHeartRate: remainingExercise.averageHeartRate,
                   intensity: remainingExercise.intensity,
@@ -790,6 +1236,8 @@ class WorkoutNotifier extends SessionNotifier {
         // Clear super set info from removed exercise
         _currentWorkout!.exercises[exerciseIndex] = WorkoutExerciseLog(
           exerciseId: exercise.exerciseId,
+          eachSide: exercise.eachSide,
+          oneSided: exercise.oneSided,
           exerciseType: exercise.exerciseType,
           averageHeartRate: exercise.averageHeartRate,
           intensity: exercise.intensity,
@@ -806,6 +1254,7 @@ class WorkoutNotifier extends SessionNotifier {
 
   /// Reorder exercises within a super set
   void reorderSuperSetExercises(String superSetId, List<String> newOrder) {
+    _touch();
     if (_currentWorkout == null) return;
 
     final superSetIndex =
@@ -824,6 +1273,8 @@ class WorkoutNotifier extends SessionNotifier {
           final exercise = _currentWorkout!.exercises[exerciseIndex];
           _currentWorkout!.exercises[exerciseIndex] = WorkoutExerciseLog(
             exerciseId: exercise.exerciseId,
+            eachSide: exercise.eachSide,
+            oneSided: exercise.oneSided,
             exerciseType: exercise.exerciseType,
             averageHeartRate: exercise.averageHeartRate,
             intensity: exercise.intensity,
@@ -867,6 +1318,26 @@ class WorkoutNotifier extends SessionNotifier {
     notifyListeners();
   }
 
+  /// Corrects the length of a saved workout, e.g. when the clock ran on
+  /// after the last set or was never started.
+  Future<void> updateWorkoutDuration(WorkoutLog workout, int seconds) async {
+    final index = _workoutHistory.indexWhere((w) => w.id == workout.id);
+    if (index == -1 || seconds <= 0) return;
+    final saved = _workoutHistory[index];
+    _workoutHistory[index] = WorkoutLog(
+      workoutName: saved.workoutName,
+      exercises: saved.exercises,
+      timestamp: saved.timestamp,
+      durationSeconds: seconds,
+      notes: saved.notes,
+      superSets: saved.superSets,
+      isTestData: saved.isTestData,
+    );
+    notifyListeners();
+    await _syncService.syncWorkout(
+        _storageService.userId, _workoutHistory[index]);
+  }
+
   /// Update workout notes for an existing workout
   Future<void> updateWorkoutHistoryNotes(
       WorkoutLog workout, String notes) async {
@@ -902,6 +1373,8 @@ class WorkoutNotifier extends SessionNotifier {
     _currentWorkout!.exercises
         .addAll(workout.exercises.map((exercise) => WorkoutExerciseLog(
               exerciseId: exercise.exerciseId,
+              eachSide: exercise.eachSide,
+              oneSided: exercise.oneSided,
               exerciseType: exercise.exerciseType,
               exerciseName: exercise.exerciseName,
               muscleGroup: exercise.muscleGroup,
@@ -948,6 +1421,21 @@ class WorkoutNotifier extends SessionNotifier {
     _autoSaveTimer = null;
   }
 
+  /// Opens the workout in progress, or starts a new one, but only after any
+  /// saved draft has loaded: tapping Start right after the app opens must
+  /// never replace a workout that was still loading. Returns whether a new
+  /// workout started.
+  Future<bool> resumeOrStart({String? workoutName}) async {
+    try {
+      await ready;
+    } catch (_) {}
+    if (isDisposed) return false;
+    if (!_isWorkoutActive) await _autoRestoreDraftWorkout();
+    if (isDisposed || _isWorkoutActive) return false;
+    startWorkout(workoutName: workoutName);
+    return true;
+  }
+
   Future<void> _autoRestoreDraftWorkout() async {
     if (_isWorkoutActive) return;
     final hasDraft = await _storageService.hasDraftWorkout();
@@ -973,7 +1461,8 @@ class WorkoutNotifier extends SessionNotifier {
 
   int _calculateElapsedSeconds() {
     if (_startTime == null) return _elapsedSeconds;
-    final seconds = DateTime.now().difference(_startTime!).inSeconds;
+    final end = _pausedAt ?? clock();
+    final seconds = end.difference(_startTime!).inSeconds - _pausedSeconds;
     return seconds < 0 ? 0 : seconds;
   }
 }

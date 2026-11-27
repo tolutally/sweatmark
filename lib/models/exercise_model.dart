@@ -144,6 +144,10 @@ class Exercise {
   // Exercise type for determining input fields
   final ExerciseType exerciseType;
 
+  /// Works one arm or leg at a time, so it can be logged "each side". Set
+  /// on custom exercises; library ones are recognised by name.
+  final bool oneSided;
+
   Exercise({
     required this.id,
     required this.name,
@@ -159,6 +163,7 @@ class Exercise {
     this.source = 'local',
     this.secondaryMuscles,
     this.exerciseType = ExerciseType.weightedStrength,
+    this.oneSided = false,
   });
 
   factory Exercise.fromJson(Map<String, dynamic> json) {
@@ -182,6 +187,7 @@ class Exercise {
         (e) => e.name == json['exerciseType'],
         orElse: () => ExerciseType.weightedStrength,
       ),
+      oneSided: json['oneSided'] == true,
     );
   }
 
@@ -201,6 +207,7 @@ class Exercise {
       'source': source,
       'secondaryMuscles': secondaryMuscles,
       'exerciseType': exerciseType.name,
+      if (oneSided) 'oneSided': true,
     };
   }
 
@@ -219,6 +226,7 @@ class Exercise {
     String? source,
     List<String>? secondaryMuscles,
     ExerciseType? exerciseType,
+    bool? oneSided,
   }) {
     return Exercise(
       id: id ?? this.id,
@@ -234,6 +242,7 @@ class Exercise {
       source: source ?? this.source,
       secondaryMuscles: secondaryMuscles ?? this.secondaryMuscles,
       exerciseType: exerciseType ?? this.exerciseType,
+      oneSided: oneSided ?? this.oneSided,
     );
   }
 

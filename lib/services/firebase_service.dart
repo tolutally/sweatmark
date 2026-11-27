@@ -95,10 +95,7 @@ class FirebaseService {
       // Trigger the authentication flow
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
 
-      if (googleUser == null) {
-        // User cancelled the sign-in
-        return null;
-      }
+      if (googleUser == null) throw const SignInCancelled();
 
       // Obtain the auth details from the request
       final GoogleSignInAuthentication googleAuth =
@@ -119,6 +116,8 @@ class FirebaseService {
       }
 
       return userCredential;
+    } on SignInCancelled {
+      rethrow;
     } catch (e) {
       print('Error signing in with Google: $e');
       return null;
@@ -184,6 +183,11 @@ class FirebaseService {
       }
 
       return userCredential;
+    } on SignInWithAppleAuthorizationException catch (e) {
+      // Closing Apple's sheet is a choice, not a failure.
+      if (e.code == AuthorizationErrorCode.canceled) rethrow;
+      print('Error signing in with Apple: $e');
+      return null;
     } catch (e) {
       print('Error signing in with Apple: $e');
       return null;
@@ -665,4 +669,9 @@ class FirebaseService {
       }
     });
   }
+}
+
+/// The person closed a provider's sign-in sheet; not an error to report.
+class SignInCancelled implements Exception {
+  const SignInCancelled();
 }

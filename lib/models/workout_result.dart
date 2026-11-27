@@ -1,5 +1,7 @@
 import 'package:intl/intl.dart';
+import '../data/exercise_catalog.dart';
 import '../services/pr_service.dart';
+import 'exercise_model.dart';
 import 'monthly_stats.dart';
 import 'weekly_progress.dart';
 import 'workout_model.dart';
@@ -16,6 +18,17 @@ class WorkoutResultData {
   final String volumeLabel;
   final List<WorkoutResultExercise> exercises;
 
+  /// The standout set: a new record if there is one, otherwise the strongest
+  /// lift by estimated one-rep max, then the most reps, the longest hold or
+  /// the longest cardio session. Null only when no completed set has any
+  /// measurement.
+  final WorkoutResultTopSet? topSet;
+
+  /// Main muscles, most sets first, then supporting muscles from the
+  /// exercise library that are not already primary.
+  final List<String> primaryMuscles;
+  final List<String> secondaryMuscles;
+
   const WorkoutResultData._({
     required this.workout,
     required this.durationLabel,
@@ -26,6 +39,9 @@ class WorkoutResultData {
     required this.newRecordCount,
     required this.volumeLabel,
     required this.exercises,
+    required this.topSet,
+    required this.primaryMuscles,
+    required this.secondaryMuscles,
   });
 
   factory WorkoutResultData.fromWorkout({
@@ -36,6 +52,7 @@ class WorkoutResultData {
     required String distanceUnit,
     required Map<String, int> weeklyGoals,
     Map<String, String> catalogNames = const {},
+    Map<String, Exercise> catalog = const {},
   }) {
     final grouped = <String, List<WorkoutExerciseLog>>{};
     var completedSets = 0;
@@ -52,7 +69,7 @@ class WorkoutResultData {
       }
       for (final set in sets) {
         if (!_knownWeighted(set)) continue;
-        final setVolume = set.weightKg! * set.reps!;
+        final setVolume = exercise.volumeKg(set) ?? 0;
         if (!setVolume.isFinite) continue;
         final nextVolume = volumeKg + setVolume;
         if (!nextVolume.isFinite) continue;
@@ -69,6 +86,35 @@ class WorkoutResultData {
         .map((record) => record.key)
         .toSet();
     final rows = <WorkoutResultExercise>[];
+    Exercise? definition(String id) =>
+        catalog[id] ?? catalog[ExerciseCatalog.canonicalId(id)];
+    final primarySets = <String, int>{};
+    final secondarySets = <String, int>{};
+    // Top set: a new record first, then the most informative kind of set
+    // (tier: known-unit lift > lift without a saved unit > reps > hold >
+    // cardio), then the biggest within that kind.
+    ({String name, String label, bool record, int tier, double score})? top;
+    void consider(
+        String name, String label, bool record, int tier, double score) {
+      if (!score.isFinite || score <= 0) return;
+      final current = top;
+      final better = current == null ||
+          (record != current.record
+              ? record
+              : tier != current.tier
+                  ? tier > current.tier
+                  : score > current.score);
+      if (better) {
+        top = (
+          name: name,
+          label: label,
+          record: record,
+          tier: tier,
+          score: score
+        );
+      }
+    }
+
     for (final group in grouped.entries) {
       final snapshots = group.value;
       final sets =
@@ -97,6 +143,8 @@ class WorkoutResultData {
           snapshots.any((exercise) => MonthlyStats.isCardio(exercise, null));
       final timed =
           snapshots.any((exercise) => exercise.exerciseType == 'timedHold');
+      final sideLog =
+          snapshots.where((exercise) => exercise.eachSide).firstOrNull;
       rows.add(WorkoutResultExercise(
         exerciseId: group.key,
         name: exerciseDisplayName(group.key,
@@ -108,11 +156,71 @@ class WorkoutResultData {
                 ? _cardioResult(sets, distanceUnit)
                 : timed
                     ? _timedResult(sets)
-                    : _strengthResult(sets, weightUnit),
+                    : _strengthResult(sets, weightUnit, sideLog: sideLog),
         isNewRecord: hasNewRecord,
+        sets: sets.length,
         isBaseline:
             !hasNewRecord && exerciseRecords.any((record) => record.isBaseline),
       ));
+      final row = rows.last;
+      final known = definition(group.key);
+      if (!cardio) {
+        final group0 = snapshots
+                .map((e) => e.muscleGroup?.trim())
+                .whereType<String>()
+                .where((m) => m.isNotEmpty)
+                .firstOrNull ??
+            known?.muscleGroup ??
+            '';
+        final primary = MonthlyStats.normalizeMuscle(group0);
+        if (primary != 'Unspecified' && primary != 'Cardio') {
+          primarySets[primary] = (primarySets[primary] ?? 0) + sets.length;
+        }
+        for (final muscle in known?.secondaryMuscles ?? const <String>[]) {
+          final name = MonthlyStats.normalizeMuscle(muscle);
+          if (name == 'Unspecified' || name == 'Cardio') continue;
+          secondarySets[name] = (secondarySets[name] ?? 0) + sets.length;
+        }
+        final best = PRService.bestSet(sets.where(_knownWeighted));
+        if (best != null) {
+          consider(
+              row.name,
+              _strengthResult([best], weightUnit, sideLog: sideLog),
+              hasNewRecord,
+              4,
+              best.weightKg! * (1 + best.reps! / 30));
+        }
+        for (final set in sets) {
+          final weight = set.weight;
+          final reps = set.reps ?? 0;
+          if (_knownWeighted(set) || reps <= 0) continue;
+          if (weight != null && weight.isFinite && weight > 0) {
+            // Older sets saved a weight without kg or lb; show it as logged.
+            consider(
+                row.name,
+                '${NumberFormat('#,##0.#').format(weight)} × $reps',
+                hasNewRecord,
+                3,
+                weight * (1 + reps / 30));
+          } else {
+            consider(row.name, '$reps reps', hasNewRecord, 2, reps.toDouble());
+          }
+        }
+        final hold = sets
+            .map((set) => set.durationSeconds ?? 0)
+            .fold<int>(0, (a, b) => a > b ? a : b);
+        if (hold > 0 && sets.every((set) => (set.reps ?? 0) == 0)) {
+          consider(
+              row.name, _timedResult(sets), hasNewRecord, 1, hold.toDouble());
+        }
+      } else {
+        final seconds =
+            sets.fold<int>(0, (sum, set) => sum + (set.durationSeconds ?? 0));
+        final distance = sets.fold<double>(
+            0, (sum, set) => sum + (set.distance ?? 0).toDouble());
+        consider(row.name, _cardioResult(sets, distanceUnit), hasNewRecord, 0,
+            seconds > 0 ? seconds.toDouble() : distance);
+      }
     }
 
     // The just-saved log may not yet be reflected in a provider's history list.
@@ -146,8 +254,26 @@ class WorkoutResultData {
           ? '—'
           : '${NumberFormat('#,##0').format(volume)} $displayWeightUnit',
       exercises: List.unmodifiable(rows),
+      topSet: switch (top) {
+        null => null,
+        final best => WorkoutResultTopSet(
+            exerciseName: best.name,
+            label: best.label,
+            isNewRecord: best.record),
+      },
+      primaryMuscles: List.unmodifiable(_ranked(primarySets).take(5)),
+      secondaryMuscles: List.unmodifiable(_ranked(secondarySets)
+          .where((muscle) => !primarySets.containsKey(muscle))
+          .take(6)),
     );
   }
+
+  static List<String> _ranked(Map<String, int> sets) => (sets.entries.toList()
+        ..sort((a, b) => b.value != a.value
+            ? b.value.compareTo(a.value)
+            : a.key.compareTo(b.key)))
+      .map((entry) => entry.key)
+      .toList();
 
   static List<WorkoutSet> _completed(Iterable<WorkoutSet> sets) =>
       sets.where((set) => set.isCompleted && !set.isSuperSetRest).toList();
@@ -162,13 +288,23 @@ class WorkoutResultData {
       set.weightKg!.isFinite &&
       set.weightKg! > 0;
 
-  static String _strengthResult(List<WorkoutSet> sets, String unit) {
+  static String _strengthResult(List<WorkoutSet> sets, String unit,
+      {WorkoutExerciseLog? sideLog}) {
+    final side = sideLog != null ? ' each side' : '';
     final best = PRService.bestSet(sets.where(_knownWeighted));
     if (best != null) {
       final displayUnit = unit == 'lb' ? 'lb' : 'kg';
+      if (sideLog != null) {
+        // Each side in the person's unit: "L 20 kg × 10 / R 15 kg × 8".
+        return sideLog.setText(best, (w) {
+          final kg = best.weightUnit == 'lb' ? w / 2.2046226218 : w;
+          final shown = displayUnit == 'lb' ? kg * 2.2046226218 : kg;
+          return '${NumberFormat('#,##0.#').format(shown)} $displayUnit';
+        });
+      }
       final weight = best.weightKg! * (displayUnit == 'lb' ? 2.2046226218 : 1);
       if (weight.isFinite) {
-        return '${NumberFormat('#,##0.#').format(weight)} $displayUnit × ${best.reps}';
+        return '${NumberFormat('#,##0.#').format(weight)} $displayUnit × ${best.reps}$side';
       }
     }
     final unweightedReps = sets
@@ -178,7 +314,7 @@ class WorkoutResultData {
         .map((set) => set.reps!)
         .toList()
       ..sort();
-    if (unweightedReps.isNotEmpty) return '${unweightedReps.last} reps';
+    if (unweightedReps.isNotEmpty) return '${unweightedReps.last} reps$side';
     final unknownWeightReps = sets
         .where((set) =>
             (set.reps ?? 0) > 0 &&
@@ -213,11 +349,13 @@ class WorkoutResultData {
 
   static String _cardioResult(List<WorkoutSet> sets, String unit) {
     var seconds = 0;
+    var reps = 0;
     var distanceKm = 0.0;
     var knownDistances = 0;
     var unknownDistance = false;
     for (final set in sets) {
       if ((set.durationSeconds ?? 0) > 0) seconds += set.durationSeconds!;
+      if ((set.reps ?? 0) > 0) reps += set.reps!;
       final distance = set.distance;
       if (distance == null || !distance.isFinite || distance <= 0) continue;
       if (!['km', 'mi'].contains(set.distanceUnit)) {
@@ -236,6 +374,9 @@ class WorkoutResultData {
       if (knownDistances > 0 && distance.isFinite)
         '${NumberFormat('#,##0.#').format(distance)} $displayUnit',
       if (seconds > 0) _duration(seconds),
+      // Cardio counted in reps, like jumping jacks or skipping, when it has
+      // no time or distance.
+      if (reps > 0 && seconds == 0 && knownDistances == 0) '$reps reps',
       if (unknownDistance) 'Distance unit not recorded',
     ];
     return values.isEmpty ? 'Metrics not recorded' : values.join(' · ');
@@ -261,6 +402,9 @@ class WorkoutResultExercise {
   final bool isNewRecord;
   final bool isBaseline;
 
+  /// Completed sets of this exercise in the workout.
+  final int sets;
+
   const WorkoutResultExercise({
     required this.exerciseId,
     required this.name,
@@ -268,5 +412,19 @@ class WorkoutResultExercise {
     required this.resultLabel,
     required this.isNewRecord,
     required this.isBaseline,
+    this.sets = 0,
+  });
+}
+
+/// The single standout result shown on the share image.
+class WorkoutResultTopSet {
+  final String exerciseName;
+  final String label;
+  final bool isNewRecord;
+
+  const WorkoutResultTopSet({
+    required this.exerciseName,
+    required this.label,
+    required this.isNewRecord,
   });
 }

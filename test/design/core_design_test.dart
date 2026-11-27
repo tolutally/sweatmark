@@ -88,23 +88,35 @@ void main() {
         'profile supports narrow screen and larger text in ${entry.key}',
         (tester) async {
       await _pumpSmallScreen(tester, entry.value, const AccountProfileScreen());
-      await tester.scrollUntilVisible(find.text('Recent activity'), 160);
+      await tester.scrollUntilVisible(find.text('Exercise library'), 160);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
+      expect(find.text('Recent activity'), findsNothing);
     });
 
     testWidgets(
         'sign in supports narrow screen and larger text in ${entry.key}',
         (tester) async {
       await _pumpSmallScreen(tester, entry.value, const AuthScreen());
-      await tester.scrollUntilVisible(find.text('Create Account'), 160,
+      expect(find.text('Create your account'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Create account'), 160,
           scrollable: find.byType(Scrollable).first);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      await tester.scrollUntilVisible(
-          find.text('Your workouts sync across all devices'), 160,
+      // The footer link opens the separate sign-in screen and back.
+      await tester.scrollUntilVisible(find.text('Sign in'), 160,
           scrollable: find.byType(Scrollable).first);
+      await tester.tap(find.text('Sign in'));
       await tester.pumpAndSettle();
+      expect(find.text('Welcome back'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.scrollUntilVisible(find.text('Forgot password?'), 160,
+          scrollable: find.byType(Scrollable).first);
+      await tester.scrollUntilVisible(find.text('Create account'), 160,
+          scrollable: find.byType(Scrollable).first);
+      await tester.tap(find.text('Create account'));
+      await tester.pumpAndSettle();
+      expect(find.text('Create your account'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }

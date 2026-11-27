@@ -11,6 +11,20 @@ import '../models/exercise_model.dart';
 class ExerciseCatalog {
   static const asset = 'assets/exercises/catalog_v1.json';
 
+  /// Everyday exercises the bundled catalog lacks (dead hang, sled push…),
+  /// written by SweatMark. IDs start with `sm:`; there are no GIFs.
+  static const staplesAsset = 'assets/exercises/sweatmark_staples.json';
+
+  /// Everyday names shown instead of technical library names ("Face Pull"
+  /// for "Cable Standing Rear Delt Row With Rope"), keyed by exercise ID.
+  static const namesAsset = 'assets/exercises/everyday_names.json';
+
+  // Library names replaced by everyday names, by ID; still searchable.
+  static Map<String, String> _libraryNames = {};
+
+  /// The original library name of a renamed exercise, or null.
+  static String? libraryName(String id) => _libraryNames[id];
+
   /// Reviewed mappings for older IDs whose names do not match exactly.
   static const _manualAliases = {
     'ex_hip_adduction_machine': 'gg:adductors/lever-seated-hip-adduction',
@@ -51,11 +65,26 @@ class ExerciseCatalog {
 
   static Future<List<Exercise>> load({AssetBundle? bundle}) =>
       _loading ??= () async {
-        final raw = await (bundle ?? rootBundle).loadString(asset);
-        final json = jsonDecode(raw) as Map<String, dynamic>;
-        final exercises = (json['exercises'] as List)
-            .map((item) => Exercise.fromJson(item as Map<String, dynamic>))
-            .toList();
+        final source = bundle ?? rootBundle;
+        final everyday = Map<String, String>.from(
+            (jsonDecode(await source.loadString(namesAsset))
+                as Map<String, dynamic>)['names'] as Map);
+        final libraryNames = <String, String>{};
+        final exercises = <Exercise>[];
+        for (final file in [asset, staplesAsset]) {
+          final json =
+              jsonDecode(await source.loadString(file)) as Map<String, dynamic>;
+          for (final item in json['exercises'] as List) {
+            final row = Map<String, dynamic>.from(item as Map);
+            final name = everyday[row['id']];
+            if (name != null) {
+              libraryNames[row['id'] as String] = row['name'] as String;
+              row['name'] = name;
+            }
+            exercises.add(Exercise.fromJson(row));
+          }
+        }
+        _libraryNames = libraryNames;
         use(exercises);
         return exercises;
       }();
@@ -66,6 +95,11 @@ class ExerciseCatalog {
     final index = <String, String>{};
     for (final exercise in exercises) {
       index.putIfAbsent(signature(exercise.name), () => exercise.id);
+      // Older workouts saved the library name; keep it resolving.
+      final library = _libraryNames[exercise.id];
+      if (library != null) {
+        index.putIfAbsent(signature(library), () => exercise.id);
+      }
     }
     _bySignature = index;
   }
@@ -74,6 +108,7 @@ class ExerciseCatalog {
     _exercises = null;
     _loading = null;
     _bySignature = {};
+    _libraryNames = {};
   }
 
   /// Word-order-insensitive name key: "Upright Barbell Row" and "Barbell
@@ -92,7 +127,11 @@ class ExerciseCatalog {
   /// The ID that PRs, progress and history comparisons use. Custom exercises
   /// keep their own stable IDs even when their names match the catalog.
   static String canonicalId(String id, {String? name}) {
-    if (id.startsWith('gg:') || id.startsWith('custom_')) return id;
+    if (id.startsWith('gg:') ||
+        id.startsWith('sm:') ||
+        id.startsWith('custom_')) {
+      return id;
+    }
     final manual = _manualAliases[id];
     if (manual != null) return manual;
     var key = name?.trim() ?? '';

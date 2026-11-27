@@ -1,11 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
+import '../models/each_side.dart';
 import '../models/exercise_model.dart';
 import '../theme/app_theme.dart';
 
 class CreateExerciseScreen extends StatefulWidget {
-  const CreateExerciseScreen({super.key});
+  /// Optional starting values, e.g. from an AI search suggestion.
+  final String? initialName;
+  final String? initialMuscleGroup;
+  final String? initialEquipment;
+
+  const CreateExerciseScreen(
+      {super.key,
+      this.initialName,
+      this.initialMuscleGroup,
+      this.initialEquipment});
 
   @override
   State<CreateExerciseScreen> createState() => _CreateExerciseScreenState();
@@ -20,6 +30,10 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
   final Set<String> _selectedSetTypes = {'Weight', 'Reps'};
   String? _selectedMuscleGroup;
   String? _selectedEquipment;
+
+  // "Each side": follows the name (e.g. "Single Arm …") until set by hand.
+  bool _eachSide = false;
+  bool _eachSideTouched = false;
 
   final List<String> _setTypes = [
     'Weight',
@@ -47,6 +61,64 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
     'Bands',
     'Other'
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController.text = widget.initialName?.trim() ?? '';
+    _selectedMuscleGroup = _matchMuscle(widget.initialMuscleGroup);
+    _selectedEquipment = _matchEquipment(widget.initialEquipment);
+    _eachSide = EachSide.isOneSided(_nameController.text);
+    // A name like "Single Arm Cable Row" turns Each side on, until it's set
+    // by hand.
+    _nameController.addListener(() {
+      if (_eachSideTouched) return;
+      final oneSided = EachSide.isOneSided(_nameController.text);
+      if (oneSided != _eachSide) setState(() => _eachSide = oneSided);
+    });
+  }
+
+  /// Library muscle names map onto this screen's broader groups.
+  String? _matchMuscle(String? muscle) {
+    final key = muscle?.trim().toLowerCase() ?? '';
+    if (key.isEmpty) return null;
+    for (final group in _muscleGroups) {
+      if (group.toLowerCase() == key) return group;
+    }
+    if (['abs', 'core', 'obliques', 'serratus'].contains(key)) {
+      return 'Abs / Core';
+    }
+    if (['lats', 'upper back', 'lower back', 'traps'].contains(key)) {
+      return 'Back';
+    }
+    if ([
+      'quadriceps',
+      'hamstrings',
+      'glutes',
+      'calves',
+      'adductors',
+      'abductors'
+    ].contains(key)) {
+      return 'Legs';
+    }
+    return null;
+  }
+
+  String? _matchEquipment(String? equipment) {
+    final key = equipment?.trim().toLowerCase() ?? '';
+    if (key.isEmpty) return null;
+    for (final option in _equipment) {
+      if (option.toLowerCase() == key) return option;
+    }
+    if (key.contains('band')) return 'Bands';
+    if (key.contains('body')) return 'Bodyweight';
+    if (key.contains('lever') ||
+        key.contains('smith') ||
+        key.contains('sled')) {
+      return 'Machine';
+    }
+    return 'Other';
+  }
 
   @override
   void dispose() {
@@ -88,6 +160,7 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
       videoUrl: '',
       difficulty: 'Intermediate',
       source: 'custom',
+      oneSided: _eachSide,
     );
 
     Navigator.pop(context, exercise);
@@ -267,6 +340,48 @@ class _CreateExerciseScreenState extends State<CreateExerciseScreen> {
                     ),
                   ],
                 ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Each side: one arm or leg at a time.
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 12, 10, 12),
+                decoration: BoxDecoration(
+                  color: _colors.surface,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Row(children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Each side',
+                            style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: _colors.onSurface)),
+                        const SizedBox(height: 2),
+                        Text(
+                            'One arm or leg at a time. Log weight and reps for left and right.',
+                            style: TextStyle(
+                                fontSize: 13,
+                                height: 1.35,
+                                color: _colors.onSurfaceVariant)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Switch.adaptive(
+                    key: const ValueKey('custom-each-side'),
+                    value: _eachSide,
+                    activeTrackColor: AppColors.lavender,
+                    onChanged: (on) => setState(() {
+                      _eachSide = on;
+                      _eachSideTouched = true;
+                    }),
+                  ),
+                ]),
               ),
 
               const SizedBox(height: 16),

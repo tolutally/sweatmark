@@ -32,6 +32,8 @@ class NotificationService {
   
   // Rest timer notification ID
   static const int _restTimerNotificationId = 999;
+  static const int _loggingReminderId = 1015;
+  static const int _endWorkoutReminderId = 1016;
 
   /// Initialize the notification service
   Future<void> initialize() async {
@@ -565,6 +567,71 @@ class NotificationService {
     debugPrint('📅 Scheduled rest timer complete: $scheduledTime');
   }
   
+  /// Reminds the person to log sets after a quiet stretch mid-workout.
+  /// Replaces any earlier reminder.
+  Future<void> scheduleLoggingReminder(DateTime at) async {
+    await _localNotifications.zonedSchedule(
+      _loggingReminderId,
+      'Still training?',
+      'Nothing logged for 15 minutes. Tick off finished sets so your workout time stays right.',
+      tz.TZDateTime.from(at, tz.local),
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          _reminderChannelId,
+          'Workout Reminders',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: false,
+          presentSound: true,
+        ),
+      ),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+    );
+  }
+
+  Future<void> cancelLoggingReminder() =>
+      _localNotifications.cancel(_loggingReminderId);
+
+  /// Asks the person to end a workout that has sat paused for an hour,
+  /// likely forgotten. Shows on the lock screen and as a banner even when
+  /// the app is closed. Replaces any earlier one.
+  Future<void> scheduleEndWorkoutReminder(DateTime at) async {
+    await _localNotifications.zonedSchedule(
+      _endWorkoutReminderId,
+      'End your workout?',
+      'Your workout has been paused for over an hour. Open SweatMark to finish and save it.',
+      tz.TZDateTime.from(at, tz.local),
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          _reminderChannelId,
+          'Workout Reminders',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBanner: true,
+          presentList: true,
+          presentBadge: false,
+          presentSound: true,
+        ),
+      ),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+    );
+  }
+
+  Future<void> cancelEndWorkoutReminder() =>
+      _localNotifications.cancel(_endWorkoutReminderId);
+
   /// Cancel the scheduled rest timer complete notification
   Future<void> cancelScheduledRestTimerNotification() async {
     await _localNotifications.cancel(_restTimerNotificationId + 1);
