@@ -260,14 +260,12 @@ class WorkoutDetailScreen extends StatelessWidget {
 
   /// One recorded set in the terms it was logged; nothing is inferred. A
   /// missing weight unit is disclosed once per exercise, not on every set.
-  static String _setLabel(WorkoutSet set) {
+  static String _setLabel(WorkoutSet set, WorkoutExerciseLog exercise) {
     final parts = <String>[];
     final weighted = set.weight != null && set.weight! > 0;
     final unit = _unknownUnit(set) ? '' : ' ${set.weightUnit}';
-    if (weighted && (set.reps ?? 0) > 0) {
-      parts.add('${_number(set.weight!)}$unit × ${set.reps}');
-    } else if ((set.reps ?? 0) > 0) {
-      parts.add('${set.reps} reps');
+    if ((set.reps ?? 0) > 0) {
+      parts.add(exercise.setText(set, (w) => '${_number(w)}$unit'));
     } else if (weighted) {
       parts.add('${_number(set.weight!)}$unit');
     }
@@ -331,7 +329,7 @@ class WorkoutDetailScreen extends StatelessWidget {
         current.exercises.where((e) => _completed(e).isNotEmpty).toList();
     final totalReps = [
       for (final exercise in exercises)
-        for (final set in _completed(exercise)) set.reps ?? 0
+        for (final set in _completed(exercise)) exercise.totalReps(set)
     ].fold<int>(0, (sum, reps) => sum + reps);
 
     // The week this workout belongs to, counted like the Home weekly goal.
@@ -701,7 +699,7 @@ class WorkoutDetailScreen extends StatelessWidget {
                           name: exerciseDisplayName(exercise.exerciseId,
                               saved: exercise.exerciseName,
                               catalog: catalogNames),
-                          setLabel: _setLabel,
+                          setLabel: (set) => _setLabel(set, exercise),
                           unknownUnit: _completed(exercise).any(_unknownUnit),
                           accent: _ExerciseDetails
                               .accents[index % _ExerciseDetails.accents.length],

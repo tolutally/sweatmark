@@ -27,15 +27,21 @@ class PersonalRecord {
   String get celebrationId =>
       '$workoutId/$key/${weightKg?.toStringAsFixed(5)}/$reps';
   bool get isBaseline => previous == null;
+
+  /// Logged "each side": kept apart from whole-set records of the movement.
+  bool get eachSide => kind.endsWith(PRService.sideSuffix);
   String label(String unit) {
-    if (weightKg == null) return '$reps reps';
+    final side = eachSide ? ' each side' : '';
+    if (weightKg == null) return '$reps reps$side';
     final weight = weightKg! * (unit == 'lb' ? 2.2046226218 : 1);
     final value = weight.toStringAsFixed(1).replaceFirst(RegExp(r'\.0$'), '');
-    return '$value $unit × $reps';
+    return '$value $unit × $reps$side';
   }
 }
 
 class PRService {
+  static const sideSuffix = '-side';
+
   static int compare(double? weight, int reps, double? oldWeight, int oldReps) {
     final delta = (weight ?? 0) - (oldWeight ?? 0);
     return delta.abs() <= 0.00001
@@ -48,6 +54,7 @@ class PRService {
         .where((s) =>
             s.isCompleted &&
             !s.isSuperSetRest &&
+            !s.isWarmup &&
             s.weightKg != null &&
             s.weightKg!.isFinite &&
             s.weightKg! > 0 &&
@@ -88,14 +95,18 @@ class PRService {
               .contains('assist')) continue;
       for (var i = 0; i < exercise.sets.length; i++) {
         final set = exercise.sets[i];
-        if (!set.isCompleted || set.isSuperSetRest || (set.reps ?? 0) <= 0)
+        // On "each side" sets the weaker side is the one that counts.
+        final side = exercise.recordSide(set);
+        final reps = side.reps;
+        // Warm-ups never count as records.
+        if (!set.isCompleted || set.isSuperSetRest || set.isWarmup || reps <= 0)
           continue;
         double? kg;
         String kind;
         if (set.weight != null && (!set.weight!.isFinite || set.weight! < 0))
           continue;
         if ((set.weight ?? 0) > 0) {
-          kg = set.weightKg;
+          kg = side.kg;
           if (kg == null ||
               !kg.isFinite ||
               kg <= 0 ||
@@ -106,11 +117,12 @@ class PRService {
         } else {
           continue;
         }
+        if (exercise.eachSide) kind += sideSuffix;
         final canonical = ExerciseCatalog.canonicalId(exercise.exerciseId,
             name: exercise.exerciseName);
         final key = '$canonical/$kind';
         final old = candidates[key] ?? best[key];
-        if (old != null && compare(kg, set.reps!, old.weightKg, old.reps) <= 0)
+        if (old != null && compare(kg, reps, old.weightKg, old.reps) <= 0)
           continue;
         candidates[key] = PersonalRecord(
             exerciseId: exercise.exerciseId,
@@ -118,7 +130,7 @@ class PRService {
             workoutId: workout.id,
             kind: kind,
             setIndex: i,
-            reps: set.reps!,
+            reps: reps,
             weightKg: kg,
             timestamp: workout.timestamp,
             previous: best[key],

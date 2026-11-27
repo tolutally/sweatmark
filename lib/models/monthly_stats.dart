@@ -106,13 +106,14 @@ class MonthlyStats {
           result.muscleSets[muscle] =
               (result.muscleSets[muscle] ?? 0) + sets.length;
           for (final set in sets) {
-            if ((set.reps ?? 0) > 0) result.reps += set.reps!;
+            if ((set.reps ?? 0) > 0) result.reps += exercise.totalReps(set);
             if (set.weight != null &&
                 set.weight!.isFinite &&
                 set.weight! > 0 &&
                 (set.reps ?? 0) > 0) {
               if (set.weightUnit == 'kg' || set.weightUnit == 'lb') {
-                result.volumeKg += set.weightKg! * set.reps!;
+                // "Each side" sets count both sides.
+                result.volumeKg += exercise.volumeKg(set) ?? 0;
                 result.weightedSets++;
               } else {
                 result.unknownWeightSets++;

@@ -43,8 +43,18 @@ class _KeyboardDoneBarState extends State<KeyboardDoneBar> {
   Widget build(BuildContext context) {
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
     final show = keyboard > 0 && _editingText;
+    final media = MediaQuery.of(context);
     return Stack(children: [
-      widget.child,
+      // The bar counts as keyboard, so screens keep the field being typed
+      // in above it instead of behind it.
+      // Always wrapped, so showing the bar never rebuilds the app below.
+      MediaQuery(
+          data: show
+              ? media.copyWith(
+                  viewInsets: media.viewInsets
+                      .copyWith(bottom: keyboard + KeyboardDoneBar.barHeight))
+              : media,
+          child: widget.child),
       if (show)
         Positioned(
           left: 0,

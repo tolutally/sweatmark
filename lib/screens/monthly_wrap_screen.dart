@@ -85,7 +85,7 @@ class MonthlyWrapCard extends StatelessWidget {
 
   /// The purple SweatMark mark on its own, without the app icon's dark
   /// square. The artwork has wide padding, so it's drawn larger and centred.
-  static Widget _logo(double size) => SizedBox(
+  static Widget logo(double size) => SizedBox(
         width: size,
         height: size,
         child: OverflowBox(
@@ -391,7 +391,7 @@ class MonthlyWrapCard extends StatelessWidget {
           color: _background, borderRadius: BorderRadius.circular(28)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
-          _logo(30),
+          logo(30),
           const SizedBox(width: 9),
           const Expanded(
             child: Text('SweatMark',
@@ -437,7 +437,7 @@ class MonthlyWrapCard extends StatelessWidget {
           const Text('Tracked with',
               style: TextStyle(fontSize: 11.5, color: _muted)),
           const SizedBox(width: 6),
-          _logo(16),
+          logo(16),
           const SizedBox(width: 5),
           const Text('SweatMark',
               style: TextStyle(

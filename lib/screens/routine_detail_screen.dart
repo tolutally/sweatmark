@@ -85,9 +85,11 @@ class RoutineDetailScreen extends StatelessWidget {
                 onPressed: routine.exercises.isEmpty &&
                         !workouts.isWorkoutActive
                     ? null
-                    : () {
-                        if (!workouts.isWorkoutActive) {
-                          workouts.startWorkout(workoutName: routine.name);
+                    : () async {
+                        // Only a newly started workout gets the routine;
+                        // one still loading is resumed as it was.
+                        if (await workouts.resumeOrStart(
+                            workoutName: routine.name)) {
                           for (final exercise in routine.exercises) {
                             workouts.addExerciseFromTemplate(
                                 name: _name(exercise),
@@ -99,6 +101,7 @@ class RoutineDetailScreen extends StatelessWidget {
                                 targetReps: exercise.targetReps);
                           }
                         }
+                        if (!context.mounted) return;
                         Navigator.push(
                             context,
                             MaterialPageRoute(

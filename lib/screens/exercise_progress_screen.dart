@@ -358,12 +358,21 @@ class ExerciseProgressScreen extends StatelessWidget {
 class PreviousSets extends StatelessWidget {
   final String exerciseId;
   const PreviousSets({super.key, required this.exerciseId});
+
+  static String _last(WorkoutExerciseLog log, WorkoutSet s) {
+    if (s.weight != null || s.reps != null) {
+      return log.setText(s,
+          (w) => '${w.toStringAsFixed(1)} ${s.weightUnit ?? 'unit unknown'}');
+    }
+    return '${s.durationSeconds ?? 0}s';
+  }
+
   @override
   Widget build(BuildContext context) {
     // One pass for the most recent workout with this exercise; sorting the
     // whole history here ran on every keystroke while logging.
     WorkoutLog? latest;
-    List<WorkoutSet> latestSets = const [];
+    List<(WorkoutExerciseLog, WorkoutSet)> latestSets = const [];
     for (final workout in context.watch<WorkoutNotifier>().workoutHistory) {
       if (workout.isTestData) continue;
       if (latest != null && !workout.timestamp.isAfter(latest.timestamp)) {
@@ -372,8 +381,8 @@ class PreviousSets extends StatelessWidget {
       final sets = workout.exercises
           .where((e) => ExerciseCatalog.sameExercise(e.exerciseId, exerciseId,
               nameA: e.exerciseName))
-          .expand((e) => e.sets)
-          .where((s) => s.isCompleted && !s.isSuperSetRest)
+          .expand((e) => e.sets.map((s) => (e, s)))
+          .where((p) => p.$2.isCompleted && !p.$2.isSuperSetRest)
           .toList();
       if (sets.isEmpty) continue;
       latest = workout;
@@ -394,7 +403,7 @@ class PreviousSets extends StatelessWidget {
         const SizedBox(width: 6),
         Expanded(
           child: Text(
-              'Last time: ${latestSets.map((s) => s.weight != null ? '${s.weightLabel} × ${s.reps ?? 0}' : s.reps != null ? '${s.reps} reps' : '${s.durationSeconds ?? 0}s').join(' · ')}',
+              'Last time: ${latestSets.map((p) => _last(p.$1, p.$2)).join(' · ')}',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(

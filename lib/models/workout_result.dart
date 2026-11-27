@@ -69,7 +69,7 @@ class WorkoutResultData {
       }
       for (final set in sets) {
         if (!_knownWeighted(set)) continue;
-        final setVolume = set.weightKg! * set.reps!;
+        final setVolume = exercise.volumeKg(set) ?? 0;
         if (!setVolume.isFinite) continue;
         final nextVolume = volumeKg + setVolume;
         if (!nextVolume.isFinite) continue;
@@ -143,6 +143,8 @@ class WorkoutResultData {
           snapshots.any((exercise) => MonthlyStats.isCardio(exercise, null));
       final timed =
           snapshots.any((exercise) => exercise.exerciseType == 'timedHold');
+      final sideLog =
+          snapshots.where((exercise) => exercise.eachSide).firstOrNull;
       rows.add(WorkoutResultExercise(
         exerciseId: group.key,
         name: exerciseDisplayName(group.key,
@@ -154,8 +156,9 @@ class WorkoutResultData {
                 ? _cardioResult(sets, distanceUnit)
                 : timed
                     ? _timedResult(sets)
-                    : _strengthResult(sets, weightUnit),
+                    : _strengthResult(sets, weightUnit, sideLog: sideLog),
         isNewRecord: hasNewRecord,
+        sets: sets.length,
         isBaseline:
             !hasNewRecord && exerciseRecords.any((record) => record.isBaseline),
       ));
@@ -180,8 +183,12 @@ class WorkoutResultData {
         }
         final best = PRService.bestSet(sets.where(_knownWeighted));
         if (best != null) {
-          consider(row.name, _strengthResult([best], weightUnit), hasNewRecord,
-              4, best.weightKg! * (1 + best.reps! / 30));
+          consider(
+              row.name,
+              _strengthResult([best], weightUnit, sideLog: sideLog),
+              hasNewRecord,
+              4,
+              best.weightKg! * (1 + best.reps! / 30));
         }
         for (final set in sets) {
           final weight = set.weight;
@@ -281,13 +288,23 @@ class WorkoutResultData {
       set.weightKg!.isFinite &&
       set.weightKg! > 0;
 
-  static String _strengthResult(List<WorkoutSet> sets, String unit) {
+  static String _strengthResult(List<WorkoutSet> sets, String unit,
+      {WorkoutExerciseLog? sideLog}) {
+    final side = sideLog != null ? ' each side' : '';
     final best = PRService.bestSet(sets.where(_knownWeighted));
     if (best != null) {
       final displayUnit = unit == 'lb' ? 'lb' : 'kg';
+      if (sideLog != null) {
+        // Each side in the person's unit: "L 20 kg × 10 / R 15 kg × 8".
+        return sideLog.setText(best, (w) {
+          final kg = best.weightUnit == 'lb' ? w / 2.2046226218 : w;
+          final shown = displayUnit == 'lb' ? kg * 2.2046226218 : kg;
+          return '${NumberFormat('#,##0.#').format(shown)} $displayUnit';
+        });
+      }
       final weight = best.weightKg! * (displayUnit == 'lb' ? 2.2046226218 : 1);
       if (weight.isFinite) {
-        return '${NumberFormat('#,##0.#').format(weight)} $displayUnit × ${best.reps}';
+        return '${NumberFormat('#,##0.#').format(weight)} $displayUnit × ${best.reps}$side';
       }
     }
     final unweightedReps = sets
@@ -297,7 +314,7 @@ class WorkoutResultData {
         .map((set) => set.reps!)
         .toList()
       ..sort();
-    if (unweightedReps.isNotEmpty) return '${unweightedReps.last} reps';
+    if (unweightedReps.isNotEmpty) return '${unweightedReps.last} reps$side';
     final unknownWeightReps = sets
         .where((set) =>
             (set.reps ?? 0) > 0 &&
@@ -332,11 +349,13 @@ class WorkoutResultData {
 
   static String _cardioResult(List<WorkoutSet> sets, String unit) {
     var seconds = 0;
+    var reps = 0;
     var distanceKm = 0.0;
     var knownDistances = 0;
     var unknownDistance = false;
     for (final set in sets) {
       if ((set.durationSeconds ?? 0) > 0) seconds += set.durationSeconds!;
+      if ((set.reps ?? 0) > 0) reps += set.reps!;
       final distance = set.distance;
       if (distance == null || !distance.isFinite || distance <= 0) continue;
       if (!['km', 'mi'].contains(set.distanceUnit)) {
@@ -355,6 +374,9 @@ class WorkoutResultData {
       if (knownDistances > 0 && distance.isFinite)
         '${NumberFormat('#,##0.#').format(distance)} $displayUnit',
       if (seconds > 0) _duration(seconds),
+      // Cardio counted in reps, like jumping jacks or skipping, when it has
+      // no time or distance.
+      if (reps > 0 && seconds == 0 && knownDistances == 0) '$reps reps',
       if (unknownDistance) 'Distance unit not recorded',
     ];
     return values.isEmpty ? 'Metrics not recorded' : values.join(' · ');
@@ -380,6 +402,9 @@ class WorkoutResultExercise {
   final bool isNewRecord;
   final bool isBaseline;
 
+  /// Completed sets of this exercise in the workout.
+  final int sets;
+
   const WorkoutResultExercise({
     required this.exerciseId,
     required this.name,
@@ -387,6 +412,7 @@ class WorkoutResultExercise {
     required this.resultLabel,
     required this.isNewRecord,
     required this.isBaseline,
+    this.sets = 0,
   });
 }
 

@@ -20,7 +20,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   Future<WorkoutNotifier> setUp(List<DateTime?> reminders,
-      {DateTime Function()? clock}) async {
+      {DateTime Function()? clock, List<DateTime?>? endReminders}) async {
     final directory = await Directory.systemTemp.createTemp('logging-flow-');
     final storage = StorageService(
         account:
@@ -28,6 +28,7 @@ void main() {
     final notifier = WorkoutNotifier(SyncService(OfflineCloud(), storage),
         storageService: storage);
     notifier.remind = (at) async => reminders.add(at);
+    notifier.remindToEnd = (at) async => endReminders?.add(at);
     if (clock != null) notifier.clock = clock;
     await notifier.ready;
     return notifier;
@@ -83,6 +84,25 @@ void main() {
 
     notifier.resetWorkout();
     expect(reminders.last, isNull, reason: 'cancelled when the workout ends');
+    notifier.dispose();
+  });
+
+  test('a workout paused for an hour asks to be ended', () async {
+    final ends = <DateTime?>[];
+    var now = DateTime(2026, 11, 26, 9);
+    final notifier = await setUp([], clock: () => now, endReminders: ends);
+    notifier.startWorkout();
+    // The clock pauses after 30 idle minutes; an hour later the phone asks.
+    expect(ends.last, DateTime(2026, 11, 26, 10, 30));
+
+    notifier.addExercise(press);
+    now = now.add(const Duration(minutes: 20));
+    notifier.toggleSetCompletion('press', 0);
+    expect(ends.last, DateTime(2026, 11, 26, 10, 50),
+        reason: 'logging moves it on');
+
+    notifier.resetWorkout();
+    expect(ends.last, isNull, reason: 'cancelled when the workout ends');
     notifier.dispose();
   });
 

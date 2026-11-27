@@ -126,8 +126,14 @@ class _CardioSessionCardState extends State<CardioSessionCard> {
 
   void _keepTicking(bool running) {
     if (running && _tick == null) {
-      _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) setState(() {});
+      // Several checks a second so the clock never skips a second.
+      var shown = -1;
+      _tick = Timer.periodic(const Duration(milliseconds: 250), (_) {
+        if (!mounted) return;
+        final seconds = context.read<WorkoutNotifier>().cardioSeconds(_id);
+        if (seconds == shown) return;
+        shown = seconds;
+        setState(() {});
       });
     } else if (!running) {
       _tick?.cancel();

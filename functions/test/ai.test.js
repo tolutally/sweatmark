@@ -152,3 +152,32 @@ test('daily AI quota counts per account per day and resets the next day', async 
 test('exercise search is registered with a quota cost', () => {
   assert.equal(exerciseSearch.quotaCost, 1);
 });
+
+test('superset partners are real, new library exercises', () => {
+  const {supersetPartner, checkPartners} = require('../lib/ai/workers/supersetPartner');
+  const {CATALOG} = require('../lib/ai/catalog');
+  assert.equal(supersetPartner.quotaCost, 1);
+  assert.ok(require('../lib/ai/registry').WORKERS.supersetPartner);
+  const [a, b, c] = CATALOG.map((row) => row[0]);
+  const result = checkPartners({matches: [
+    {id: a, reason: 'Works your back while your chest rests'},
+    {id: 'made-up', reason: 'not in the library'},
+    {id: b, reason: 'already in the workout'},
+    {id: a, reason: 'duplicate'},
+    {id: c, reason: 'x'.repeat(200)},
+  ]}, [b]);
+  assert.deepEqual(result.matches.map((m) => m.id), [a, c]);
+  assert.ok(result.matches[1].reason.length <= 90);
+  assert.equal(result.customExercise, null);
+});
+
+test('superset partner input is checked', () => {
+  const {supersetPartner} = require('../lib/ai/workers/supersetPartner');
+  const ok = supersetPartner.parseInput(
+    {exercise: ' Bench   Press ', muscle: 'Chest', mode: 'alternate', exclude: ['x']});
+  assert.deepEqual(ok, {exercise: 'Bench Press', muscle: 'Chest', equipment: undefined,
+    mode: 'alternate', exclude: ['x']});
+  assert.throws(() => supersetPartner.parseInput({exercise: 'Bench', mode: 'opposite'}));
+  assert.throws(() => supersetPartner.parseInput({mode: 'same'}));
+  assert.throws(() => supersetPartner.parseInput({exercise: 'Bench', mode: 'same', exclude: 'x'}));
+});

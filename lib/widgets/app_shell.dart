@@ -18,8 +18,9 @@ class AppShell extends StatelessWidget {
     final navigation = context.watch<TabNavigationNotifier>();
     final workout = context.watch<WorkoutNotifier>();
     final colors = Theme.of(context).colorScheme;
-    void openWorkout() {
-      if (!workout.isWorkoutActive) workout.startWorkout();
+    Future<void> openWorkout() async {
+      await workout.resumeOrStart();
+      if (!context.mounted) return;
       Navigator.push(context,
           MaterialPageRoute(builder: (_) => const ActiveWorkoutScreen()));
     }

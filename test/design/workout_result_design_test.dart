@@ -212,11 +212,15 @@ void main() {
           findsNothing);
       expect(find.descendant(of: card, matching: find.byType(TextField)),
           findsNothing);
-      // The image keeps the summary's totals, not its exercise list.
+      // The image lists every exercise with its sets when they fit.
       expect(
           find.descendant(
               of: card,
               matching: find.text(workout.exercises.last.exerciseName!)),
+          findsOneWidget);
+      expect(find.descendant(of: card, matching: find.text('2 sets')),
+          findsNWidgets(4));
+      expect(find.descendant(of: card, matching: find.textContaining('more')),
           findsNothing);
       expect(find.descendant(of: card, matching: find.text('Top set')),
           findsOneWidget);
@@ -248,9 +252,19 @@ void main() {
     await tester.tap(find.byTooltip('Share workout'));
     await tester.pumpAndSettle();
     final card = _exportedCard();
-    final boundary = tester.renderObject<RenderRepaintBoundary>(card);
+    // The 9:16 canvas is scaled to fit the preview; the image is its
+    // repaint boundary.
+    final boundary = tester.renderObject<RenderRepaintBoundary>(find
+        .descendant(of: card, matching: find.byType(RepaintBoundary))
+        .first);
     expect(find.descendant(of: card, matching: find.text('Chest')),
         findsOneWidget);
+    // Twelve exercises don't all fit the story: the rest are counted.
+    expect(
+        find.descendant(
+            of: card, matching: find.textContaining('more exercises')),
+        findsOneWidget);
+    expect(tester.takeException(), isNull);
     // The footer is the last thing painted; it must reach the PNG.
     final lastRow = tester.renderObject<RenderBox>(
         find.descendant(of: card, matching: find.text('Tracked with')));
@@ -283,6 +297,8 @@ void main() {
       final frame = await codec.getNextFrame();
       final image = frame.image;
       try {
+        expect((image.width, image.height), (1080, 1920),
+            reason: '9:16 for stories');
         final ratio = image.width / boundary.size.width;
         expect(image.height, closeTo(boundary.size.height * ratio, 2));
         final pixels =

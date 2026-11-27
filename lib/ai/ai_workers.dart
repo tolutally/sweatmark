@@ -63,6 +63,35 @@ class AiWorkers {
     _searches[key] = result;
     return result;
   }
+
+  /// Exercises to superset with [exercise]: [sameMuscle] works the same
+  /// muscle group, otherwise opposite muscles so one rests while the other
+  /// works. [exclude] are library IDs already in the workout.
+  Future<ExerciseSearchSuggestions> supersetPartners(String exercise,
+      {String? muscle,
+      String? equipment,
+      required bool sameMuscle,
+      List<String> exclude = const []}) async {
+    final key = [
+      'superset',
+      exercise.trim().toLowerCase(),
+      sameMuscle,
+      ...exclude
+    ].join('|');
+    final cached = _searches[key];
+    if (cached != null) return cached;
+    final result =
+        ExerciseSearchSuggestions.fromJson(await _run('supersetPartner', {
+      'exercise': exercise.trim(),
+      if (muscle != null && muscle.trim().isNotEmpty) 'muscle': muscle.trim(),
+      if (equipment != null && equipment.trim().isNotEmpty)
+        'equipment': equipment.trim(),
+      'mode': sameMuscle ? 'same' : 'alternate',
+      'exclude': exclude.take(40).toList(),
+    }));
+    _searches[key] = result;
+    return result;
+  }
 }
 
 /// AI couldn't answer; [message] is safe to show.

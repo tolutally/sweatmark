@@ -18,8 +18,24 @@ const _longExerciseName =
 
 class _NarrowWorkouts extends DesignWorkouts {
   bool collapsed;
-  _NarrowWorkouts({this.collapsed = false, bool longName = false})
+  _NarrowWorkouts(
+      {this.collapsed = false,
+      bool longName = false,
+      bool eachSide = false,
+      bool emptyReps = false})
       : super(active: true) {
+    if (emptyReps) {
+      for (final set in workout.exercises.single.sets) {
+        set.reps = null;
+        set.isCompleted = false;
+      }
+    }
+    if (eachSide) {
+      workout.exercises.single.eachSide = true;
+      workout.exercises.single.sets.first
+        ..weightRight = 15
+        ..repsRight = 7;
+    }
     if (longName) {
       final exercise = workout.exercises.single;
       workout.exercises[0] = WorkoutExerciseLog(
@@ -84,6 +100,12 @@ class _RestSettings extends DesignSettings {
     resting = false;
     notifyListeners();
   }
+}
+
+class _CountingRest extends DesignSettings {
+  int starts = 0;
+  @override
+  void startRestTimer({int? customDuration}) => starts++;
 }
 
 Future<void> _pumpWorkout(WidgetTester tester,
@@ -192,6 +214,67 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.testTextInput.isVisible, isFalse);
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('rest starts after every set, the last one too, in $mode',
+        (tester) async {
+      final settings = _CountingRest();
+      await _pumpWorkout(tester, dark: dark, settings: settings);
+      final complete = find.byWidgetPredicate(
+          (w) => w is IconButton && w.tooltip == 'Complete set');
+      final last = complete.last;
+      await tester.scrollUntilVisible(last, 200,
+          scrollable: find.byType(Scrollable).first);
+      await tester.tap(last);
+      await tester.pumpAndSettle();
+      expect(settings.starts, 1, reason: 'the last set gets a rest too');
+      await tester.tap(complete.first);
+      await tester.pumpAndSettle();
+      expect(settings.starts, 2);
+    });
+
+    testWidgets('two-sided exercises offer no each side in $mode',
+        (tester) async {
+      await _pumpWorkout(tester, dark: dark);
+      expect(find.text('Each side'), findsNothing);
+      expect(find.text('Whole set'), findsNothing);
+    });
+
+    testWidgets(
+        'each side has left and right weight and reps at 320px in $mode',
+        (tester) async {
+      final workouts = _NarrowWorkouts(eachSide: true);
+      await _pumpWorkout(tester, dark: dark, workouts: workouts);
+      expect(tester.takeException(), isNull);
+      expect(find.text('Each side'), findsOneWidget);
+      final sets = workouts.workout.exercises.single.sets.length;
+      expect(find.text('L'), findsNWidgets(sets));
+      expect(find.text('R'), findsNWidgets(sets));
+      expect(find.byKey(const ValueKey('right-weight')), findsNWidgets(sets));
+      expect(find.byKey(const ValueKey('right-reps')), findsNWidgets(sets));
+      // Set 1's right side was logged differently.
+      final first = tester
+          .widget<TextField>(find.byKey(const ValueKey('right-weight')).first);
+      expect(first.controller!.text, '15.0');
+    });
+
+    testWidgets('a set without reps opens reps instead of completing in $mode',
+        (tester) async {
+      final workouts = _NarrowWorkouts(emptyReps: true);
+      final settings = _CountingRest();
+      await _pumpWorkout(tester,
+          dark: dark, workouts: workouts, settings: settings);
+      expect(find.text('10'), findsNothing,
+          reason: 'empty boxes must not look like logged reps');
+      await tester.tap(find
+          .byWidgetPredicate(
+              (w) => w is IconButton && w.tooltip == 'Complete set')
+          .first);
+      await tester.pumpAndSettle();
+      expect(workouts.completions, 0);
+      expect(settings.starts, 0);
+      expect(tester.testTextInput.isVisible, isTrue,
+          reason: 'the reps box opens');
     });
 
     testWidgets('one tap anywhere in a set cell opens it in $mode',

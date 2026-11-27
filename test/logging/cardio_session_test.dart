@@ -35,8 +35,9 @@ Exercise cardio(String id, String name) => Exercise(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  Future<WorkoutNotifier> setUp(DateTime Function() clock) async {
-    final directory = await Directory.systemTemp.createTemp('cardio-');
+  Future<WorkoutNotifier> setUp(DateTime Function() clock,
+      {Directory? dir}) async {
+    final directory = dir ?? await Directory.systemTemp.createTemp('cardio-');
     final storage = StorageService(
         account:
             AccountStorage('test', documentsDirectory: () async => directory));
@@ -130,6 +131,66 @@ void main() {
     });
     expect(log.sets.single.isCompleted, isFalse,
         reason: 'nothing logged until there is a time or distance');
+    notifier.resetWorkout();
+    notifier.dispose();
+  });
+
+  test('a running stopwatch keeps counting after iOS closes the app',
+      () async {
+    var now = DateTime(2026, 11, 26, 7);
+    final dir = await Directory.systemTemp.createTemp('cardio-');
+    final first = await setUp(() => now, dir: dir);
+    first.startWorkout();
+    first.addExercise(cardio('sm:treadmill', 'Treadmill Run'));
+    first.startCardio('sm:treadmill');
+    now = now.add(const Duration(minutes: 20));
+    await first.saveDraftWorkout();
+
+    // A new app process reading the same draft.
+    final second = await setUp(() => now, dir: dir);
+    await second.loadDraftWorkout();
+    now = now.add(const Duration(minutes: 10));
+    expect(second.isCardioRunning('sm:treadmill'), isTrue);
+    expect(second.cardioSeconds('sm:treadmill'), 30 * 60);
+    second.stopCardio('sm:treadmill');
+    expect(second.currentWorkout!.exercises.single.sets.single.durationSeconds,
+        30 * 60);
+    second.resetWorkout();
+    second.dispose();
+    first.dispose();
+  });
+
+  test('stopping and starting never loses fractions of a second', () async {
+    var now = DateTime(2026, 11, 26, 7);
+    final notifier = await setUp(() => now);
+    notifier.startWorkout();
+    notifier.addExercise(cardio('sm:treadmill', 'Treadmill Run'));
+    for (var i = 0; i < 10; i++) {
+      notifier.startCardio('sm:treadmill');
+      now = now.add(const Duration(milliseconds: 1900));
+      notifier.stopCardio('sm:treadmill');
+    }
+    expect(notifier.cardioSeconds('sm:treadmill'), 19);
+    notifier.resetWorkout();
+    notifier.dispose();
+  });
+
+  test('speed follows the stopwatch when it stops', () async {
+    var now = DateTime(2026, 11, 26, 7);
+    final notifier = await setUp(() => now);
+    notifier.startWorkout();
+    notifier.addExercise(cardio('sm:treadmill', 'Treadmill Run'));
+    notifier.startCardio('sm:treadmill');
+    now = now.add(const Duration(minutes: 10));
+    // Distance typed mid-run, then the run carries on.
+    notifier.updateCardio('sm:treadmill', (set) {
+      set.distance = 3;
+      set.distanceUnit = 'mi';
+    });
+    now = now.add(const Duration(minutes: 20));
+    notifier.stopCardio('sm:treadmill');
+    final set = notifier.currentWorkout!.exercises.single.sets.single;
+    expect((set.durationSeconds, set.speed), (30 * 60, 6.0));
     notifier.resetWorkout();
     notifier.dispose();
   });
