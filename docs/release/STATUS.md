@@ -89,3 +89,11 @@ Personal testing internal group created with automatic distribution disabled; on
 - Apple processing completed. The owner answered export compliance (standard encryption).
 - Added to Personal testing (internal) and Family & Friends (external) with a "What to Test" note and submitted for TestFlight Beta App Review; approved at once. Status: Testing, expires in 90 days. No public App Store review.
 - Not yet checked on a real device: the logging reminder notification, the keyboard Done bar on the number pad, cardio stopwatch across app restarts, wrap image export.
+
+## November 27, 2026 — Each side, superset AI, light share card / 1.5.0 (15)
+
+- Contents: cardio stopwatch keeps accurate time; rest timer after every set, including the last; Each side for one-sided exercises (separate left and right weight and reps, volume and PRs count both sides, custom exercises can be marked each side); "—" placeholders and a reps check before completing a set; keyboard Done bar no longer covers fields; warm-ups only when marked; Start resumes a saved workout; light 9:16 share card with exercise list and set counts; "End your workout?" notification after an hour paused; superset sheet with library, exercises in this workout and AI partners (opposite or same muscles); each exercise added to a workout once.
+- 267 Flutter tests and 23 Functions tests passed. Analyzer: no errors or warnings.
+- Deployed before this build: `runAiWorker` with the new `supersetPartner` worker.
+- Signed archive build/ios/archive/SweatMark-15.xcarchive verified as 1.5.0 (15). Xcode 27.1 needed its system components installed and the Apple account signed in again; after that the command-line upload (`xcodebuild -exportArchive`, destination upload) worked, so Organizer was not needed. Warnings only: missing dSYMs for some frameworks. Next: Apple processing, export compliance, then add to Personal testing and Family & Friends.
+- Not yet checked on a real device: each-side inputs on small screens, the end-workout notification, share image export.
